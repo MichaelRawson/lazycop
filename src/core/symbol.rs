@@ -11,7 +11,7 @@ pub struct Symbols {
 
 impl Symbols {
     pub fn add(&mut self, name: String, arity: u32) -> Id<Symbol> {
-        let id = Id::new(self.arities.len());
+        let id = self.arities.len().into();
         self.arities.push(arity);
         self.names.push(name);
         id
@@ -30,7 +30,7 @@ impl Default for Symbols {
     fn default() -> Self {
         let arities = vec![];
         let names = vec![];
-        let equality = Id::new(0);
+        let equality = 0.into();
         let mut symbols = Self { arities, names, equality };
         symbols.add("=".into(), 2);
         symbols
