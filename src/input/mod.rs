@@ -1,5 +1,5 @@
-use crate::output::szs;
 use crate::output::exit;
+use crate::output::szs;
 use std::io::Read;
 
 pub fn read_stdin() -> Box<[u8]> {
