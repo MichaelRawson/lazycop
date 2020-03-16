@@ -1,9 +1,11 @@
 [package]
-name = "fatcop"
+name = "lazycop"
 version = "0.1.0"
 authors = ["Michael Rawson <michael@rawsons.uk>"]
 edition = "2018"
 
 [dependencies]
+bitflags = "1.2"
 log = "0.4"
-env_logger = "0.7"
+simple-logging = "2.0"
+tptp = "0.14"

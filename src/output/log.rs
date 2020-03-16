@@ -1,3 +1,5 @@
+use log::LevelFilter;
+
 pub fn start_logging() {
-    env_logger::init();
+    simple_logging::log_to_stderr(LevelFilter::Info);
 }

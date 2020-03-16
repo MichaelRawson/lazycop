@@ -1,9 +1,10 @@
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::{Add, Sub};
 
 pub struct Offset<T> {
     offset: i32,
-    _phantom: PhantomData<T>
+    _phantom: PhantomData<T>,
 }
 
 impl<T> Offset<T> {
@@ -75,9 +76,15 @@ impl<T> From<usize> for Id<T> {
     }
 }
 
+impl<T> Hash for Id<T> {
+    fn hash<H: Hasher>(&self, hash: &mut H) {
+        self.id.hash(hash);
+    }
+}
+
 pub struct IdRange<T> {
     start: Id<T>,
-    stop: Id<T>
+    stop: Id<T>,
 }
 
 impl<T> IdRange<T> {

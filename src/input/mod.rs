@@ -1,3 +1,5 @@
+pub mod tptp;
+
 use crate::output::exit;
 use crate::output::szs;
 use std::io::Read;

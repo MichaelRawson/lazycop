@@ -5,28 +5,38 @@ pub struct Term;
 #[derive(Clone, Copy)]
 pub enum TermView {
     Variable,
-    Function(Id<Symbol>, IdRange<Term>)
+    Function(Id<Symbol>, IdRange<Term>),
+}
+
+bitflags! {
+    struct TermFlags: u8 {
+        const REFERENCE = 0b1;
+    }
 }
 
 #[derive(Clone, Copy)]
 enum Flavour {
     Reference,
-    Symbol
+    Symbol,
 }
 
 #[repr(C)]
 union Item {
     offset: Offset<Term>,
-    symbol: Id<Symbol>
+    symbol: Id<Symbol>,
 }
 
 #[derive(Default)]
 pub struct TermList {
-    flavours: Vec<Flavour>,
-    items: Vec<Item>
+    flags: Vec<TermFlags>,
+    items: Vec<Item>,
 }
 
 impl TermList {
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
     pub fn add_variable(&mut self) -> Id<Term> {
         let id = self.items.len().into();
         self.add_reference(id)
@@ -36,7 +46,8 @@ impl TermList {
         let id = self.items.len().into();
         let offset = referred - id;
         let item = Item { offset };
-        self.flavours.push(Flavour::Reference);
+        let flags = TermFlags::REFERENCE;
+        self.flags.push(flags);
         self.items.push(item);
         id
     }
@@ -44,17 +55,18 @@ impl TermList {
     pub fn add_symbol(&mut self, symbol: Id<Symbol>) -> Id<Term> {
         let id = self.items.len().into();
         let item = Item { symbol };
-        self.flavours.push(Flavour::Symbol);
+        let flags = TermFlags::empty();
+        self.flags.push(flags);
         self.items.push(item);
         id
     }
 
-    pub fn view(&self, symbols: &Symbols, mut id: Id<Term>) -> TermView {
-        while let Flavour::Reference = self.flavours[id.index()] {
+    pub fn view(&self, symbols: &SymbolList, mut id: Id<Term>) -> TermView {
+        while self.flags[id.index()].contains(TermFlags::REFERENCE) {
             let offset = unsafe { self.items[id.index()].offset };
             let new_id = id + offset;
             if new_id == id {
-                return TermView::Variable
+                return TermView::Variable;
             }
             id = new_id;
         }
