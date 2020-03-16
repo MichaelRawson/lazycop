@@ -4,6 +4,7 @@ extern crate bitflags;
 extern crate log;
 
 mod core;
+mod index;
 mod input;
 mod output;
 mod prelude;

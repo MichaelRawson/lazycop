@@ -61,7 +61,11 @@ impl TermList {
         id
     }
 
-    pub fn view(&self, symbols: &SymbolList, mut id: Id<Term>) -> TermView {
+    pub fn view(
+        &self,
+        symbol_list: &SymbolList,
+        mut id: Id<Term>,
+    ) -> TermView {
         while self.flags[id.index()].contains(TermFlags::REFERENCE) {
             let offset = unsafe { self.items[id.index()].offset };
             let new_id = id + offset;
@@ -72,7 +76,7 @@ impl TermList {
         }
 
         let symbol = unsafe { self.items[id.index()].symbol };
-        let arity = symbols.arity(symbol);
+        let arity = symbol_list.arity(symbol);
         let args = IdRange::after(id, arity);
         TermView::Function(symbol, args)
     }

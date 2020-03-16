@@ -1,3 +1,4 @@
+use crate::index::PredicateIndex;
 use crate::output::exit;
 use crate::output::szs;
 use crate::prelude::*;
@@ -20,11 +21,12 @@ struct Builder {
     clause_functions: HashMap<FunctionKey, Id<Term>>,
     clause_literals: Vec<Literal>,
     clauses: Vec<(Clause, TermList)>,
+    predicate_index: PredicateIndex,
 }
 
 impl Builder {
     fn finish(self) -> Problem {
-        Problem::new(self.symbol_list, self.clauses)
+        Problem::new(self.symbol_list, self.clauses, self.predicate_index)
     }
 }
 
@@ -74,7 +76,9 @@ impl Visitor for Builder {
     }
 
     fn visit_literal(&mut self, literal: syntax::Literal) {
-        let (atom, polarity) = match literal {
+        let clause_index = self.clauses.len().into();
+        let literal_index = self.clause_literals.len().into();
+        let (polarity, atom) = match literal {
             syntax::Literal::Atomic(syntax::FofAtomicFormula::Plain(p)) => {
                 self.visit_fof_plain_atomic_formula(p);
                 let term = self.saved_terms.pop().unwrap();
@@ -116,7 +120,15 @@ impl Visitor for Builder {
             }
             _ => unimplemented!(),
         };
-        self.clause_literals.push(Literal::new(atom, polarity));
+        match atom {
+            Atom::Predicate(term) => {
+                self.predicate_index[polarity as usize]
+                    .make_entry(&self.symbol_list, &self.term_list, term)
+                    .push((clause_index, literal_index));
+            },
+            Atom::Equality(_, _) => {}
+        }
+        self.clause_literals.push(Literal::new(polarity, atom));
     }
 
     fn visit_disjunction(&mut self, disjunction: syntax::Disjunction) {

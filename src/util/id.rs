@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::{Add, Sub};
@@ -70,6 +71,18 @@ impl<T> PartialEq for Id<T> {
 
 impl<T> Eq for Id<T> {}
 
+impl<T> PartialOrd for Id<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.id.partial_cmp(&other.id)
+    }
+}
+
+impl<T> Ord for Id<T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
 impl<T> From<usize> for Id<T> {
     fn from(x: usize) -> Self {
         Self::new(x as u32)
@@ -88,8 +101,8 @@ pub struct IdRange<T> {
 }
 
 impl<T> IdRange<T> {
-    pub fn after(start: Id<T>, len: u32) -> Self {
-        let start = Id::new(start.id + 1);
+    pub fn after(from: Id<T>, len: u32) -> Self {
+        let start = Id::new(from.id + 1);
         let stop = Id::new(start.id + len);
         Self { start, stop }
     }
@@ -104,3 +117,17 @@ impl<T> Clone for IdRange<T> {
 }
 
 impl<T> Copy for IdRange<T> {}
+
+impl<T> Iterator for IdRange<T> {
+    type Item = Id<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start == self.stop {
+            return None;
+        }
+
+        let result = Some(self.start);
+        self.start.id += 1;
+        result
+    }
+}
