@@ -9,3 +9,7 @@ pub fn input_error() {
 pub fn inappropriate() {
     println!("% SZS status Inappropriate");
 }
+
+pub fn incomplete() {
+    println!("% SZS status Incomplete");
+}

@@ -8,15 +8,18 @@ mod index;
 mod input;
 mod output;
 mod prelude;
+mod search;
 mod util;
 
 fn main() {
     output::log::start_logging();
     let bytes = input::read_stdin();
-    input::tptp::parse(&bytes);
-
-    let mut rules = util::rule_store::RuleStore::default();
-    let mut tableau = core::tableau::Tableau::default();
-    info!("lazyCoP OK, proving...");
-    tableau.clear();
+    let problem = input::tptp::parse(&bytes);
+    if let Some(_proof) = search::Search::new(&problem).search() {
+        println!("proved it");
+    }
+    else {
+        output::szs::incomplete();
+        output::exit::failure()
+    }
 }

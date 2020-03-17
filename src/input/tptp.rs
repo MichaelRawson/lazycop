@@ -1,4 +1,4 @@
-use crate::index::PredicateIndex;
+use crate::index::Index;
 use crate::output::exit;
 use crate::output::szs;
 use crate::prelude::*;
@@ -22,12 +22,17 @@ struct Builder {
     clause_literals: Vec<Literal>,
     clauses: Vec<(Clause, TermList)>,
     start_clauses: Vec<Id<Clause>>,
-    predicate_index: PredicateIndex,
+    index: Index,
 }
 
 impl Builder {
     fn finish(self) -> Problem {
-        Problem::new(self.symbol_list, self.clauses, self.start_clauses, self.predicate_index)
+        Problem::new(
+            self.symbol_list,
+            self.clauses,
+            self.start_clauses,
+            self.index,
+        )
     }
 }
 
@@ -77,8 +82,8 @@ impl Visitor for Builder {
     }
 
     fn visit_literal(&mut self, literal: syntax::Literal) {
-        let clause_index = self.clauses.len().into();
-        let literal_index = self.clause_literals.len().into();
+        let clause_id = self.clauses.len().into();
+        let literal_id = self.clause_literals.len().into();
         let (polarity, atom) = match literal {
             syntax::Literal::Atomic(syntax::FofAtomicFormula::Plain(p)) => {
                 self.visit_fof_plain_atomic_formula(p);
@@ -123,14 +128,14 @@ impl Visitor for Builder {
         };
 
         if let Atom::Predicate(term) = atom {
-            let top_symbol = match self.term_list.view(&self.symbol_list, term)
-            {
-                TermView::Function(f, _) => f,
-                TermView::Variable => unreachable!(),
-            };
-            self.predicate_index[polarity as usize]
-                .make_entry(top_symbol)
-                .push((clause_index, literal_index));
+            self.index.add_predicate(
+                &self.symbol_list,
+                &self.term_list,
+                polarity,
+                term,
+                clause_id,
+                literal_id,
+            );
         }
         self.clause_literals.push(Literal::new(polarity, atom));
     }

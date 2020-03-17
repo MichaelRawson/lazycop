@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 #[derive(Default)]
 pub struct RuleStore {
-    rules: Vec<(Id<Rule>, Rule)>
+    rules: Vec<(Id<Rule>, Rule)>,
 }
 
 impl RuleStore {
