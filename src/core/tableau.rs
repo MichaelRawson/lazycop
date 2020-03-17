@@ -1,4 +1,4 @@
-use crate::output::proof::Record;
+use crate::output::record::Record;
 use crate::prelude::*;
 
 #[derive(Default)]
@@ -9,26 +9,49 @@ pub struct Tableau {
 
 impl Tableau {
     pub fn is_closed(&self) -> bool {
-        self.subgoals.is_empty()
+        true
+        //self.subgoals.is_empty()
     }
 
     pub fn num_subgoals(&self) -> u32 {
         self.subgoals.len() as u32
     }
 
+    pub fn clear(&mut self) {
+        self.term_list.clear();
+        self.subgoals.clear();
+    }
+
     pub fn reconstruct<R: Record>(
         &mut self,
-        _record: &mut R,
-        _problem: &Problem,
-        _script: &[Rule],
+        record: &mut R,
+        problem: &Problem,
+        script: &[Rule],
     ) {
+        for rule in script {
+            match rule {
+                Rule::Start(clause_id) => {
+                    self.start(record, problem, *clause_id);
+                }
+            }
+        }
     }
 
     pub fn possible_rules(&self) -> Vec<Rule> {
         vec![]
     }
 
-    pub fn clear(&mut self) {
-        self.subgoals.clear();
+    fn start<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+        clause_id: Id<Clause>,
+    ) {
+        assert!(self.subgoals.is_empty());
+        assert!(self.term_list.is_empty());
+        let (clause, clause_term_list) = problem.get_clause(clause_id);
+        self.term_list.copy_from(clause_term_list);
+        record.start(&problem.symbol_list, &self.term_list, &clause);
+        self.subgoals.push(Subgoal::start(clause));
     }
 }

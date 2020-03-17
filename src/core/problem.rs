@@ -26,4 +26,9 @@ impl Problem {
     pub fn start_rules(&self) -> impl Iterator<Item = Rule> + '_ {
         self.start_clauses.iter().copied().map(Rule::Start)
     }
+
+    pub fn get_clause(&self, id: Id<Clause>) -> (Clause, &TermList) {
+        let (clause, term_list) = &self.clauses[id.index()];
+        (clause.clone(), &term_list)
+    }
 }

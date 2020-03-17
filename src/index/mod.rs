@@ -21,7 +21,7 @@ impl Index {
     ) {
         let top_symbol = match term_list.view(symbol_list, term) {
             TermView::Function(f, _) => f,
-            TermView::Variable => unreachable!(),
+            _ => unreachable!(),
         };
         self.predicates[polarity as usize]
             .make_entry(top_symbol)

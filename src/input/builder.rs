@@ -67,13 +67,7 @@ impl Visitor for Builder {
         let args = saved_terms.split_off(saved_terms.len() - arity);
         let id = *clause_functions
             .entry((symbol_id, args.clone()))
-            .or_insert_with(|| {
-                let function_id = term_list.add_symbol(symbol_id);
-                for arg in args {
-                    term_list.add_reference(arg);
-                }
-                function_id
-            });
+            .or_insert_with(|| term_list.add_function(symbol_id, &args));
         saved_terms.push(id);
     }
 

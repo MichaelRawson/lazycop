@@ -11,7 +11,7 @@ fn main() {
     if let Some(proof) = search::Search::new(&problem).search() {
         output::szs::unsatisfiable();
         output::szs::begin_refutation();
-        let mut record = output::proof::Proof;
+        let mut record = output::record::PrintProof::default();
         let mut tableau = core::tableau::Tableau::default();
         tableau.reconstruct(&mut record, &problem, &proof);
         output::szs::end_refutation();

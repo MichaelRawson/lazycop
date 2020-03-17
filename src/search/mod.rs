@@ -2,7 +2,7 @@ mod queue;
 mod rule_store;
 
 use crate::core::tableau::Tableau;
-use crate::output::proof::NoProof;
+use crate::output::record::Silent;
 use crate::prelude::*;
 use queue::Queue;
 use rule_store::RuleStore;
@@ -33,7 +33,7 @@ impl<'problem> Search<'problem> {
     }
 
     pub fn search(&mut self) -> Option<Vec<Rule>> {
-        let mut record = NoProof;
+        let mut record = Silent;
         while let Some(rule_id) = self.queue.deque() {
             let script = self.rule_store.get_script(rule_id);
             self.tableau.reconstruct(&mut record, self.problem, &script);
