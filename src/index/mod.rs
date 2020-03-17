@@ -27,4 +27,24 @@ impl Index {
             .make_entry(top_symbol)
             .push((clause_id, literal_id));
     }
+
+    pub fn query_predicate(
+        &self,
+        symbol_list: &SymbolList,
+        term_list: &TermList,
+        polarity: bool,
+        term: Id<Term>,
+    ) -> impl Iterator<Item = (Id<Clause>, Id<Literal>)> + '_ {
+        let top_symbol = match term_list.view(symbol_list, term) {
+            TermView::Function(f, _) => f,
+            _ => unreachable!(),
+        };
+
+        self.predicates[polarity as usize]
+            .query(top_symbol)
+            .map(|results| &results[..])
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
 }

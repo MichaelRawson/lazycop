@@ -19,4 +19,12 @@ impl Clause {
             literal.offset(offset);
         }
     }
+
+    pub fn remove_literal(&mut self, literal_id: Id<Literal>) -> Literal {
+        self.literals.remove(literal_id.index())
+    }
+
+    pub fn pop_literal(&mut self) -> Literal {
+        self.literals.pop().unwrap()
+    }
 }

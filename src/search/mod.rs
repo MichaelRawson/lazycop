@@ -42,7 +42,7 @@ impl<'problem> Search<'problem> {
             }
 
             let priority = self.tableau.num_subgoals();
-            for possible in self.tableau.possible_rules() {
+            for possible in self.tableau.possible_rules(self.problem) {
                 let possible_id = self.rule_store.add_rule(rule_id, possible);
                 self.queue.enqueue(possible_id, priority);
             }
