@@ -1,3 +1,4 @@
+use crate::output::proof::Record;
 use crate::prelude::*;
 
 #[derive(Default)]
@@ -7,14 +8,19 @@ pub struct Tableau {
 
 impl Tableau {
     pub fn is_closed(&self) -> bool {
-        false
+        self.subgoals.is_empty()
     }
 
     pub fn num_subgoals(&self) -> u32 {
         self.subgoals.len() as u32
     }
 
-    pub fn reconstruct(&mut self, _script: &[Rule]) {
+    pub fn reconstruct<R: Record>(
+        &mut self,
+        _record: &mut R,
+        _problem: &Problem,
+        _script: &[Rule],
+    ) {
     }
 
     pub fn possible_rules(&self) -> Vec<Rule> {

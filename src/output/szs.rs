@@ -13,3 +13,15 @@ pub fn inappropriate() {
 pub fn incomplete() {
     println!("% SZS status Incomplete");
 }
+
+pub fn unsatisfiable() {
+    println!("% SZS status Unsatisfiable");
+}
+
+pub fn begin_refutation() {
+    println!("% SZS begin CNFRefutation");
+}
+
+pub fn end_refutation() {
+    println!("% SZS end CNFRefutation");
+}

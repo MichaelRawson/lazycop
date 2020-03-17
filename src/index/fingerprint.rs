@@ -113,7 +113,7 @@ impl<T> Index<T> {
         symbol_list: &SymbolList,
         term_list: &TermList,
         term: Id<Term>,
-    ) -> Vec<&T> {
+    ) -> impl Iterator<Item = &T> + '_ {
         let fingerprint = fp4m(symbol_list, term_list, term);
 
         let mut current_nodes = vec![0.into()];
@@ -127,9 +127,8 @@ impl<T> Index<T> {
         }
 
         current_nodes
-            .iter()
-            .filter_map(|node| self.stored.get(node))
-            .collect()
+            .into_iter()
+            .filter_map(move |node| self.stored.get(&node))
     }
 
     fn collect_unifiable_nodes(

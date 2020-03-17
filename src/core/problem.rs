@@ -23,7 +23,7 @@ impl Problem {
         }
     }
 
-    pub fn start_rules(&self) -> impl Iterator<Item=Rule> + '_ {
+    pub fn start_rules(&self) -> impl Iterator<Item = Rule> + '_ {
         self.start_clauses.iter().copied().map(Rule::Start)
     }
 }

@@ -5,12 +5,12 @@ use std::collections::BinaryHeap;
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Item {
     priority: u32,
-    rule: Id<Rule>
+    rule: Id<Rule>,
 }
 
 #[derive(Default)]
 pub struct Queue {
-    heap: BinaryHeap<Reverse<Item>>
+    heap: BinaryHeap<Reverse<Item>>,
 }
 
 impl Queue {
