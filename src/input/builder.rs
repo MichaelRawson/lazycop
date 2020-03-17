@@ -1,11 +1,7 @@
 use crate::index::Index;
-use crate::output::exit;
-use crate::output::szs;
 use crate::prelude::*;
 use std::collections::HashMap;
-use std::fmt;
 use std::mem;
-use tptp::parsers;
 use tptp::syntax;
 use tptp::syntax::Visitor;
 
@@ -26,7 +22,7 @@ pub struct Builder {
 }
 
 impl Builder {
-    fn finish(self) -> Problem {
+    pub fn finish(self) -> Problem {
         Problem::new(
             self.symbol_list,
             self.clauses,

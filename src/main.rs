@@ -7,8 +7,7 @@ mod search;
 mod util;
 
 fn main() {
-    let bytes = input::read_stdin();
-    let problem = input::tptp::parse(&bytes);
+    let problem = input::load_problem();
     if let Some(proof) = search::Search::new(&problem).search() {
         output::szs::unsatisfiable();
         output::szs::begin_refutation();

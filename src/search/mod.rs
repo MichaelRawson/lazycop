@@ -1,5 +1,5 @@
-pub mod queue;
-pub mod rule_store;
+mod queue;
+mod rule_store;
 
 use crate::core::tableau::Tableau;
 use crate::output::proof::NoProof;

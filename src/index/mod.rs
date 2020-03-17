@@ -1,5 +1,5 @@
-//pub mod fingerprint;
-pub mod top_symbol;
+//mod fingerprint;
+mod top_symbol;
 use crate::prelude::*;
 
 type PredicateIndex = top_symbol::Index<Vec<(Id<Clause>, Id<Literal>)>>;
