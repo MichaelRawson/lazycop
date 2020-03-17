@@ -21,12 +21,13 @@ struct Builder {
     clause_functions: HashMap<FunctionKey, Id<Term>>,
     clause_literals: Vec<Literal>,
     clauses: Vec<(Clause, TermList)>,
+    start_clauses: Vec<Id<Clause>>,
     predicate_index: PredicateIndex,
 }
 
 impl Builder {
     fn finish(self) -> Problem {
-        Problem::new(self.symbol_list, self.clauses, self.predicate_index)
+        Problem::new(self.symbol_list, self.clauses, self.start_clauses, self.predicate_index)
     }
 }
 
@@ -120,13 +121,16 @@ impl Visitor for Builder {
             }
             _ => unimplemented!(),
         };
-        match atom {
-            Atom::Predicate(term) => {
-                self.predicate_index[polarity as usize]
-                    .make_entry(&self.symbol_list, &self.term_list, term)
-                    .push((clause_index, literal_index));
-            },
-            Atom::Equality(_, _) => {}
+
+        if let Atom::Predicate(term) = atom {
+            let top_symbol = match self.term_list.view(&self.symbol_list, term)
+            {
+                TermView::Function(f, _) => f,
+                TermView::Variable => unreachable!(),
+            };
+            self.predicate_index[polarity as usize]
+                .make_entry(top_symbol)
+                .push((clause_index, literal_index));
         }
         self.clause_literals.push(Literal::new(polarity, atom));
     }
@@ -148,6 +152,14 @@ impl Visitor for Builder {
         self.clause_functions.clear();
         let literals = mem::take(&mut self.clause_literals);
         self.clauses.push((Clause::new(literals), term_list));
+    }
+
+    fn visit_cnf_annotated(&mut self, annotated: syntax::CnfAnnotated) {
+        if let syntax::FormulaRole::NegatedConjecture = annotated.role {
+            let id = self.clauses.len().into();
+            self.start_clauses.push(id);
+        }
+        self.visit_cnf_formula(annotated.formula);
     }
 }
 

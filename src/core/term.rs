@@ -14,12 +14,6 @@ bitflags! {
     }
 }
 
-#[derive(Clone, Copy)]
-enum Flavour {
-    Reference,
-    Symbol,
-}
-
 #[repr(C)]
 union Item {
     offset: Offset<Term>,
