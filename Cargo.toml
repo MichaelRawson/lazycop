@@ -7,5 +7,4 @@ edition = "2018"
 [dependencies]
 bitflags = "1.2"
 log = "0.4"
-simple-logging = "2.0"
 tptp = "0.14"

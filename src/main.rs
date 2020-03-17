@@ -15,5 +15,5 @@ fn main() {
     output::log::start_logging();
     let bytes = input::read_stdin();
     input::tptp::parse(&bytes);
-    info!("OK, start proving...");
+    info!("lazyCoP OK, proving...");
 }
