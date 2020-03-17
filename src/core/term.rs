@@ -8,21 +8,13 @@ pub enum TermView {
     Function(Id<Symbol>, IdRange<Term>),
 }
 
-bitflags! {
-    struct TermFlags: u8 {
-        const REFERENCE = 0b1;
-    }
-}
-
-#[repr(C)]
-union Item {
-    offset: Offset<Term>,
-    symbol: Id<Symbol>,
+enum Item {
+    Symbol(Id<Symbol>),
+    Reference(Offset<Term>),
 }
 
 #[derive(Default)]
 pub struct TermList {
-    flags: Vec<TermFlags>,
     items: Vec<Item>,
 }
 
@@ -39,39 +31,33 @@ impl TermList {
     pub fn add_reference(&mut self, referred: Id<Term>) -> Id<Term> {
         let id = self.items.len().into();
         let offset = referred - id;
-        let item = Item { offset };
-        let flags = TermFlags::REFERENCE;
-        self.flags.push(flags);
-        self.items.push(item);
+        self.items.push(Item::Reference(offset));
         id
     }
 
     pub fn add_symbol(&mut self, symbol: Id<Symbol>) -> Id<Term> {
         let id = self.items.len().into();
-        let item = Item { symbol };
-        let flags = TermFlags::empty();
-        self.flags.push(flags);
-        self.items.push(item);
+        self.items.push(Item::Symbol(symbol));
         id
     }
 
-    pub fn view(
-        &self,
-        symbol_list: &SymbolList,
-        mut id: Id<Term>,
-    ) -> TermView {
-        while self.flags[id.index()].contains(TermFlags::REFERENCE) {
-            let offset = unsafe { self.items[id.index()].offset };
-            let new_id = id + offset;
-            if new_id == id {
-                return TermView::Variable;
+    pub fn view(&self, symbol_list: &SymbolList, id: Id<Term>) -> TermView {
+        let mut current = id;
+        loop {
+            match self.items[current.index()] {
+                Item::Symbol(symbol) => {
+                    let arity = symbol_list.arity(symbol);
+                    let args = IdRange::after(id, arity);
+                    return TermView::Function(symbol, args);
+                }
+                Item::Reference(offset) => {
+                    let new = current + offset;
+                    if current == new {
+                        return TermView::Variable;
+                    }
+                    current = new;
+                }
             }
-            id = new_id;
         }
-
-        let symbol = unsafe { self.items[id.index()].symbol };
-        let arity = symbol_list.arity(symbol);
-        let args = IdRange::after(id, arity);
-        TermView::Function(symbol, args)
     }
 }

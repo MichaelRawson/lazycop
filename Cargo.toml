@@ -5,6 +5,4 @@ authors = ["Michael Rawson <michael@rawsons.uk>"]
 edition = "2018"
 
 [dependencies]
-bitflags = "1.2"
-log = "0.4"
 tptp = "0.14"

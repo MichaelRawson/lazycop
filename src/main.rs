@@ -1,8 +1,3 @@
-#[macro_use]
-extern crate bitflags;
-#[macro_use]
-extern crate log;
-
 mod core;
 mod index;
 mod input;
@@ -12,7 +7,6 @@ mod search;
 mod util;
 
 fn main() {
-    output::log::start_logging();
     let bytes = input::read_stdin();
     let problem = input::tptp::parse(&bytes);
     if let Some(proof) = search::Search::new(&problem).search() {

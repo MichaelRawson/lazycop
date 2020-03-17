@@ -1,4 +1,4 @@
-pub mod fingerprint;
+//pub mod fingerprint;
 pub mod top_symbol;
 use crate::prelude::*;
 

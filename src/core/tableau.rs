@@ -3,6 +3,7 @@ use crate::prelude::*;
 
 #[derive(Default)]
 pub struct Tableau {
+    term_list: TermList,
     subgoals: Vec<Subgoal>,
 }
 

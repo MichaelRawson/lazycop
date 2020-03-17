@@ -169,7 +169,7 @@ impl Visitor for Builder {
 }
 
 fn report_inappropriate<T: fmt::Display>(t: T) -> ! {
-    error!("non-CNF input:\n{}", t);
+    println!("% non-CNF input:\n{}", t);
     szs::inappropriate();
     exit::failure()
 }
@@ -195,7 +195,7 @@ pub fn parse(bytes: &[u8]) -> Problem {
             return builder.finish();
         }
     }
-    error!("unsupported syntax in input");
+    println!("% unsupported syntax in input");
     szs::input_error();
     exit::failure()
 }

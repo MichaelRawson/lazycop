@@ -9,7 +9,7 @@ pub fn read_stdin() -> Box<[u8]> {
     std::io::stdin()
         .read_to_end(&mut buffer)
         .unwrap_or_else(|err| {
-            error!("failed to read from stdin: {}", err);
+            println!("% failed to read from stdin: {}", err);
             szs::os_error();
             exit::failure()
         });
