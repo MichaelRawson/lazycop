@@ -105,7 +105,11 @@ impl fmt::Display for PrintClause<'_, '_, '_> {
             write!(f, "$false")?;
         }
         for literal in literals {
-            write!(f, "| {}", PrintLiteral(symbol_list, term_list, *literal))?;
+            write!(
+                f,
+                " | {}",
+                PrintLiteral(symbol_list, term_list, *literal)
+            )?;
         }
         Ok(())
     }

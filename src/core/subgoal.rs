@@ -1,8 +1,8 @@
 use crate::prelude::*;
 
 pub struct Subgoal {
-    path: Vec<Literal>,
-    clause: Clause,
+    pub path: Vec<Literal>,
+    pub clause: Clause,
 }
 
 impl Subgoal {
@@ -16,15 +16,23 @@ impl Subgoal {
         Self { path, clause }
     }
 
+    pub fn push_path(&mut self, literal: Literal) {
+        self.path.push(literal);
+    }
+
+    pub fn extend_clause<T: Iterator<Item = Literal>>(&mut self, t: T) {
+        self.clause.extend(t)
+    }
+
     pub fn is_done(&self) -> bool {
         self.clause.is_empty()
     }
 
     pub fn current_literal(&self) -> Option<&Literal> {
-        self.clause.literals.last()
+        self.clause.last_literal()
     }
 
-    pub fn pop_literal(&mut self) -> Literal {
+    pub fn pop_literal(&mut self) -> Option<Literal> {
         self.clause.pop_literal()
     }
 }

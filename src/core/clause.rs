@@ -10,6 +10,10 @@ impl Clause {
         Self { literals }
     }
 
+    pub fn extend<T: Iterator<Item = Literal>>(&mut self, t: T) {
+        self.literals.extend(t);
+    }
+
     pub fn is_empty(&self) -> bool {
         self.literals.is_empty()
     }
@@ -20,11 +24,15 @@ impl Clause {
         }
     }
 
-    pub fn remove_literal(&mut self, literal_id: Id<Literal>) -> Literal {
-        self.literals.remove(literal_id.index())
+    pub fn last_literal(&self) -> Option<&Literal> {
+        self.literals.last()
     }
 
-    pub fn pop_literal(&mut self) -> Literal {
-        self.literals.pop().unwrap()
+    pub fn pop_literal(&mut self) -> Option<Literal> {
+        self.literals.pop()
+    }
+
+    pub fn remove_literal(&mut self, literal_id: Id<Literal>) -> Literal {
+        self.literals.remove(literal_id.index())
     }
 }

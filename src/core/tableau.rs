@@ -49,19 +49,12 @@ impl Tableau {
         let literal = *subgoal.current_literal().unwrap();
 
         match literal.atom {
-            Atom::Predicate(p) => {
-                possible.extend(
-                    problem
-                        .index
-                        .query_predicate(
-                            &problem.symbol_list,
-                            &self.term_list,
-                            !literal.polarity,
-                            p,
-                        )
-                        .map(|(clause, literal)| {
-                            Rule::ExtendPredicate(clause, literal)
-                        }),
+            Atom::Predicate(predicate) => {
+                self.possible_extend_predicate(
+                    &mut possible,
+                    problem,
+                    literal.polarity,
+                    predicate,
                 );
             }
             Atom::Equality(_left, _right) => {}
@@ -70,18 +63,40 @@ impl Tableau {
         possible
     }
 
+    fn possible_extend_predicate(
+        &self,
+        possible: &mut Vec<Rule>,
+        problem: &Problem,
+        polarity: bool,
+        predicate: Id<Term>,
+    ) {
+        possible.extend(
+            problem
+                .index
+                .query_predicate(
+                    &problem.symbol_list,
+                    &self.term_list,
+                    !polarity,
+                    predicate,
+                )
+                .map(|(clause, literal)| {
+                    Rule::ExtendPredicate(clause, literal)
+                }),
+        );
+    }
+
     fn start<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
         clause_id: Id<Clause>,
     ) {
+        record.start_inference("start");
         assert!(self.subgoals.is_empty());
         assert!(self.term_list.is_empty());
-        let (clause, clause_term_list) = problem.get_clause(clause_id);
-        self.term_list.copy_from(clause_term_list);
-        record.start(&problem.symbol_list, &self.term_list, &clause);
+        let clause = self.copy_clause(record, problem, clause_id);
         self.subgoals.push(Subgoal::start(clause));
+        record.end_inference();
     }
 
     fn extend_predicate<R: Record>(
@@ -91,20 +106,22 @@ impl Tableau {
         clause_id: Id<Clause>,
         literal_id: Id<Literal>,
     ) {
+        record.start_inference("extend_predicate");
         assert!(!self.subgoals.is_empty());
         assert!(!self.term_list.is_empty());
-        let mut extension = self.copy_clause(problem, clause_id);
-        let subgoal = self.subgoals.last_mut().unwrap();
-        let literal = subgoal.pop_literal();
-        let matching = extension.remove_literal(literal_id);
+        let mut subgoal = self.subgoals.pop().unwrap();
+        record.premise(&problem.symbol_list, &self.term_list, &subgoal.clause);
+        let mut extension_clause =
+            self.copy_clause(record, problem, clause_id);
 
-        let extension = Subgoal::with_path(subgoal, extension);
-        if subgoal.is_done() {
-            self.subgoals.pop();
-        }
-
+        assert!(!subgoal.is_done());
+        let literal = subgoal.pop_literal().unwrap();
+        let matching = extension_clause.remove_literal(literal_id);
+        let mut new_goal = Subgoal::with_path(&subgoal, extension_clause);
+        new_goal.push_path(literal);
         assert_ne!(literal.polarity, matching.polarity);
-        let eq_goal = match (literal.atom, matching.atom) {
+
+        match (literal.atom, matching.atom) {
             (Atom::Predicate(p), Atom::Predicate(q)) => {
                 let p = self.term_list.view(&problem.symbol_list, p);
                 let q = self.term_list.view(&problem.symbol_list, q);
@@ -118,10 +135,8 @@ impl Tableau {
                         let eqs = pargs
                             .zip(qargs)
                             .map(|(t, s)| Atom::Equality(t, s))
-                            .map(|eq| Literal::new(false, eq))
-                            .collect();
-                        let clause = Clause::new(eqs);
-                        Subgoal::with_path(&extension, clause)
+                            .map(|eq| Literal::new(false, eq));
+                        subgoal.extend_clause(eqs);
                     }
                     _ => unreachable!(),
                 }
@@ -129,16 +144,33 @@ impl Tableau {
             _ => unreachable!(),
         };
 
-        if !extension.is_done() {
-            self.subgoals.push(extension);
+        record.conclusion(
+            "extend_predicate",
+            &[-2, -1],
+            &problem.symbol_list,
+            &self.term_list,
+            &new_goal.clause,
+        );
+        record.conclusion(
+            "extend_predicate",
+            &[-3, -2],
+            &problem.symbol_list,
+            &self.term_list,
+            &subgoal.clause,
+        );
+
+        if !new_goal.is_done() {
+            self.subgoals.push(new_goal);
         }
-        if !eq_goal.is_done() {
-            self.subgoals.push(eq_goal);
+        if !subgoal.is_done() {
+            self.subgoals.push(subgoal);
         }
+        record.end_inference();
     }
 
-    fn copy_clause(
+    fn copy_clause<R: Record>(
         &mut self,
+        record: &mut R,
         problem: &Problem,
         clause_id: Id<Clause>,
     ) -> Clause {
@@ -146,6 +178,7 @@ impl Tableau {
         let (mut clause, clause_term_list) = problem.get_clause(clause_id);
         self.term_list.copy_from(clause_term_list);
         clause.offset(offset);
+        record.axiom(&problem.symbol_list, &self.term_list, &clause);
         clause
     }
 }
