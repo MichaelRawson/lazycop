@@ -1,15 +1,17 @@
+use crate::core::unification::{might_unify, unify};
 use crate::output::record::Record;
 use crate::prelude::*;
 
 #[derive(Default)]
 pub struct Tableau {
+    blocked: bool,
     term_list: TermList,
     subgoals: Vec<Subgoal>,
 }
 
 impl Tableau {
     pub fn is_closed(&self) -> bool {
-        self.subgoals.is_empty()
+        !self.blocked && self.subgoals.is_empty()
     }
 
     pub fn num_subgoals(&self) -> u32 {
@@ -32,8 +34,11 @@ impl Tableau {
                 Rule::Start(clause_id) => {
                     self.start(record, problem, clause_id);
                 }
-                Rule::ExtendPredicate(clause_id, literal_id) => {
-                    self.extend_predicate(
+                Rule::EqualityReduction => {
+                    self.equality_reduction(record, problem);
+                }
+                Rule::PredicateExtension(clause_id, literal_id) => {
+                    self.predicate_extension(
                         record, problem, clause_id, literal_id,
                     );
                 }
@@ -42,6 +47,10 @@ impl Tableau {
     }
 
     pub fn possible_rules(&self, problem: &Problem) -> Vec<Rule> {
+        if self.blocked {
+            return vec![];
+        }
+
         let mut possible = vec![];
         assert!(!self.is_closed());
         let subgoal = self.subgoals.last().unwrap();
@@ -50,20 +59,29 @@ impl Tableau {
 
         match literal.atom {
             Atom::Predicate(predicate) => {
-                self.possible_extend_predicate(
+                self.possible_predicate_extensions(
                     &mut possible,
                     problem,
                     literal.polarity,
                     predicate,
                 );
             }
-            Atom::Equality(_left, _right) => {}
+            Atom::Equality(left, right) => {
+                if !literal.polarity {
+                    self.possible_equality_reduction(
+                        &mut possible,
+                        problem,
+                        left,
+                        right,
+                    );
+                }
+            }
         }
 
         possible
     }
 
-    fn possible_extend_predicate(
+    fn possible_predicate_extensions(
         &self,
         possible: &mut Vec<Rule>,
         problem: &Problem,
@@ -80,9 +98,21 @@ impl Tableau {
                     predicate,
                 )
                 .map(|(clause, literal)| {
-                    Rule::ExtendPredicate(clause, literal)
+                    Rule::PredicateExtension(clause, literal)
                 }),
         );
+    }
+
+    fn possible_equality_reduction(
+        &self,
+        possible: &mut Vec<Rule>,
+        problem: &Problem,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) {
+        if might_unify(&problem.symbol_list, &self.term_list, left, right) {
+            possible.push(Rule::EqualityReduction);
+        }
     }
 
     fn start<R: Record>(
@@ -99,16 +129,52 @@ impl Tableau {
         record.end_inference();
     }
 
-    fn extend_predicate<R: Record>(
+    fn equality_reduction<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+    ) {
+        record.start_inference("equality_reduction");
+        assert!(!self.subgoals.is_empty());
+        let mut subgoal = self.subgoals.pop().unwrap();
+        record.premise(&problem.symbol_list, &self.term_list, &subgoal.clause);
+
+        assert!(!subgoal.is_done());
+        let literal = subgoal.pop_literal().unwrap();
+        assert!(!literal.polarity);
+        let (left, right) = match literal.atom {
+            Atom::Equality(left, right) => (left, right),
+            _ => unreachable!(),
+        };
+
+        if !unify(&problem.symbol_list, &mut self.term_list, left, right) {
+            self.blocked = true;
+            return;
+        }
+
+        record.conclusion(
+            "equality_reduction",
+            &[-1],
+            &problem.symbol_list,
+            &self.term_list,
+            &subgoal.clause,
+        );
+
+        if !subgoal.is_done() {
+            self.subgoals.push(subgoal);
+        }
+        record.end_inference();
+    }
+
+    fn predicate_extension<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
         clause_id: Id<Clause>,
         literal_id: Id<Literal>,
     ) {
-        record.start_inference("extend_predicate");
+        record.start_inference("predicate_extension");
         assert!(!self.subgoals.is_empty());
-        assert!(!self.term_list.is_empty());
         let mut subgoal = self.subgoals.pop().unwrap();
         record.premise(&problem.symbol_list, &self.term_list, &subgoal.clause);
         let mut extension_clause =
@@ -145,14 +211,14 @@ impl Tableau {
         };
 
         record.conclusion(
-            "extend_predicate",
+            "predicate_extension",
             &[-2, -1],
             &problem.symbol_list,
             &self.term_list,
             &new_goal.clause,
         );
         record.conclusion(
-            "extend_predicate",
+            "predicate_extension",
             &[-3, -2],
             &problem.symbol_list,
             &self.term_list,

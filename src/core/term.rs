@@ -46,26 +46,6 @@ impl TermList {
         id
     }
 
-    pub fn view(&self, symbol_list: &SymbolList, id: Id<Term>) -> TermView {
-        let mut current = id;
-        loop {
-            match self.items[current.index()] {
-                Item::Symbol(symbol) => {
-                    let arity = symbol_list.arity(symbol);
-                    let args = IdRange::after(id, arity);
-                    return TermView::Function(symbol, args);
-                }
-                Item::Reference(offset) => {
-                    let new = current + offset;
-                    if current == new {
-                        return TermView::Variable(current);
-                    }
-                    current = new;
-                }
-            }
-        }
-    }
-
     pub fn current_offset(&self) -> Offset<Term> {
         let base: Id<Term> = 0.into();
         let current: Id<Term> = self.items.len().into();
@@ -74,6 +54,49 @@ impl TermList {
 
     pub fn copy_from(&mut self, other: &Self) {
         self.items.extend_from_slice(&other.items);
+    }
+
+    pub fn view(&self, symbol_list: &SymbolList, id: Id<Term>) -> TermView {
+        let id = self.chase_references(id);
+        match self.items[id.index()] {
+            Item::Symbol(symbol) => {
+                let arity = symbol_list.arity(symbol);
+                let args = IdRange::after(id, arity);
+                TermView::Function(symbol, args)
+            }
+            Item::Reference(refloop) => {
+                assert!(refloop.is_zero());
+                TermView::Variable(id)
+            }
+        }
+    }
+
+    pub fn bind(&mut self, variable: Id<Term>, term: Id<Term>) {
+        let term = self.chase_references(term);
+        let offset = term - variable;
+        let refloop = match &mut self.items[variable.index()] {
+            Item::Reference(refloop) => refloop,
+            _ => unreachable!(),
+        };
+        assert!(refloop.is_zero());
+        *refloop = offset;
+    }
+
+    fn chase_references(&self, id: Id<Term>) -> Id<Term> {
+        let mut current = id;
+        loop {
+            match self.items[current.index()] {
+                Item::Symbol(_) => {
+                    return current;
+                }
+                Item::Reference(offset) if offset.is_zero() => {
+                    return current;
+                }
+                Item::Reference(offset) => {
+                    current = current + offset;
+                }
+            }
+        }
     }
 
     fn add_reference(&mut self, referred: Id<Term>) -> Id<Term> {

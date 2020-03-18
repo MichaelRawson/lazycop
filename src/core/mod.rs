@@ -7,3 +7,4 @@ pub mod subgoal;
 pub mod symbol;
 pub mod tableau;
 pub mod term;
+pub mod unification;

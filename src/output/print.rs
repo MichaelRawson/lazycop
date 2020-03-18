@@ -74,13 +74,13 @@ impl fmt::Display for PrintLiteral<'_, '_> {
             }
             (true, Atom::Equality(left, right)) => write!(
                 f,
-                "{}={}",
+                "{} = {}",
                 PrintTerm(symbol_list, term_list, left),
                 PrintTerm(symbol_list, term_list, right)
             ),
             (false, Atom::Equality(left, right)) => write!(
                 f,
-                "{}!={}",
+                "{} != {}",
                 PrintTerm(symbol_list, term_list, left),
                 PrintTerm(symbol_list, term_list, right)
             ),

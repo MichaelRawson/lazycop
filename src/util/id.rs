@@ -13,6 +13,10 @@ impl<T> Offset<T> {
         let _phantom = PhantomData;
         Offset { offset, _phantom }
     }
+
+    pub fn is_zero(self) -> bool {
+        self.offset == 0
+    }
 }
 
 impl<T> Clone for Offset<T> {
