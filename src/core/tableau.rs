@@ -24,7 +24,7 @@ impl Tableau {
     pub fn num_subgoals(&self) -> usize {
         self.subgoals
             .iter()
-            .map(|subgoal| subgoal.clause.literals.len())
+            .map(|subgoal| subgoal.num_literals())
             .sum()
     }
 
@@ -62,12 +62,12 @@ impl Tableau {
                 );
                 self.subgoals.push(start_goal);
             }
-            Rule::LazyExtension(clause_id, literal_id) => {
+            Rule::LazyPredicateExtension(clause_id, literal_id) => {
                 assert!(!self.subgoals.is_empty());
                 let mut subgoal = self.subgoals.pop().unwrap();
                 assert!(!subgoal.is_done());
 
-                let new_goal = subgoal.apply_lazy_extension(
+                let new_goal = subgoal.apply_lazy_predicate_extension(
                     record,
                     &mut self.term_list,
                     problem,
@@ -98,8 +98,23 @@ impl Tableau {
                     self.subgoals.push(subgoal);
                 }
             }
-            Rule::PredicateReduction(_path_id) => {
-                self.blocked = true;
+            Rule::PredicateReduction(path_id) => {
+                assert!(!self.subgoals.is_empty());
+                let mut subgoal = self.subgoals.pop().unwrap();
+                assert!(!subgoal.is_done());
+
+                if !subgoal.apply_predicate_reduction(
+                    record,
+                    &mut self.term_list,
+                    problem,
+                    path_id,
+                ) {
+                    self.blocked = true;
+                    return;
+                }
+                if !subgoal.is_done() {
+                    self.subgoals.push(subgoal);
+                }
             }
         }
     }

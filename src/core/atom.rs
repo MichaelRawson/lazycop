@@ -1,4 +1,4 @@
-use crate::core::unification::might_unify;
+use crate::core::unification::{might_unify, unify};
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -8,6 +8,20 @@ pub enum Atom {
 }
 
 impl Atom {
+    pub fn is_predicate(&self) -> bool {
+        match self {
+            Atom::Predicate(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn predicate_term(&self) -> Id<Term> {
+        match self {
+            Atom::Predicate(p) => *p,
+            _ => unreachable!(),
+        }
+    }
+
     pub fn offset(&mut self, offset: Offset<Term>) {
         match self {
             Atom::Predicate(p) => {
@@ -34,6 +48,20 @@ impl Atom {
         }
     }
 
+    pub fn unify(
+        &self,
+        symbol_list: &SymbolList,
+        term_list: &mut TermList,
+        other: &Self,
+    ) -> bool {
+        match (self, other) {
+            (Atom::Predicate(p), Atom::Predicate(q)) => {
+                unify(symbol_list, term_list, *p, *q)
+            }
+            _ => unreachable!(),
+        }
+    }
+
     pub fn might_self_unify(
         &self,
         symbol_list: &SymbolList,
@@ -44,6 +72,19 @@ impl Atom {
                 might_unify(symbol_list, term_list, *left, *right)
             }
             _ => false,
+        }
+    }
+
+    pub fn self_unify(
+        &self,
+        symbol_list: &SymbolList,
+        term_list: &mut TermList,
+    ) -> bool {
+        match self {
+            Atom::Equality(left, right) => {
+                unify(symbol_list, term_list, *left, *right)
+            }
+            _ => unreachable!(),
         }
     }
 

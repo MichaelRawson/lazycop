@@ -1,11 +1,10 @@
-use crate::core::unification::unify;
 use crate::output::record::Record;
 use crate::prelude::*;
 
 #[derive(Clone)]
 pub struct Subgoal {
-    pub path: Vec<Literal>,
-    pub clause: Clause,
+    path: Vec<Literal>,
+    clause: Clause,
 }
 
 impl Subgoal {
@@ -16,6 +15,10 @@ impl Subgoal {
 
     pub fn is_done(&self) -> bool {
         self.clause.is_empty()
+    }
+
+    pub fn num_literals(&self) -> usize {
+        self.clause.len()
     }
 
     pub fn start<R: Record>(
@@ -32,7 +35,7 @@ impl Subgoal {
         Self { path, clause }
     }
 
-    pub fn apply_lazy_extension<R: Record>(
+    pub fn apply_lazy_predicate_extension<R: Record>(
         &mut self,
         record: &mut R,
         term_list: &mut TermList,
@@ -40,9 +43,8 @@ impl Subgoal {
         clause_id: Id<Clause>,
         literal_id: Id<Literal>,
     ) -> Self {
-        record.start_inference("lazy_extension");
+        record.start_inference("lazy_predicate_extension");
         record.premise(&problem.symbol_list, term_list, &self.clause);
-
         let current_literal = self.clause.pop_literal();
         let mut extension_clause =
             problem.copy_clause_into(term_list, clause_id);
@@ -53,19 +55,17 @@ impl Subgoal {
             term_list,
             &matching_literal,
         ));
-
         let mut new_goal = self.derived_goal(extension_clause);
         new_goal.path.push(current_literal);
-
         record.conclusion(
-            "lazy_extension",
+            "lazy_predicate_extension",
             &[-2, -1],
             &problem.symbol_list,
             &term_list,
             &new_goal.clause,
         );
         record.conclusion(
-            "lazy_extension",
+            "lazy_predicate_extension",
             &[-3, -2],
             &problem.symbol_list,
             &term_list,
@@ -83,23 +83,40 @@ impl Subgoal {
     ) -> bool {
         record.start_inference("equality_reduction");
         record.premise(&problem.symbol_list, term_list, &self.clause);
-
         let literal = self.clause.pop_literal();
-        assert!(!literal.polarity);
-        let (left, right) = match literal.atom {
-            Atom::Equality(left, right) => (left, right),
-            _ => unreachable!(),
-        };
-
-        if !unify(&problem.symbol_list, term_list, left, right) {
+        if !literal.equality_reduce(&problem.symbol_list, term_list) {
             return false;
         }
-
         record.conclusion(
             "equality_reduction",
             &[-1],
             &problem.symbol_list,
             &term_list,
+            &self.clause,
+        );
+        record.end_inference();
+        true
+    }
+
+    pub fn apply_predicate_reduction<R: Record>(
+        &mut self,
+        record: &mut R,
+        term_list: &mut TermList,
+        problem: &Problem,
+        path_id: Id<Literal>,
+    ) -> bool {
+        record.start_inference("predicate_reduction");
+        record.premise(&problem.symbol_list, term_list, &self.clause);
+        let matching = &self.path[path_id.index()];
+        let literal = self.clause.pop_literal();
+        if !literal.resolve(&problem.symbol_list, term_list, matching) {
+            return false;
+        }
+        record.conclusion(
+            "predicate_reduction",
+            &[-1],
+            &problem.symbol_list,
+            term_list,
             &self.clause,
         );
         record.end_inference();
@@ -113,7 +130,9 @@ impl Subgoal {
         term_list: &TermList,
     ) {
         let literal = self.clause.last_literal();
-        self.possible_lazy_extensions(possible, problem, term_list, literal);
+        self.possible_lazy_predicate_extensions(
+            possible, problem, term_list, literal,
+        );
         self.possible_equality_reduction(
             possible, problem, term_list, literal,
         );
@@ -122,14 +141,14 @@ impl Subgoal {
         );
     }
 
-    fn possible_lazy_extensions<'a>(
+    fn possible_lazy_predicate_extensions<'a>(
         &'a self,
         possible: &mut Vec<Rule>,
         problem: &'a Problem,
         term_list: &TermList,
         literal: &Literal,
     ) {
-        if let Atom::Predicate(predicate) = literal.atom {
+        if literal.is_predicate() {
             possible.extend(
                 problem
                     .index
@@ -137,10 +156,10 @@ impl Subgoal {
                         &problem.symbol_list,
                         &term_list,
                         !literal.polarity,
-                        predicate,
+                        literal.predicate_term(),
                     )
                     .map(|(clause, literal)| {
-                        Rule::LazyExtension(clause, literal)
+                        Rule::LazyPredicateExtension(clause, literal)
                     }),
             );
         }
@@ -165,14 +184,16 @@ impl Subgoal {
         term_list: &TermList,
         literal: &Literal,
     ) {
-        for (path_index, path_literal) in self.path.iter().enumerate() {
-            if literal.might_resolve(
-                &problem.symbol_list,
-                &term_list,
-                path_literal,
-            ) {
-                let path_index = path_index.into();
-                possible.push(Rule::PredicateReduction(path_index));
+        if literal.is_predicate() {
+            for (path_index, path_literal) in self.path.iter().enumerate() {
+                if literal.might_resolve(
+                    &problem.symbol_list,
+                    &term_list,
+                    path_literal,
+                ) {
+                    let path_index = path_index.into();
+                    possible.push(Rule::PredicateReduction(path_index));
+                }
             }
         }
     }

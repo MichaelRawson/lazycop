@@ -24,6 +24,10 @@ impl Clause {
         self.literals.is_empty()
     }
 
+    pub fn len(&self) -> usize {
+        self.literals.len()
+    }
+
     pub fn last_literal(&self) -> &Literal {
         self.literals.last().unwrap()
     }
