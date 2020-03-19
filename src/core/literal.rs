@@ -33,12 +33,16 @@ impl Literal {
         !self.polarity && self.atom.might_self_unify(symbol_list, term_list)
     }
 
-    pub fn lazy_disequalities(
+    pub fn lazy_disequalities<'symbol, 'term, 'iterator>(
         &self,
-        symbol_list: &SymbolList,
-        term_list: &TermList,
+        symbol_list: &'symbol SymbolList,
+        term_list: &'term TermList,
         other: &Self,
-    ) -> impl Iterator<Item = Self> + '_ {
+    ) -> impl Iterator<Item = Self> + 'iterator
+    where
+        'symbol: 'iterator,
+        'term: 'iterator,
+    {
         assert_ne!(self.polarity, other.polarity);
         self.atom
             .lazy_constraints(symbol_list, term_list, &other.atom)

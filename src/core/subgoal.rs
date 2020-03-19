@@ -2,6 +2,7 @@ use crate::core::unification::unify;
 use crate::output::record::Record;
 use crate::prelude::*;
 
+#[derive(Clone)]
 pub struct Subgoal {
     pub path: Vec<Literal>,
     pub clause: Clause,
@@ -45,6 +46,7 @@ impl Subgoal {
         let current_literal = self.clause.pop_literal();
         let mut extension_clause =
             problem.copy_clause_into(term_list, clause_id);
+        record.axiom(&problem.symbol_list, term_list, &extension_clause);
         let matching_literal = extension_clause.remove_literal(literal_id);
         self.clause.extend(current_literal.lazy_disequalities(
             &problem.symbol_list,

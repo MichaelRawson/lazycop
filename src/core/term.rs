@@ -56,6 +56,34 @@ impl TermList {
         self.items.extend_from_slice(&other.items);
     }
 
+    pub fn equal(
+        &self,
+        symbol_list: &SymbolList,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) -> bool {
+        let mut constraints = vec![(left, right)];
+        while let Some((left, right)) = constraints.pop() {
+            if left == right {
+                continue;
+            }
+            match (self.view(symbol_list, left), self.view(symbol_list, right))
+            {
+                (TermView::Variable(x), TermView::Variable(y)) if x == y => {}
+                (TermView::Function(f, ts), TermView::Function(g, ss))
+                    if f == g =>
+                {
+                    assert_eq!(ts.len(), ss.len());
+                    constraints.extend(ts.zip(ss));
+                }
+                _ => {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     pub fn view(&self, symbol_list: &SymbolList, id: Id<Term>) -> TermView {
         let id = self.chase_references(id);
         match self.items[id.index()] {
@@ -82,7 +110,7 @@ impl TermList {
         *refloop = offset;
     }
 
-    pub fn chase_references(&self, id: Id<Term>) -> Id<Term> {
+    fn chase_references(&self, id: Id<Term>) -> Id<Term> {
         let mut current = id;
         loop {
             match self.items[current.index()] {

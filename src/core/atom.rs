@@ -47,12 +47,16 @@ impl Atom {
         }
     }
 
-    pub fn lazy_constraints(
+    pub fn lazy_constraints<'symbol, 'term, 'iterator>(
         &self,
-        symbol_list: &SymbolList,
-        term_list: &TermList,
+        symbol_list: &'symbol SymbolList,
+        term_list: &'term TermList,
         other: &Self,
-    ) -> impl Iterator<Item = Self> + '_ {
+    ) -> impl Iterator<Item = Self> + 'iterator
+    where
+        'symbol: 'iterator,
+        'term: 'iterator,
+    {
         match (self, other) {
             (Atom::Predicate(p), Atom::Predicate(q)) => {
                 let p_view = term_list.view(symbol_list, *p);
@@ -64,7 +68,12 @@ impl Atom {
                     ) => {
                         assert!(p == q);
                         assert!(pargs.len() == qargs.len());
-                        pargs.zip(qargs).map(|(t, s)| Atom::Equality(t, s))
+                        pargs
+                            .zip(qargs)
+                            .filter(move |(t, s)| {
+                                !term_list.equal(symbol_list, *t, *s)
+                            })
+                            .map(|(t, s)| Atom::Equality(t, s))
                     }
                     _ => unreachable!(),
                 }
