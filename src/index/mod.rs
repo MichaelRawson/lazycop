@@ -10,7 +10,7 @@ pub struct Index {
 }
 
 impl Index {
-    pub fn add_predicate(
+    pub fn add_lazy_predicate(
         &mut self,
         symbol_list: &SymbolList,
         term_list: &TermList,
@@ -28,7 +28,7 @@ impl Index {
             .push((clause_id, literal_id));
     }
 
-    pub fn query_predicate(
+    pub fn query_lazy_predicates(
         &self,
         symbol_list: &SymbolList,
         term_list: &TermList,

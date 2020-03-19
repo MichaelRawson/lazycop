@@ -10,6 +10,12 @@ impl Clause {
         Self { literals }
     }
 
+    pub fn offset(&mut self, offset: Offset<Term>) {
+        for literal in &mut self.literals {
+            literal.offset(offset);
+        }
+    }
+
     pub fn extend<T: Iterator<Item = Literal>>(&mut self, t: T) {
         self.literals.extend(t);
     }
@@ -18,18 +24,12 @@ impl Clause {
         self.literals.is_empty()
     }
 
-    pub fn offset(&mut self, offset: Offset<Term>) {
-        for literal in &mut self.literals {
-            literal.offset(offset);
-        }
+    pub fn last_literal(&self) -> &Literal {
+        self.literals.last().unwrap()
     }
 
-    pub fn last_literal(&self) -> Option<&Literal> {
-        self.literals.last()
-    }
-
-    pub fn pop_literal(&mut self) -> Option<Literal> {
-        self.literals.pop()
+    pub fn pop_literal(&mut self) -> Literal {
+        self.literals.pop().unwrap()
     }
 
     pub fn remove_literal(&mut self, literal_id: Id<Literal>) -> Literal {

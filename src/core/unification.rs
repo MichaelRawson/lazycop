@@ -44,26 +44,14 @@ pub fn might_unify(
 
         let left_view = term_list.view(symbol_list, left);
         let right_view = term_list.view(symbol_list, right);
-        match (left_view, right_view) {
-            (TermView::Variable(_), TermView::Variable(_)) => {},
-            (TermView::Variable(variable), TermView::Function(_, _)) => {
-                if occurs(symbol_list, term_list, variable, right) {
-                    return false;
-                }
-            },
-            (TermView::Function(_, _), TermView::Variable(variable)) => {
-                if occurs(symbol_list, term_list, variable, left) {
-                    return false;
-                }
-            },
-            (TermView::Function(f, ts), TermView::Function(g, ss)) => {
-                if f == g {
-                    assert_eq!(ts.len(), ss.len());
-                    constraints.extend(ts.zip(ss));
-                }
-                else {
-                    return false;
-                }
+        if let (TermView::Function(f, ts), TermView::Function(g, ss)) =
+            (left_view, right_view)
+        {
+            if f == g {
+                assert_eq!(ts.len(), ss.len());
+                constraints.extend(ts.zip(ss));
+            } else {
+                return false;
             }
         }
     }
@@ -87,25 +75,24 @@ pub fn unify(
         match (left_view, right_view) {
             (TermView::Variable(x), TermView::Variable(y)) => {
                 term_list.bind(x, y);
-            },
+            }
             (TermView::Variable(variable), TermView::Function(_, _)) => {
                 if occurs(symbol_list, term_list, variable, right) {
                     return false;
                 }
                 term_list.bind(variable, right);
-            },
+            }
             (TermView::Function(_, _), TermView::Variable(variable)) => {
                 if occurs(symbol_list, term_list, variable, left) {
                     return false;
                 }
                 term_list.bind(variable, left);
-            },
+            }
             (TermView::Function(f, ts), TermView::Function(g, ss)) => {
                 if f == g {
                     assert_eq!(ts.len(), ss.len());
                     constraints.extend(ts.zip(ss));
-                }
-                else {
+                } else {
                     return false;
                 }
             }

@@ -27,8 +27,15 @@ impl Problem {
         self.start_clauses.iter().copied().map(Rule::Start)
     }
 
-    pub fn get_clause(&self, id: Id<Clause>) -> (Clause, &TermList) {
-        let (clause, term_list) = &self.clauses[id.index()];
-        (clause.clone(), &term_list)
+    pub fn copy_clause_into(
+        &self,
+        term_list: &mut TermList,
+        id: Id<Clause>,
+    ) -> Clause {
+        let (clause, clause_term_list) = &self.clauses[id.index()];
+        let mut clause = clause.clone();
+        clause.offset(term_list.current_offset());
+        term_list.copy_from(clause_term_list);
+        clause
     }
 }

@@ -118,7 +118,7 @@ impl Visitor for Builder {
         };
 
         if let Atom::Predicate(term) = atom {
-            self.index.add_predicate(
+            self.index.add_lazy_predicate(
                 &self.symbol_list,
                 &self.term_list,
                 polarity,

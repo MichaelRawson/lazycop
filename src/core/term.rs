@@ -82,7 +82,7 @@ impl TermList {
         *refloop = offset;
     }
 
-    fn chase_references(&self, id: Id<Term>) -> Id<Term> {
+    pub fn chase_references(&self, id: Id<Term>) -> Id<Term> {
         let mut current = id;
         loop {
             match self.items[current.index()] {

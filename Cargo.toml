@@ -6,3 +6,8 @@ edition = "2018"
 
 [dependencies]
 tptp = "0.14"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+panic = "abort"
