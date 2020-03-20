@@ -18,7 +18,7 @@ impl Queue {
         self.heap.push(Reverse(Item { priority, rule }));
     }
 
-    pub fn deque(&mut self) -> Option<Id<Rule>> {
+    pub fn dequeue(&mut self) -> Option<Id<Rule>> {
         let Reverse(item) = self.heap.pop()?;
         Some(item.rule)
     }

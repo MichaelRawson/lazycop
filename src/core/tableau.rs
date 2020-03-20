@@ -21,7 +21,7 @@ impl Tableau {
         self.subgoals.is_empty()
     }
 
-    pub fn num_subgoals(&self) -> usize {
+    pub fn num_literals(&self) -> usize {
         self.subgoals
             .iter()
             .map(|subgoal| subgoal.num_literals())

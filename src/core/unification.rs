@@ -82,11 +82,8 @@ pub fn unify(
                 }
                 term_list.bind(variable, right);
             }
-            (TermView::Function(_, _), TermView::Variable(variable)) => {
-                if occurs(symbol_list, term_list, variable, left) {
-                    return false;
-                }
-                term_list.bind(variable, left);
+            (TermView::Function(_, _), TermView::Variable(_)) => {
+                constraints.push((right, left));
             }
             (TermView::Function(f, ts), TermView::Function(g, ss)) => {
                 if f == g {

@@ -39,7 +39,7 @@ impl<'problem> Search<'problem> {
     }
 
     pub fn search(&mut self) -> Option<Vec<Rule>> {
-        while let Some(parent_id) = self.queue.deque() {
+        while let Some(parent_id) = self.queue.dequeue() {
             let script = self.rule_store.get_script(parent_id);
             let distance = script.len();
             self.reconstruction.reconstruct(
@@ -88,6 +88,6 @@ impl<'problem> Search<'problem> {
     }
 
     fn heuristic(&self) -> usize {
-        self.next_step.num_subgoals()
+        self.next_step.num_literals()
     }
 }
