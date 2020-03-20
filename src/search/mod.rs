@@ -2,6 +2,7 @@ mod queue;
 mod rule_store;
 
 use crate::core::tableau::Tableau;
+use crate::core::unification::Safe;
 use crate::output::record::Silent;
 use crate::prelude::*;
 use queue::Queue;
@@ -70,8 +71,11 @@ impl<'problem> Search<'problem> {
 
         for next_rule in &self.next_rules {
             self.next_step.duplicate(&self.reconstruction);
-            self.next_step
-                .apply_rule(&mut Silent, &self.problem, *next_rule);
+            self.next_step.apply_rule::<_, Safe>(
+                &mut Silent,
+                &self.problem,
+                *next_rule,
+            );
             if self.next_step.blocked {
                 continue;
             }

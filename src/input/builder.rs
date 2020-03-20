@@ -9,14 +9,14 @@ type FunctionKey = (Id<Symbol>, Vec<Id<Term>>);
 
 #[derive(Default)]
 pub struct Builder {
-    symbol_list: SymbolList,
+    symbol_table: SymbolTable,
     symbols: HashMap<(String, u32), Id<Symbol>>,
-    term_list: TermList,
+    term_graph: TermGraph,
     saved_terms: Vec<Id<Term>>,
     clause_variables: HashMap<String, Id<Term>>,
     clause_functions: HashMap<FunctionKey, Id<Term>>,
     clause_literals: Vec<Literal>,
-    clauses: Vec<(Clause, TermList)>,
+    clauses: Vec<(Clause, TermGraph)>,
     start_clauses: Vec<Id<Clause>>,
     index: Index,
 }
@@ -24,7 +24,7 @@ pub struct Builder {
 impl Builder {
     pub fn finish(self) -> Problem {
         Problem::new(
-            self.symbol_list,
+            self.symbol_table,
             self.clauses,
             self.start_clauses,
             self.index,
@@ -34,7 +34,7 @@ impl Builder {
 
 impl Visitor for Builder {
     fn visit_variable(&mut self, variable: syntax::Variable) {
-        let terms = &mut self.term_list;
+        let terms = &mut self.term_graph;
         let saved_terms = &mut self.saved_terms;
         let clause_variables = &mut self.clause_variables;
         let id = *clause_variables
@@ -54,20 +54,20 @@ impl Visitor for Builder {
         }
 
         let symbols = &mut self.symbols;
-        let symbol_list = &mut self.symbol_list;
+        let symbol_table = &mut self.symbol_table;
         let symbol_id = *symbols
             .entry((format!("{}", &functor), arity as u32))
             .or_insert_with(|| {
-                symbol_list.add(format!("{}", &functor), arity as u32)
+                symbol_table.add(format!("{}", &functor), arity as u32)
             });
 
-        let term_list = &mut self.term_list;
+        let term_graph = &mut self.term_graph;
         let saved_terms = &mut self.saved_terms;
         let clause_functions = &mut self.clause_functions;
         let args = saved_terms.split_off(saved_terms.len() - arity);
         let id = *clause_functions
             .entry((symbol_id, args.clone()))
-            .or_insert_with(|| term_list.add_function(symbol_id, &args));
+            .or_insert_with(|| term_graph.add_function(symbol_id, &args));
         saved_terms.push(id);
     }
 
@@ -118,9 +118,9 @@ impl Visitor for Builder {
         };
 
         if let Atom::Predicate(term) = atom {
-            self.index.add_lazy_predicate(
-                &self.symbol_list,
-                &self.term_list,
+            self.index.add_predicate(
+                &self.symbol_table,
+                &self.term_graph,
                 polarity,
                 term,
                 clause_id,
@@ -131,7 +131,7 @@ impl Visitor for Builder {
     }
 
     fn visit_disjunction(&mut self, disjunction: syntax::Disjunction) {
-        assert!(self.term_list.is_empty());
+        assert!(self.term_graph.is_empty());
         assert!(self.saved_terms.is_empty());
         assert!(self.clause_variables.is_empty());
         assert!(self.clause_functions.is_empty());
@@ -142,11 +142,11 @@ impl Visitor for Builder {
         }
 
         assert!(self.saved_terms.is_empty());
-        let term_list = mem::take(&mut self.term_list);
+        let term_graph = mem::take(&mut self.term_graph);
         self.clause_variables.clear();
         self.clause_functions.clear();
         let literals = mem::take(&mut self.clause_literals);
-        self.clauses.push((Clause::new(literals), term_list));
+        self.clauses.push((Clause::new(literals), term_graph));
     }
 
     fn visit_cnf_annotated(&mut self, annotated: syntax::CnfAnnotated) {

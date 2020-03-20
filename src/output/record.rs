@@ -6,15 +6,15 @@ pub trait Record {
     fn end_inference(&mut self) {}
     fn axiom(
         &mut self,
-        _symbol_list: &SymbolList,
-        _term_list: &TermList,
+        _symbol_table: &SymbolTable,
+        _term_graph: &TermGraph,
         _clause: &Clause,
     ) {
     }
     fn premise(
         &mut self,
-        _symbol_list: &SymbolList,
-        _term_list: &TermList,
+        _symbol_table: &SymbolTable,
+        _term_graph: &TermGraph,
         _clause: &Clause,
     ) {
     }
@@ -22,8 +22,8 @@ pub trait Record {
         &mut self,
         _inference: &'static str,
         _offsets: &[i32],
-        _symbol_list: &SymbolList,
-        _term_list: &TermList,
+        _symbol_table: &SymbolTable,
+        _term_graph: &TermGraph,
         _clause: &Clause,
     ) {
     }
@@ -48,29 +48,29 @@ impl Record for PrintProof {
 
     fn axiom(
         &mut self,
-        symbol_list: &SymbolList,
-        term_list: &TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
         clause: &Clause,
     ) {
         self.clause_number += 1;
         println!(
             "cnf({}, axiom, {}).",
             self.clause_number,
-            PrintClause(symbol_list, term_list, clause)
+            PrintClause(symbol_table, term_graph, clause)
         );
     }
 
     fn premise(
         &mut self,
-        symbol_list: &SymbolList,
-        term_list: &TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
         clause: &Clause,
     ) {
         self.clause_number += 1;
         println!(
             "cnf({}, plain, {}).",
             self.clause_number,
-            PrintClause(symbol_list, term_list, clause)
+            PrintClause(symbol_table, term_graph, clause)
         );
     }
 
@@ -78,8 +78,8 @@ impl Record for PrintProof {
         &mut self,
         inference: &'static str,
         offsets: &[i32],
-        symbol_list: &SymbolList,
-        term_list: &TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
         clause: &Clause,
     ) {
         self.clause_number += 1;
@@ -90,7 +90,7 @@ impl Record for PrintProof {
         println!(
             "cnf({}, plain, {}, inference({}, {:?})).",
             self.clause_number,
-            PrintClause(symbol_list, term_list, clause),
+            PrintClause(symbol_table, term_graph, clause),
             inference,
             premise_numbers
         );

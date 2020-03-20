@@ -1,4 +1,6 @@
-use crate::core::unification::{might_unify, unify};
+use crate::core::unification::{
+    generate_disequations, might_unify, UnificationPolicy,
+};
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -36,27 +38,27 @@ impl Atom {
 
     pub fn might_unify(
         &self,
-        symbol_list: &SymbolList,
-        term_list: &TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
         other: &Self,
     ) -> bool {
         match (self, other) {
             (Atom::Predicate(p), Atom::Predicate(q)) => {
-                might_unify(symbol_list, term_list, *p, *q)
+                might_unify(symbol_table, term_graph, *p, *q)
             }
             _ => false,
         }
     }
 
-    pub fn unify(
+    pub fn unify<U: UnificationPolicy>(
         &self,
-        symbol_list: &SymbolList,
-        term_list: &mut TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &mut TermGraph,
         other: &Self,
     ) -> bool {
         match (self, other) {
             (Atom::Predicate(p), Atom::Predicate(q)) => {
-                unify(symbol_list, term_list, *p, *q)
+                U::unify(symbol_table, term_graph, *p, *q)
             }
             _ => unreachable!(),
         }
@@ -64,25 +66,25 @@ impl Atom {
 
     pub fn might_self_unify(
         &self,
-        symbol_list: &SymbolList,
-        term_list: &TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
     ) -> bool {
         match self {
             Atom::Equality(left, right) => {
-                might_unify(symbol_list, term_list, *left, *right)
+                might_unify(symbol_table, term_graph, *left, *right)
             }
             _ => false,
         }
     }
 
-    pub fn self_unify(
+    pub fn self_unify<U: UnificationPolicy>(
         &self,
-        symbol_list: &SymbolList,
-        term_list: &mut TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &mut TermGraph,
     ) -> bool {
         match self {
             Atom::Equality(left, right) => {
-                unify(symbol_list, term_list, *left, *right)
+                U::unify(symbol_table, term_graph, *left, *right)
             }
             _ => unreachable!(),
         }
@@ -90,8 +92,8 @@ impl Atom {
 
     pub fn lazy_constraints<'symbol, 'term, 'iterator>(
         &self,
-        symbol_list: &'symbol SymbolList,
-        term_list: &'term TermList,
+        symbol_table: &'symbol SymbolTable,
+        term_graph: &'term mut TermGraph,
         other: &Self,
     ) -> impl Iterator<Item = Self> + 'iterator
     where
@@ -100,24 +102,8 @@ impl Atom {
     {
         match (self, other) {
             (Atom::Predicate(p), Atom::Predicate(q)) => {
-                let p_view = term_list.view(symbol_list, *p);
-                let q_view = term_list.view(symbol_list, *q);
-                match (p_view, q_view) {
-                    (
-                        TermView::Function(p, pargs),
-                        TermView::Function(q, qargs),
-                    ) => {
-                        assert!(p == q);
-                        assert!(pargs.len() == qargs.len());
-                        pargs
-                            .zip(qargs)
-                            .filter(move |(t, s)| {
-                                !term_list.equal(symbol_list, *t, *s)
-                            })
-                            .map(|(t, s)| Atom::Equality(t, s))
-                    }
-                    _ => unreachable!(),
-                }
+                generate_disequations(symbol_table, term_graph, *p, *q)
+                    .map(|(left, right)| Atom::Equality(left, right))
             }
             _ => unreachable!(),
         }

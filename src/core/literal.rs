@@ -1,3 +1,4 @@
+use crate::core::unification::UnificationPolicy;
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -25,45 +26,45 @@ impl Literal {
 
     pub fn might_resolve(
         &self,
-        symbol_list: &SymbolList,
-        term_list: &TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
         other: &Self,
     ) -> bool {
         self.polarity != other.polarity
-            && self.atom.might_unify(symbol_list, term_list, &other.atom)
+            && self.atom.might_unify(symbol_table, term_graph, &other.atom)
     }
 
-    pub fn resolve(
+    pub fn resolve<U: UnificationPolicy>(
         &self,
-        symbol_list: &SymbolList,
-        term_list: &mut TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &mut TermGraph,
         other: &Self,
     ) -> bool {
         assert_ne!(self.polarity, other.polarity);
-        self.atom.unify(symbol_list, term_list, &other.atom)
+        self.atom.unify::<U>(symbol_table, term_graph, &other.atom)
     }
 
     pub fn might_equality_reduce(
         &self,
-        symbol_list: &SymbolList,
-        term_list: &TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
     ) -> bool {
-        !self.polarity && self.atom.might_self_unify(symbol_list, term_list)
+        !self.polarity && self.atom.might_self_unify(symbol_table, term_graph)
     }
 
-    pub fn equality_reduce(
+    pub fn equality_reduce<U: UnificationPolicy>(
         &self,
-        symbol_list: &SymbolList,
-        term_list: &mut TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &mut TermGraph,
     ) -> bool {
         assert!(!self.polarity);
-        self.atom.self_unify(symbol_list, term_list)
+        self.atom.self_unify::<U>(symbol_table, term_graph)
     }
 
     pub fn lazy_disequalities<'symbol, 'term, 'iterator>(
         &self,
-        symbol_list: &'symbol SymbolList,
-        term_list: &'term TermList,
+        symbol_table: &'symbol SymbolTable,
+        term_graph: &'term mut TermGraph,
         other: &Self,
     ) -> impl Iterator<Item = Self> + 'iterator
     where
@@ -72,7 +73,7 @@ impl Literal {
     {
         assert_ne!(self.polarity, other.polarity);
         self.atom
-            .lazy_constraints(symbol_list, term_list, &other.atom)
+            .lazy_constraints(symbol_table, term_graph, &other.atom)
             .map(|eq| Self::new(false, eq))
     }
 }

@@ -11,26 +11,26 @@ enum Value {
 }
 
 fn fp4m(
-    symbol_list: &SymbolList,
-    term_list: &TermList,
+    symbol_table: &SymbolTable,
+    term_graph: &TermGraph,
     term: Id<Term>,
 ) -> [Value; 4] {
     let mut result = [Value::B, Value::B, Value::B, Value::B];
-    match term_list.view(symbol_list, term) {
+    match term_graph.view(symbol_table, term) {
         TermView::Variable => {
             result[0] = Value::A;
         }
         TermView::Function(f, mut args) => {
             result[0] = Value::Top(f);
             if let Some(arg1) = args.next() {
-                match term_list.view(symbol_list, arg1) {
+                match term_graph.view(symbol_table, arg1) {
                     TermView::Variable => {
                         result[1] = Value::A;
                     }
                     TermView::Function(f1, mut args1) => {
                         result[1] = Value::Top(f1);
                         if let Some(arg11) = args1.next() {
-                            match term_list.view(symbol_list, arg11) {
+                            match term_graph.view(symbol_table, arg11) {
                                 TermView::Variable => {
                                     result[3] = Value::A;
                                 }
@@ -44,7 +44,7 @@ fn fp4m(
                     }
                 }
                 if let Some(arg2) = args.next() {
-                    match term_list.view(symbol_list, arg2) {
+                    match term_graph.view(symbol_table, arg2) {
                         TermView::Variable => {
                             result[2] = Value::A;
                         }
@@ -83,11 +83,11 @@ impl<T> Default for Index<T> {
 impl<T: Default> Index<T> {
     pub fn make_entry(
         &mut self,
-        symbol_list: &SymbolList,
-        term_list: &TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
         term: Id<Term>,
     ) -> &mut T {
-        let fingerprint = fp4m(symbol_list, term_list, term);
+        let fingerprint = fp4m(symbol_table, term_graph, term);
 
         let mut current: Id<Node> = 0.into();
         for value in &fingerprint {
@@ -110,11 +110,11 @@ impl<T: Default> Index<T> {
 impl<T> Index<T> {
     pub fn query_unifiable(
         &self,
-        symbol_list: &SymbolList,
-        term_list: &TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
         term: Id<Term>,
     ) -> impl Iterator<Item = &T> + '_ {
-        let fingerprint = fp4m(symbol_list, term_list, term);
+        let fingerprint = fp4m(symbol_table, term_graph, term);
 
         let mut current_nodes = vec![0.into()];
         let mut next_nodes = vec![];

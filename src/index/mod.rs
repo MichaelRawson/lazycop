@@ -1,8 +1,8 @@
 //mod fingerprint;
-mod top_symbol;
+mod symbol;
 use crate::prelude::*;
 
-type PredicateIndex = top_symbol::Index<Vec<(Id<Clause>, Id<Literal>)>>;
+type PredicateIndex = symbol::Index<Vec<(Id<Clause>, Id<Literal>)>>;
 
 #[derive(Default)]
 pub struct Index {
@@ -10,16 +10,16 @@ pub struct Index {
 }
 
 impl Index {
-    pub fn add_lazy_predicate(
+    pub fn add_predicate(
         &mut self,
-        symbol_list: &SymbolList,
-        term_list: &TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
         polarity: bool,
         term: Id<Term>,
         clause_id: Id<Clause>,
         literal_id: Id<Literal>,
     ) {
-        let top_symbol = match term_list.view(symbol_list, term) {
+        let top_symbol = match term_graph.view(symbol_table, term) {
             TermView::Function(f, _) => f,
             _ => unreachable!(),
         };
@@ -28,23 +28,17 @@ impl Index {
             .push((clause_id, literal_id));
     }
 
-    pub fn query_lazy_predicates(
+    pub fn query_predicates(
         &self,
-        symbol_list: &SymbolList,
-        term_list: &TermList,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
         polarity: bool,
         term: Id<Term>,
-    ) -> impl Iterator<Item = (Id<Clause>, Id<Literal>)> + '_ {
-        let top_symbol = match term_list.view(symbol_list, term) {
+    ) -> &[(Id<Clause>, Id<Literal>)] {
+        let symbol = match term_graph.view(symbol_table, term) {
             TermView::Function(f, _) => f,
             _ => unreachable!(),
         };
-
-        self.predicates[polarity as usize]
-            .query(top_symbol)
-            .map(|results| &results[..])
-            .unwrap_or(&[])
-            .iter()
-            .copied()
+        self.predicates[polarity as usize].query(symbol)
     }
 }

@@ -3,12 +3,12 @@ use crate::prelude::*;
 pub struct Symbol;
 
 #[derive(Default)]
-pub struct SymbolList {
+pub struct SymbolTable {
     arities: Vec<u32>,
     names: Vec<String>,
 }
 
-impl SymbolList {
+impl SymbolTable {
     pub fn add(&mut self, name: String, arity: u32) -> Id<Symbol> {
         let id = self.arities.len().into();
         self.arities.push(arity);

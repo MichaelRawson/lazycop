@@ -1,18 +1,19 @@
+use crate::core::unification::{Fast, UnificationPolicy};
 use crate::output::record::Record;
 use crate::prelude::*;
 
 #[derive(Default)]
 pub struct Tableau {
     pub blocked: bool,
-    term_list: TermList,
+    term_graph: TermGraph,
     subgoals: Vec<Subgoal>,
 }
 
 impl Tableau {
     pub fn duplicate(&mut self, other: &Self) {
         self.blocked = other.blocked;
-        self.term_list.clear();
-        self.term_list.copy_from(&other.term_list);
+        self.term_graph.clear();
+        self.term_graph.copy_from(&other.term_graph);
         self.subgoals.clear();
         self.subgoals.extend(other.subgoals.iter().cloned());
     }
@@ -35,14 +36,14 @@ impl Tableau {
         script: &[Rule],
     ) {
         self.blocked = false;
-        self.term_list.clear();
+        self.term_graph.clear();
         self.subgoals.clear();
         for rule in script {
-            self.apply_rule(record, problem, *rule);
+            self.apply_rule::<_, Fast>(record, problem, *rule);
         }
     }
 
-    pub fn apply_rule<R: Record>(
+    pub fn apply_rule<R: Record, U: UnificationPolicy>(
         &mut self,
         record: &mut R,
         problem: &Problem,
@@ -52,27 +53,26 @@ impl Tableau {
         match rule {
             Rule::Start(clause_id) => {
                 assert!(self.subgoals.is_empty());
-                assert!(self.term_list.is_empty());
+                assert!(self.term_graph.is_empty());
 
                 let start_goal = Subgoal::start(
                     record,
-                    &mut self.term_list,
+                    &mut self.term_graph,
                     problem,
                     clause_id,
                 );
                 self.subgoals.push(start_goal);
             }
-            Rule::LazyPredicateExtension(clause_id, literal_id) => {
+            Rule::LazyPredicateExtension(coordinate) => {
                 assert!(!self.subgoals.is_empty());
                 let mut subgoal = self.subgoals.pop().unwrap();
                 assert!(!subgoal.is_done());
 
                 let new_goal = subgoal.apply_lazy_predicate_extension(
                     record,
-                    &mut self.term_list,
+                    &mut self.term_graph,
                     problem,
-                    clause_id,
-                    literal_id,
+                    coordinate,
                 );
                 if !new_goal.is_done() {
                     self.subgoals.push(new_goal);
@@ -86,9 +86,9 @@ impl Tableau {
                 let mut subgoal = self.subgoals.pop().unwrap();
                 assert!(!subgoal.is_done());
 
-                if !subgoal.apply_equality_reduction(
+                if !subgoal.apply_equality_reduction::<_, U>(
                     record,
-                    &mut self.term_list,
+                    &mut self.term_graph,
                     problem,
                 ) {
                     self.blocked = true;
@@ -103,9 +103,9 @@ impl Tableau {
                 let mut subgoal = self.subgoals.pop().unwrap();
                 assert!(!subgoal.is_done());
 
-                if !subgoal.apply_predicate_reduction(
+                if !subgoal.apply_predicate_reduction::<_, U>(
                     record,
-                    &mut self.term_list,
+                    &mut self.term_graph,
                     problem,
                     path_id,
                 ) {
@@ -128,6 +128,6 @@ impl Tableau {
         assert!(!self.subgoals.is_empty());
         let subgoal = self.subgoals.last().unwrap();
         assert!(!subgoal.is_done());
-        subgoal.possible_rules(possible, &problem, &self.term_list)
+        subgoal.possible_rules(possible, &problem, &self.term_graph)
     }
 }
