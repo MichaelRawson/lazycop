@@ -5,5 +5,7 @@ pub use crate::core::problem::*;
 pub use crate::core::rule::*;
 pub use crate::core::subgoal::*;
 pub use crate::core::symbol::*;
+pub use crate::core::tableau::*;
 pub use crate::core::term::*;
+pub use crate::core::unification::*;
 pub use crate::util::id::*;

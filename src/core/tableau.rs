@@ -1,15 +1,26 @@
-use crate::core::unification::{Fast, UnificationPolicy};
 use crate::output::record::Record;
 use crate::prelude::*;
 
-#[derive(Default)]
-pub struct Tableau {
+pub struct Tableau<'problem> {
+    problem: &'problem Problem,
     pub blocked: bool,
     term_graph: TermGraph,
     subgoals: Vec<Subgoal>,
 }
 
-impl Tableau {
+impl<'problem> Tableau<'problem> {
+    pub fn new(problem: &'problem Problem) -> Self {
+        let blocked = false;
+        let term_graph = TermGraph::default();
+        let subgoals = vec![];
+        Self {
+            problem,
+            blocked,
+            term_graph,
+            subgoals,
+        }
+    }
+
     pub fn duplicate(&mut self, other: &Self) {
         self.blocked = other.blocked;
         self.term_graph.clear();
@@ -29,24 +40,18 @@ impl Tableau {
             .sum()
     }
 
-    pub fn reconstruct<R: Record>(
-        &mut self,
-        record: &mut R,
-        problem: &Problem,
-        script: &[Rule],
-    ) {
+    pub fn reconstruct<R: Record>(&mut self, record: &mut R, script: &[Rule]) {
         self.blocked = false;
         self.term_graph.clear();
         self.subgoals.clear();
         for rule in script {
-            self.apply_rule::<_, Fast>(record, problem, *rule);
+            self.apply_rule::<_, FastUnification>(record, *rule);
         }
     }
 
-    pub fn apply_rule<R: Record, U: UnificationPolicy>(
+    pub fn apply_rule<R: Record, U: UnificationAlgorithm>(
         &mut self,
         record: &mut R,
-        problem: &Problem,
         rule: Rule,
     ) {
         assert!(!self.blocked);
@@ -58,20 +63,20 @@ impl Tableau {
                 let start_goal = Subgoal::start(
                     record,
                     &mut self.term_graph,
-                    problem,
+                    self.problem,
                     clause_id,
                 );
                 self.subgoals.push(start_goal);
             }
-            Rule::LazyPredicateExtension(coordinate) => {
+            Rule::Extension(coordinate) => {
                 assert!(!self.subgoals.is_empty());
                 let mut subgoal = self.subgoals.pop().unwrap();
                 assert!(!subgoal.is_done());
 
-                let new_goal = subgoal.apply_lazy_predicate_extension(
+                let new_goal = subgoal.apply_extension(
                     record,
                     &mut self.term_graph,
-                    problem,
+                    self.problem,
                     coordinate,
                 );
                 if !new_goal.is_done() {
@@ -81,15 +86,16 @@ impl Tableau {
                     self.subgoals.push(subgoal);
                 }
             }
-            Rule::EqualityReduction => {
+            Rule::Reduction(path_id) => {
                 assert!(!self.subgoals.is_empty());
                 let mut subgoal = self.subgoals.pop().unwrap();
                 assert!(!subgoal.is_done());
 
-                if !subgoal.apply_equality_reduction::<_, U>(
+                if !subgoal.apply_reduction::<_, U>(
                     record,
                     &mut self.term_graph,
-                    problem,
+                    self.problem,
+                    path_id,
                 ) {
                     self.blocked = true;
                     return;
@@ -98,16 +104,15 @@ impl Tableau {
                     self.subgoals.push(subgoal);
                 }
             }
-            Rule::PredicateReduction(path_id) => {
+            Rule::Symmetry => {
                 assert!(!self.subgoals.is_empty());
                 let mut subgoal = self.subgoals.pop().unwrap();
                 assert!(!subgoal.is_done());
 
-                if !subgoal.apply_predicate_reduction::<_, U>(
+                if !subgoal.apply_symmetry::<_, U>(
                     record,
                     &mut self.term_graph,
-                    problem,
-                    path_id,
+                    self.problem,
                 ) {
                     self.blocked = true;
                     return;
@@ -119,15 +124,11 @@ impl Tableau {
         }
     }
 
-    pub fn fill_possible_rules(
-        &self,
-        possible: &mut Vec<Rule>,
-        problem: &Problem,
-    ) {
+    pub fn fill_possible_rules(&self, possible: &mut Vec<Rule>) {
         assert!(!self.blocked);
         assert!(!self.subgoals.is_empty());
         let subgoal = self.subgoals.last().unwrap();
         assert!(!subgoal.is_done());
-        subgoal.possible_rules(possible, &problem, &self.term_graph)
+        subgoal.possible_rules(possible, &self.problem, &self.term_graph)
     }
 }

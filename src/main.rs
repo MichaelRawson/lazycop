@@ -12,8 +12,8 @@ fn main() {
         output::szs::unsatisfiable();
         output::szs::begin_refutation();
         let mut record = output::record::PrintProof::default();
-        let mut tableau = core::tableau::Tableau::default();
-        tableau.reconstruct(&mut record, &problem, &proof);
+        let mut tableau = core::tableau::Tableau::new(&problem);
+        tableau.reconstruct(&mut record, &proof);
         output::szs::end_refutation();
     } else {
         output::szs::incomplete();

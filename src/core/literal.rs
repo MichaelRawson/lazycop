@@ -1,4 +1,3 @@
-use crate::core::unification::UnificationPolicy;
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -34,7 +33,7 @@ impl Literal {
             && self.atom.might_unify(symbol_table, term_graph, &other.atom)
     }
 
-    pub fn resolve<U: UnificationPolicy>(
+    pub fn resolve<U: UnificationAlgorithm>(
         &self,
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
@@ -44,15 +43,16 @@ impl Literal {
         self.atom.unify::<U>(symbol_table, term_graph, &other.atom)
     }
 
-    pub fn might_equality_reduce(
+    pub fn might_equality_unify(
         &self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
     ) -> bool {
-        !self.polarity && self.atom.might_self_unify(symbol_table, term_graph)
+        !self.polarity
+            && self.atom.might_equality_unify(symbol_table, term_graph)
     }
 
-    pub fn equality_reduce<U: UnificationPolicy>(
+    pub fn equality_unify<U: UnificationAlgorithm>(
         &self,
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
@@ -61,7 +61,7 @@ impl Literal {
         self.atom.self_unify::<U>(symbol_table, term_graph)
     }
 
-    pub fn lazy_disequalities<'symbol, 'term, 'iterator>(
+    pub fn resolve_or_disequations<'symbol, 'term, 'iterator>(
         &self,
         symbol_table: &'symbol SymbolTable,
         term_graph: &'term mut TermGraph,
@@ -73,7 +73,7 @@ impl Literal {
     {
         assert_ne!(self.polarity, other.polarity);
         self.atom
-            .lazy_constraints(symbol_table, term_graph, &other.atom)
+            .unify_or_disequations(symbol_table, term_graph, &other.atom)
             .map(|eq| Self::new(false, eq))
     }
 }

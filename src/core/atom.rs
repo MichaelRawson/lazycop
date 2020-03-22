@@ -1,6 +1,3 @@
-use crate::core::unification::{
-    generate_disequations, might_unify, UnificationPolicy,
-};
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -50,7 +47,7 @@ impl Atom {
         }
     }
 
-    pub fn unify<U: UnificationPolicy>(
+    pub fn unify<U: UnificationAlgorithm>(
         &self,
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
@@ -64,7 +61,7 @@ impl Atom {
         }
     }
 
-    pub fn might_self_unify(
+    pub fn might_equality_unify(
         &self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
@@ -77,7 +74,7 @@ impl Atom {
         }
     }
 
-    pub fn self_unify<U: UnificationPolicy>(
+    pub fn self_unify<U: UnificationAlgorithm>(
         &self,
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
@@ -90,7 +87,7 @@ impl Atom {
         }
     }
 
-    pub fn lazy_constraints<'symbol, 'term, 'iterator>(
+    pub fn unify_or_disequations<'symbol, 'term, 'iterator>(
         &self,
         symbol_table: &'symbol SymbolTable,
         term_graph: &'term mut TermGraph,
@@ -102,7 +99,7 @@ impl Atom {
     {
         match (self, other) {
             (Atom::Predicate(p), Atom::Predicate(q)) => {
-                generate_disequations(symbol_table, term_graph, *p, *q)
+                unify_or_disequations(symbol_table, term_graph, *p, *q)
                     .map(|(left, right)| Atom::Equality(left, right))
             }
             _ => unreachable!(),

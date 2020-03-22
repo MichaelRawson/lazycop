@@ -1,4 +1,4 @@
-use crate::core::unification::UnificationPolicy;
+use crate::core::unification::UnificationAlgorithm;
 use crate::output::record::Record;
 use crate::prelude::*;
 
@@ -36,14 +36,14 @@ impl Subgoal {
         Self { path, clause }
     }
 
-    pub fn apply_lazy_predicate_extension<R: Record>(
+    pub fn apply_extension<R: Record>(
         &mut self,
         record: &mut R,
         term_graph: &mut TermGraph,
         problem: &Problem,
         coordinate: Id<(Clause, Literal)>,
     ) -> Self {
-        record.start_inference("lazy_predicate_extension");
+        record.start_inference("extension");
         record.premise(&problem.symbol_table, term_graph, &self.clause);
         let current_literal = self.clause.pop_literal();
         let (clause_id, literal_id) = problem.index.query_predicates(
@@ -57,7 +57,7 @@ impl Subgoal {
             problem.copy_clause_into(term_graph, clause_id);
         record.axiom(&problem.symbol_table, term_graph, &extension_clause);
         let matching_literal = extension_clause.remove_literal(literal_id);
-        self.clause.extend(current_literal.lazy_disequalities(
+        self.clause.extend(current_literal.resolve_or_disequations(
             &problem.symbol_table,
             term_graph,
             &matching_literal,
@@ -65,14 +65,14 @@ impl Subgoal {
         let mut new_goal = self.derived_goal(extension_clause);
         new_goal.path.push(current_literal);
         record.conclusion(
-            "lazy_predicate_extension",
+            "extension",
             &[-2, -1],
             &problem.symbol_table,
             &term_graph,
             &new_goal.clause,
         );
         record.conclusion(
-            "lazy_predicate_extension",
+            "extension",
             &[-3, -2],
             &problem.symbol_table,
             &term_graph,
@@ -82,37 +82,14 @@ impl Subgoal {
         new_goal
     }
 
-    pub fn apply_equality_reduction<R: Record, U: UnificationPolicy>(
-        &mut self,
-        record: &mut R,
-        term_graph: &mut TermGraph,
-        problem: &Problem,
-    ) -> bool {
-        record.start_inference("equality_reduction");
-        record.premise(&problem.symbol_table, term_graph, &self.clause);
-        let literal = self.clause.pop_literal();
-        if !literal.equality_reduce::<U>(&problem.symbol_table, term_graph) {
-            return false;
-        }
-        record.conclusion(
-            "equality_reduction",
-            &[-1],
-            &problem.symbol_table,
-            &term_graph,
-            &self.clause,
-        );
-        record.end_inference();
-        true
-    }
-
-    pub fn apply_predicate_reduction<R: Record, U: UnificationPolicy>(
+    pub fn apply_reduction<R: Record, U: UnificationAlgorithm>(
         &mut self,
         record: &mut R,
         term_graph: &mut TermGraph,
         problem: &Problem,
         path_id: Id<Literal>,
     ) -> bool {
-        record.start_inference("predicate_reduction");
+        record.start_inference("reduction");
         record.premise(&problem.symbol_table, term_graph, &self.clause);
         let matching = &self.path[path_id.index()];
         let literal = self.clause.pop_literal();
@@ -120,10 +97,33 @@ impl Subgoal {
             return false;
         }
         record.conclusion(
-            "predicate_reduction",
+            "reduction",
             &[-1],
             &problem.symbol_table,
             term_graph,
+            &self.clause,
+        );
+        record.end_inference();
+        true
+    }
+
+    pub fn apply_symmetry<R: Record, U: UnificationAlgorithm>(
+        &mut self,
+        record: &mut R,
+        term_graph: &mut TermGraph,
+        problem: &Problem,
+    ) -> bool {
+        record.start_inference("symmetry");
+        record.premise(&problem.symbol_table, term_graph, &self.clause);
+        let literal = self.clause.pop_literal();
+        if !literal.equality_unify::<U>(&problem.symbol_table, term_graph) {
+            return false;
+        }
+        record.conclusion(
+            "symmetry",
+            &[-1],
+            &problem.symbol_table,
+            &term_graph,
             &self.clause,
         );
         record.end_inference();
@@ -137,18 +137,12 @@ impl Subgoal {
         term_graph: &TermGraph,
     ) {
         let literal = self.clause.last_literal();
-        self.possible_lazy_predicate_extensions(
-            possible, problem, term_graph, literal,
-        );
-        self.possible_equality_reduction(
-            possible, problem, term_graph, literal,
-        );
-        self.possible_predicate_reductions(
-            possible, problem, term_graph, literal,
-        );
+        self.possible_extensions(possible, problem, term_graph, literal);
+        self.possible_reductions(possible, problem, term_graph, literal);
+        self.possible_symmetry(possible, problem, term_graph, literal);
     }
 
-    fn possible_lazy_predicate_extensions<'a>(
+    fn possible_extensions<'a>(
         &'a self,
         possible: &mut Vec<Rule>,
         problem: &'a Problem,
@@ -166,25 +160,12 @@ impl Subgoal {
                 )
                 .len();
             possible.extend(
-                (0..num_results)
-                    .map(|index| Rule::LazyPredicateExtension(index.into())),
+                (0..num_results).map(|index| Rule::Extension(index.into())),
             );
         }
     }
 
-    fn possible_equality_reduction(
-        &self,
-        possible: &mut Vec<Rule>,
-        problem: &Problem,
-        term_graph: &TermGraph,
-        literal: &Literal,
-    ) {
-        if literal.might_equality_reduce(&problem.symbol_table, &term_graph) {
-            possible.push(Rule::EqualityReduction);
-        }
-    }
-
-    fn possible_predicate_reductions(
+    fn possible_reductions(
         &self,
         possible: &mut Vec<Rule>,
         problem: &Problem,
@@ -199,9 +180,21 @@ impl Subgoal {
                     path_literal,
                 ) {
                     let path_index = path_index.into();
-                    possible.push(Rule::PredicateReduction(path_index));
+                    possible.push(Rule::Reduction(path_index));
                 }
             }
+        }
+    }
+
+    fn possible_symmetry(
+        &self,
+        possible: &mut Vec<Rule>,
+        problem: &Problem,
+        term_graph: &TermGraph,
+        literal: &Literal,
+    ) {
+        if literal.might_equality_unify(&problem.symbol_table, &term_graph) {
+            possible.push(Rule::Symmetry);
         }
     }
 }

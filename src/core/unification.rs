@@ -50,7 +50,7 @@ pub fn might_unify(
     true
 }
 
-pub fn generate_disequations<'symbol, 'term, 'iterator>(
+pub fn unify_or_disequations<'symbol, 'term, 'iterator>(
     symbol_table: &'symbol SymbolTable,
     term_graph: &'term mut TermGraph,
     left: Id<Term>,
@@ -97,7 +97,7 @@ where
     })
 }
 
-pub trait UnificationPolicy {
+pub trait UnificationAlgorithm {
     fn unify(
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
@@ -106,9 +106,9 @@ pub trait UnificationPolicy {
     ) -> bool;
 }
 
-pub struct Safe;
+pub struct CorrectUnification;
 
-impl UnificationPolicy for Safe {
+impl UnificationAlgorithm for CorrectUnification {
     fn unify(
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
@@ -150,9 +150,9 @@ impl UnificationPolicy for Safe {
     }
 }
 
-pub struct Fast;
+pub struct FastUnification;
 
-impl UnificationPolicy for Fast {
+impl UnificationAlgorithm for FastUnification {
     fn unify(
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,

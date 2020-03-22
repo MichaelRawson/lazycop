@@ -1,97 +1,74 @@
 mod queue;
-mod rule_store;
+mod script;
 
-use crate::core::tableau::Tableau;
-use crate::core::unification::Safe;
+use queue::Queue;
+use script::Script;
+
 use crate::output::record::Silent;
 use crate::prelude::*;
-use queue::Queue;
-use rule_store::RuleStore;
+use std::rc::Rc;
+
+fn heuristic(tableau: &Tableau) -> usize {
+    tableau.num_literals()
+}
 
 pub struct Search<'problem> {
     problem: &'problem Problem,
     queue: Queue,
-    rule_store: RuleStore,
-    next_rules: Vec<Rule>,
-    reconstruction: Tableau,
-    next_step: Tableau,
 }
 
 impl<'problem> Search<'problem> {
     pub fn new(problem: &'problem Problem) -> Self {
         let mut queue = Queue::default();
-        let mut rule_store = RuleStore::default();
         for rule in problem.start_rules() {
-            let rule_id = rule_store.add_start_rule(rule);
-            queue.enqueue(rule_id, 0);
+            queue.enqueue(Script::start(rule), 0);
         }
-
-        let next_rules = vec![];
-        let reconstruction = Tableau::default();
-        let next_step = Tableau::default();
-        Self {
-            problem,
-            queue,
-            rule_store,
-            next_rules,
-            reconstruction,
-            next_step,
-        }
+        Self { problem, queue }
     }
 
     pub fn search(&mut self) -> Option<Vec<Rule>> {
-        while let Some(parent_id) = self.queue.dequeue() {
-            let script = self.rule_store.get_script(parent_id);
-            let distance = script.len();
-            self.reconstruction.reconstruct(
-                &mut Silent,
-                self.problem,
-                &script,
-            );
-            assert!(!self.reconstruction.blocked);
-            assert!(!self.reconstruction.is_closed());
-
-            if let Some(rule) = self.expand(parent_id, distance) {
-                let proof_id = self.rule_store.add_rule(parent_id, rule);
-                let proof = self.rule_store.get_script(proof_id);
+        let mut reconstruction = Tableau::new(self.problem);
+        let mut copy = Tableau::new(self.problem);
+        while let Some(script) = self.queue.dequeue() {
+            if let Some(proof) =
+                self.step(script, &mut reconstruction, &mut copy)
+            {
                 return Some(proof);
             }
         }
         None
     }
 
-    fn expand(
+    fn step(
         &mut self,
-        parent_id: Id<Rule>,
-        distance: usize,
-    ) -> Option<Rule> {
-        self.next_rules.clear();
-        self.reconstruction
-            .fill_possible_rules(&mut self.next_rules, &self.problem);
+        script: Rc<Script>,
+        reconstruction: &mut Tableau<'problem>,
+        copy: &mut Tableau<'problem>,
+    ) -> Option<Vec<Rule>> {
+        let rules = script.rules();
+        reconstruction.reconstruct(&mut Silent, &rules);
+        assert!(!reconstruction.blocked);
+        assert!(!reconstruction.is_closed());
 
-        for next_rule in &self.next_rules {
-            self.next_step.duplicate(&self.reconstruction);
-            self.next_step.apply_rule::<_, Safe>(
-                &mut Silent,
-                &self.problem,
-                *next_rule,
-            );
-            if self.next_step.blocked {
+        let mut next_rules = vec![];
+        reconstruction.fill_possible_rules(&mut next_rules);
+
+        for next_rule in next_rules {
+            copy.duplicate(&reconstruction);
+            copy.apply_rule::<_, CorrectUnification>(&mut Silent, next_rule);
+            if copy.blocked {
                 continue;
             }
-            if self.next_step.is_closed() {
-                return Some(*next_rule);
+            if copy.is_closed() {
+                return Some(Script::new(script, next_rule).rules());
             }
 
-            let estimate = self.heuristic();
+            let estimate = heuristic(&copy);
+            let distance = rules.len();
             let priority = (distance + estimate) as u32;
-            let next = self.rule_store.add_rule(parent_id, *next_rule);
-            self.queue.enqueue(next, priority);
+            let next_script = Script::new(script.clone(), next_rule);
+            self.queue.enqueue(next_script, priority);
         }
         None
-    }
-
-    fn heuristic(&self) -> usize {
-        self.next_step.num_literals()
     }
 }
