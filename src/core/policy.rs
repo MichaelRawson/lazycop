@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 pub trait Policy {
+    fn should_check() -> bool;
     fn unify(
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
@@ -12,6 +13,10 @@ pub trait Policy {
 pub struct Unchecked;
 
 impl Policy for Unchecked {
+    fn should_check() -> bool {
+        false
+    }
+
     fn unify(
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
@@ -25,6 +30,10 @@ impl Policy for Unchecked {
 pub struct Checked;
 
 impl Policy for Checked {
+    fn should_check() -> bool {
+        true
+    }
+
     fn unify(
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,

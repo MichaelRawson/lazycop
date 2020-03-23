@@ -1,4 +1,4 @@
-use crate::output::print::PrintClause;
+use crate::output::print::{PrintClause, PrintLiteral};
 use crate::prelude::*;
 
 pub trait Record {
@@ -16,6 +16,13 @@ pub trait Record {
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause: &Clause,
+    ) {
+    }
+    fn lemma(
+        &mut self,
+        _symbol_table: &SymbolTable,
+        _term_graph: &TermGraph,
+        _literal: &Literal,
     ) {
     }
     fn conclusion(
@@ -71,6 +78,20 @@ impl Record for PrintProof {
             "cnf({}, plain, {}).",
             self.clause_number,
             PrintClause(symbol_table, term_graph, clause)
+        );
+    }
+
+    fn lemma(
+        &mut self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        literal: &Literal,
+    ) {
+        self.clause_number += 1;
+        println!(
+            "cnf({}, lemma, {}).",
+            self.clause_number,
+            PrintLiteral(symbol_table, term_graph, &literal)
         );
     }
 

@@ -77,17 +77,25 @@ impl<'problem> Tableau<'problem> {
                 let mut subgoal = self.subgoals.pop().unwrap();
                 assert!(!subgoal.is_done());
 
-                let new_goal = subgoal.apply_extension(
-                    record,
-                    &mut self.term_graph,
-                    self.problem,
-                    coordinate,
-                );
-                if !new_goal.is_done() {
-                    self.subgoals.push(new_goal);
-                }
-                if !subgoal.is_done() {
-                    self.subgoals.push(subgoal);
+                if let Some((extension_goal, eq_goal)) = subgoal
+                    .apply_extension::<P, _>(
+                        record,
+                        &mut self.term_graph,
+                        self.problem,
+                        coordinate,
+                    )
+                {
+                    if !subgoal.is_done() {
+                        self.subgoals.push(subgoal);
+                    }
+                    if !extension_goal.is_done() {
+                        self.subgoals.push(extension_goal);
+                    }
+                    if !eq_goal.is_done() {
+                        self.subgoals.push(eq_goal);
+                    }
+                } else {
+                    self.blocked = true;
                 }
             }
             Rule::Reduction(path_id) => {
@@ -95,35 +103,57 @@ impl<'problem> Tableau<'problem> {
                 let mut subgoal = self.subgoals.pop().unwrap();
                 assert!(!subgoal.is_done());
 
-                if !subgoal.apply_reduction::<P, _>(
+                if subgoal.apply_reduction::<P, _>(
                     record,
                     &mut self.term_graph,
                     self.problem,
                     path_id,
                 ) {
+                    if !subgoal.is_done() {
+                        self.subgoals.push(subgoal);
+                    }
+                } else {
                     self.blocked = true;
-                    return;
                 }
-                if !subgoal.is_done() {
-                    self.subgoals.push(subgoal);
-                }
+            }
+            Rule::Lemma(lemma_id) => {
+                assert!(!self.subgoals.is_empty());
+                let mut subgoal = self.subgoals.pop().unwrap();
+                assert!(!subgoal.is_done());
+
+                subgoal.apply_lemma::<P, _>(
+                    record,
+                    &mut self.term_graph,
+                    self.problem,
+                    lemma_id,
+                );
             }
             Rule::Symmetry => {
                 assert!(!self.subgoals.is_empty());
                 let mut subgoal = self.subgoals.pop().unwrap();
                 assert!(!subgoal.is_done());
 
-                if !subgoal.apply_symmetry::<P, _>(
+                if subgoal.apply_symmetry::<P, _>(
                     record,
                     &mut self.term_graph,
                     self.problem,
                 ) {
+                    if !subgoal.is_done() {
+                        self.subgoals.push(subgoal);
+                    }
+                } else {
                     self.blocked = true;
-                    return;
                 }
-                if !subgoal.is_done() {
-                    self.subgoals.push(subgoal);
-                }
+            }
+        }
+        if !P::should_check() {
+            return;
+        }
+        if let Some(subgoal) = self.subgoals.last() {
+            if !subgoal
+                .is_regular(&self.problem.symbol_table, &self.term_graph)
+            {
+                self.blocked = true;
             }
         }
     }

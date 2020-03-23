@@ -1,7 +1,8 @@
 use crate::prelude::*;
 use std::cell::RefCell;
-use std::ops::{Deref, DerefMut};
+use std::iter::FromIterator;
 use std::mem::ManuallyDrop;
+use std::ops::{Deref, DerefMut};
 
 thread_local! {
     static POOL: RefCell<Vec<Vec<Literal>>> = RefCell::new(vec![])
@@ -60,7 +61,7 @@ impl Drop for ClauseLiterals {
 
 #[derive(Clone)]
 pub struct Clause {
-    literals: ClauseLiterals
+    literals: ClauseLiterals,
 }
 
 impl Clause {
@@ -75,15 +76,11 @@ impl Clause {
         }
     }
 
-    pub fn extend<T: Iterator<Item = Literal>>(&mut self, t: T) {
-        self.literals.extend(t);
-    }
-
     pub fn is_empty(&self) -> bool {
         self.literals.is_empty()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item=&Literal> {
+    pub fn iter(&self) -> impl Iterator<Item = &Literal> {
         self.literals.iter()
     }
 
@@ -101,5 +98,16 @@ impl Clause {
 
     pub fn remove_literal(&mut self, literal_id: Id<Literal>) -> Literal {
         self.literals.remove(literal_id.index())
+    }
+}
+
+impl FromIterator<Literal> for Clause {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = Literal>,
+    {
+        let mut literals = ClauseLiterals::recycle();
+        literals.extend(iter);
+        Self { literals }
     }
 }

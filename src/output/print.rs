@@ -56,13 +56,13 @@ impl fmt::Display for PrintTerm<'_, '_> {
     }
 }
 
-pub struct PrintLiteral<'symbols, 'terms>(
+pub struct PrintLiteral<'symbols, 'terms, 'literal>(
     pub &'symbols SymbolTable,
     pub &'terms TermGraph,
-    pub Literal,
+    pub &'literal Literal,
 );
 
-impl fmt::Display for PrintLiteral<'_, '_> {
+impl fmt::Display for PrintLiteral<'_, '_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let PrintLiteral(symbol_table, term_graph, literal) = self;
         match (literal.polarity, literal.atom) {
@@ -100,7 +100,7 @@ impl fmt::Display for PrintClause<'_, '_, '_> {
 
         let mut literals = clause.iter();
         if let Some(literal) = literals.next() {
-            write!(f, "{}", PrintLiteral(symbol_table, term_graph, *literal))?;
+            write!(f, "{}", PrintLiteral(symbol_table, term_graph, literal))?;
         } else {
             write!(f, "$false")?;
         }
@@ -108,7 +108,7 @@ impl fmt::Display for PrintClause<'_, '_, '_> {
             write!(
                 f,
                 " | {}",
-                PrintLiteral(symbol_table, term_graph, *literal)
+                PrintLiteral(symbol_table, term_graph, literal)
             )?;
         }
         Ok(())

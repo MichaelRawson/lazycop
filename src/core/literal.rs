@@ -23,6 +23,16 @@ impl Literal {
         self.atom.offset(offset);
     }
 
+    pub fn equal(
+        &self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        other: &Self,
+    ) -> bool {
+        self.polarity == other.polarity
+            && self.atom.equal(symbol_table, term_graph, &other.atom)
+    }
+
     pub fn might_resolve(
         &self,
         symbol_table: &SymbolTable,

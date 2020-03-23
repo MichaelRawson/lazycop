@@ -1,4 +1,10 @@
 use crate::prelude::*;
+use std::cell::RefCell;
+
+thread_local! {
+    static EQUAL_CONSTRAINTS_BUF: RefCell<Vec<(Id<Term>, Id<Term>)>> =
+        RefCell::new(vec![]);
+}
 
 pub struct Term;
 
@@ -69,6 +75,39 @@ impl TermGraph {
                 TermView::Variable(id)
             }
         }
+    }
+
+    pub fn equal(
+        &self,
+        symbol_table: &SymbolTable,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) -> bool {
+        EQUAL_CONSTRAINTS_BUF.with(|constraints| {
+            let mut constraints = constraints.borrow_mut();
+            constraints.clear();
+            constraints.push((left, right));
+            while let Some((left, right)) = constraints.pop() {
+                if left == right {
+                    continue;
+                }
+
+                let left_view = self.view(symbol_table, left);
+                let right_view = self.view(symbol_table, right);
+                match (left_view, right_view) {
+                    (TermView::Function(f, ts), TermView::Function(g, ss))
+                        if f == g =>
+                    {
+                        assert_eq!(ts.len(), ss.len());
+                        constraints.extend(ts.zip(ss));
+                    }
+                    _ => {
+                        return false;
+                    }
+                }
+            }
+            true
+        })
     }
 
     pub fn bind(&mut self, variable: Id<Term>, term: Id<Term>) {

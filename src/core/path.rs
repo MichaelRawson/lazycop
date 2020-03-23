@@ -25,6 +25,16 @@ impl Path {
         Self { data }
     }
 
+    pub fn contains(
+        &self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        other: &Literal,
+    ) -> bool {
+        self.literals()
+            .any(|literal| literal.equal(symbol_table, term_graph, other))
+    }
+
     pub fn literals(&self) -> impl Iterator<Item = &Literal> + '_ {
         let mut current = &self.data;
         std::iter::from_fn(move || {

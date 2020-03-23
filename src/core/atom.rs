@@ -33,6 +33,24 @@ impl Atom {
         }
     }
 
+    pub fn equal(
+        &self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        other: &Self,
+    ) -> bool {
+        match (self, other) {
+            (Atom::Predicate(p), Atom::Predicate(q)) => {
+                term_graph.equal(symbol_table, *p, *q)
+            }
+            (Atom::Equality(t1, s1), Atom::Equality(t2, s2)) => {
+                term_graph.equal(symbol_table, *t1, *t2)
+                    && term_graph.equal(symbol_table, *s1, *s2)
+            }
+            _ => false,
+        }
+    }
+
     pub fn might_unify(
         &self,
         symbol_table: &SymbolTable,

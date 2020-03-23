@@ -27,7 +27,6 @@ impl Search {
         let mut next_rules = vec![];
         let mut reconstruction = Tableau::new(problem);
         let mut copy = Tableau::new(problem);
-        let mut steps = 0;
         while let Some(script) = self.queue.dequeue() {
             if let Some(proof) = self.step(
                 script,
@@ -36,10 +35,8 @@ impl Search {
                 &mut reconstruction,
                 &mut copy,
             ) {
-                dbg!(steps);
                 return Some(proof);
             }
-            steps += 1;
         }
         None
     }

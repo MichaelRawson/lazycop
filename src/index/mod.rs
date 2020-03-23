@@ -2,7 +2,7 @@
 mod symbol;
 use crate::prelude::*;
 
-type PredicateIndex = symbol::Index<Vec<(Id<Clause>, Id<Literal>)>>;
+type PredicateIndex = symbol::Index<(Id<Clause>, Id<Literal>)>;
 
 #[derive(Default)]
 pub struct Index {

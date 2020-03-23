@@ -8,6 +8,5 @@ edition = "2018"
 tptp = "0.14"
 
 [profile.release]
-codegen-units = 1
 lto = "fat"
 panic = "abort"
