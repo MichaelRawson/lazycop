@@ -1,7 +1,7 @@
+use crate::prelude::*;
 use crate::search::script::Script;
 use std::cmp::{Ordering, Reverse};
 use std::collections::BinaryHeap;
-use std::rc::Rc;
 
 #[derive(Clone)]
 struct Item {
@@ -35,6 +35,10 @@ pub struct Queue {
 }
 
 impl Queue {
+    pub fn clear(&mut self) {
+        self.heap.clear();
+    }
+
     pub fn enqueue(&mut self, script: Rc<Script>, priority: u32) {
         self.heap.push(Reverse(Item { priority, script }));
     }

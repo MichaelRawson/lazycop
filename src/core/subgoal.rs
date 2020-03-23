@@ -1,4 +1,3 @@
-use crate::core::unification::UnificationAlgorithm;
 use crate::output::record::Record;
 use crate::prelude::*;
 
@@ -82,7 +81,7 @@ impl Subgoal {
         new_goal
     }
 
-    pub fn apply_reduction<R: Record, U: UnificationAlgorithm>(
+    pub fn apply_reduction<P: Policy, R: Record>(
         &mut self,
         record: &mut R,
         term_graph: &mut TermGraph,
@@ -93,7 +92,7 @@ impl Subgoal {
         record.premise(&problem.symbol_table, term_graph, &self.clause);
         let matching = &self.path[path_id.index()];
         let literal = self.clause.pop_literal();
-        if !literal.resolve::<U>(&problem.symbol_table, term_graph, matching) {
+        if !literal.resolve::<P>(&problem.symbol_table, term_graph, matching) {
             return false;
         }
         record.conclusion(
@@ -107,7 +106,7 @@ impl Subgoal {
         true
     }
 
-    pub fn apply_symmetry<R: Record, U: UnificationAlgorithm>(
+    pub fn apply_symmetry<P: Policy, R: Record>(
         &mut self,
         record: &mut R,
         term_graph: &mut TermGraph,
@@ -116,7 +115,7 @@ impl Subgoal {
         record.start_inference("symmetry");
         record.premise(&problem.symbol_table, term_graph, &self.clause);
         let literal = self.clause.pop_literal();
-        if !literal.equality_unify::<U>(&problem.symbol_table, term_graph) {
+        if !literal.equality_unify::<P>(&problem.symbol_table, term_graph) {
             return false;
         }
         record.conclusion(

@@ -3,7 +3,7 @@ use crate::prelude::*;
 
 pub struct Tableau<'problem> {
     problem: &'problem Problem,
-    pub blocked: bool,
+    blocked: bool,
     term_graph: TermGraph,
     subgoals: Vec<Subgoal>,
 }
@@ -29,6 +29,10 @@ impl<'problem> Tableau<'problem> {
         self.subgoals.extend(other.subgoals.iter().cloned());
     }
 
+    pub fn is_blocked(&self) -> bool {
+        self.blocked
+    }
+
     pub fn is_closed(&self) -> bool {
         self.subgoals.is_empty()
     }
@@ -45,11 +49,11 @@ impl<'problem> Tableau<'problem> {
         self.term_graph.clear();
         self.subgoals.clear();
         for rule in script {
-            self.apply_rule::<_, FastUnification>(record, *rule);
+            self.apply_rule::<Unchecked, _>(record, *rule);
         }
     }
 
-    pub fn apply_rule<R: Record, U: UnificationAlgorithm>(
+    pub fn apply_rule<P: Policy, R: Record>(
         &mut self,
         record: &mut R,
         rule: Rule,
@@ -91,7 +95,7 @@ impl<'problem> Tableau<'problem> {
                 let mut subgoal = self.subgoals.pop().unwrap();
                 assert!(!subgoal.is_done());
 
-                if !subgoal.apply_reduction::<_, U>(
+                if !subgoal.apply_reduction::<P, _>(
                     record,
                     &mut self.term_graph,
                     self.problem,
@@ -109,7 +113,7 @@ impl<'problem> Tableau<'problem> {
                 let mut subgoal = self.subgoals.pop().unwrap();
                 assert!(!subgoal.is_done());
 
-                if !subgoal.apply_symmetry::<_, U>(
+                if !subgoal.apply_symmetry::<P, _>(
                     record,
                     &mut self.term_graph,
                     self.problem,

@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use std::rc::Rc;
 
 pub struct Script {
     parent: Option<Rc<Script>>,

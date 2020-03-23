@@ -33,14 +33,14 @@ impl Literal {
             && self.atom.might_unify(symbol_table, term_graph, &other.atom)
     }
 
-    pub fn resolve<U: UnificationAlgorithm>(
+    pub fn resolve<P: Policy>(
         &self,
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
         other: &Self,
     ) -> bool {
         assert_ne!(self.polarity, other.polarity);
-        self.atom.unify::<U>(symbol_table, term_graph, &other.atom)
+        self.atom.unify::<P>(symbol_table, term_graph, &other.atom)
     }
 
     pub fn might_equality_unify(
@@ -52,13 +52,13 @@ impl Literal {
             && self.atom.might_equality_unify(symbol_table, term_graph)
     }
 
-    pub fn equality_unify<U: UnificationAlgorithm>(
+    pub fn equality_unify<P: Policy>(
         &self,
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
     ) -> bool {
         assert!(!self.polarity);
-        self.atom.self_unify::<U>(symbol_table, term_graph)
+        self.atom.self_unify::<P>(symbol_table, term_graph)
     }
 
     pub fn resolve_or_disequations<'symbol, 'term, 'iterator>(

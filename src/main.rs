@@ -8,7 +8,7 @@ mod util;
 
 fn main() {
     let problem = input::load_problem();
-    if let Some(proof) = search::Search::new(&problem).search() {
+    if let Some(proof) = search::Search::default().search(&problem) {
         output::szs::unsatisfiable();
         output::szs::begin_refutation();
         let mut record = output::record::PrintProof::default();

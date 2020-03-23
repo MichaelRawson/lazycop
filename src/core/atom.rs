@@ -47,7 +47,7 @@ impl Atom {
         }
     }
 
-    pub fn unify<U: UnificationAlgorithm>(
+    pub fn unify<P: Policy>(
         &self,
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
@@ -55,7 +55,7 @@ impl Atom {
     ) -> bool {
         match (self, other) {
             (Atom::Predicate(p), Atom::Predicate(q)) => {
-                U::unify(symbol_table, term_graph, *p, *q)
+                P::unify(symbol_table, term_graph, *p, *q)
             }
             _ => unreachable!(),
         }
@@ -74,14 +74,14 @@ impl Atom {
         }
     }
 
-    pub fn self_unify<U: UnificationAlgorithm>(
+    pub fn self_unify<P: Policy>(
         &self,
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
     ) -> bool {
         match self {
             Atom::Equality(left, right) => {
-                U::unify(symbol_table, term_graph, *left, *right)
+                P::unify(symbol_table, term_graph, *left, *right)
             }
             _ => unreachable!(),
         }

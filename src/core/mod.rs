@@ -1,6 +1,7 @@
 pub mod atom;
 pub mod clause;
 pub mod literal;
+pub mod policy;
 pub mod problem;
 pub mod rule;
 pub mod subgoal;

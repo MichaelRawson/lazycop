@@ -6,40 +6,39 @@ use script::Script;
 
 use crate::output::record::Silent;
 use crate::prelude::*;
-use std::rc::Rc;
 
 fn heuristic(tableau: &Tableau) -> usize {
     tableau.num_literals()
 }
 
-pub struct Search<'problem> {
-    problem: &'problem Problem,
+#[derive(Default)]
+pub struct Search {
     queue: Queue,
 }
 
-impl<'problem> Search<'problem> {
-    pub fn new(problem: &'problem Problem) -> Self {
-        let mut queue = Queue::default();
+impl Search {
+    pub fn search(&mut self, problem: &Problem) -> Option<Vec<Rule>> {
+        self.queue.clear();
         for rule in problem.start_rules() {
-            queue.enqueue(Script::start(rule), 0);
+            self.queue.enqueue(Script::start(rule), 0);
         }
-        Self { problem, queue }
-    }
 
-    pub fn search(&mut self) -> Option<Vec<Rule>> {
-        let mut reconstruction = Tableau::new(self.problem);
-        let mut copy = Tableau::new(self.problem);
+        let mut reconstruction = Tableau::new(problem);
+        let mut copy = Tableau::new(problem);
+        let mut steps = 0;
         while let Some(script) = self.queue.dequeue() {
             if let Some(proof) =
                 self.step(script, &mut reconstruction, &mut copy)
             {
+                dbg!(steps);
                 return Some(proof);
             }
+            steps += 1;
         }
         None
     }
 
-    fn step(
+    fn step<'problem>(
         &mut self,
         script: Rc<Script>,
         reconstruction: &mut Tableau<'problem>,
@@ -47,7 +46,7 @@ impl<'problem> Search<'problem> {
     ) -> Option<Vec<Rule>> {
         let rules = script.rules();
         reconstruction.reconstruct(&mut Silent, &rules);
-        assert!(!reconstruction.blocked);
+        assert!(!reconstruction.is_blocked());
         assert!(!reconstruction.is_closed());
 
         let mut next_rules = vec![];
@@ -55,8 +54,8 @@ impl<'problem> Search<'problem> {
 
         for next_rule in next_rules {
             copy.duplicate(&reconstruction);
-            copy.apply_rule::<_, CorrectUnification>(&mut Silent, next_rule);
-            if copy.blocked {
+            copy.apply_rule::<Checked, _>(&mut Silent, next_rule);
+            if copy.is_blocked() {
                 continue;
             }
             if copy.is_closed() {
