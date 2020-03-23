@@ -133,6 +133,7 @@ impl<'problem> Tableau<'problem> {
         assert!(!self.subgoals.is_empty());
         let subgoal = self.subgoals.last().unwrap();
         assert!(!subgoal.is_done());
+        possible.clear();
         subgoal.possible_rules(possible, &self.problem, &self.term_graph)
     }
 }

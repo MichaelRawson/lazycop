@@ -16,14 +16,14 @@ impl Script {
         Rc::new(Self { rule, parent })
     }
 
-    pub fn rules(&self) -> Vec<Rule> {
-        let mut rules = vec![self.rule];
+    pub fn fill_rules(&self, rules: &mut Vec<Rule>) {
+        rules.clear();
+        rules.push(self.rule);
         let mut current = self.parent.as_ref();
         while let Some(next) = current {
             rules.push(next.rule);
             current = next.parent.as_ref();
         }
-        rules.reverse();
-        rules
+        rules.reverse()
     }
 }
