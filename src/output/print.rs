@@ -98,7 +98,7 @@ impl fmt::Display for PrintClause<'_, '_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let PrintClause(symbol_table, term_graph, clause) = self;
 
-        let mut literals = clause.literals.iter();
+        let mut literals = clause.iter();
         if let Some(literal) = literals.next() {
             write!(f, "{}", PrintLiteral(symbol_table, term_graph, *literal))?;
         } else {
