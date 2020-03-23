@@ -3,16 +3,11 @@ use crate::prelude::*;
 
 #[derive(Clone)]
 pub struct Subgoal {
-    path: Vec<Literal>,
+    path: Path,
     clause: Clause,
 }
 
 impl Subgoal {
-    pub fn derived_goal(&self, clause: Clause) -> Self {
-        let path = self.path.clone();
-        Self { path, clause }
-    }
-
     pub fn is_done(&self) -> bool {
         self.clause.is_empty()
     }
@@ -28,7 +23,7 @@ impl Subgoal {
         clause_id: Id<Clause>,
     ) -> Self {
         record.start_inference("start");
-        let path = vec![];
+        let path = Path::default();
         let clause = problem.copy_clause_into(term_graph, clause_id);
         record.axiom(&problem.symbol_table, &term_graph, &clause);
         record.end_inference();
@@ -52,17 +47,16 @@ impl Subgoal {
             current_literal.predicate_term(),
         )[coordinate.index()];
 
-        let mut extension_clause =
-            problem.copy_clause_into(term_graph, clause_id);
-        record.axiom(&problem.symbol_table, term_graph, &extension_clause);
-        let matching_literal = extension_clause.remove_literal(literal_id);
+        let mut clause = problem.copy_clause_into(term_graph, clause_id);
+        record.axiom(&problem.symbol_table, term_graph, &clause);
+        let matching_literal = clause.remove_literal(literal_id);
         self.clause.extend(current_literal.resolve_or_disequations(
             &problem.symbol_table,
             term_graph,
             &matching_literal,
         ));
-        let mut new_goal = self.derived_goal(extension_clause);
-        new_goal.path.push(current_literal);
+        let path = Path::based_on(&self.path, current_literal);
+        let new_goal = Self { path, clause };
         record.conclusion(
             "extension",
             &[-2, -1],
@@ -90,7 +84,7 @@ impl Subgoal {
     ) -> bool {
         record.start_inference("reduction");
         record.premise(&problem.symbol_table, term_graph, &self.clause);
-        let matching = &self.path[path_id.index()];
+        let matching = &self.path[path_id];
         let literal = self.clause.pop_literal();
         if !literal.resolve::<P>(&problem.symbol_table, term_graph, matching) {
             return false;
@@ -172,7 +166,8 @@ impl Subgoal {
         literal: &Literal,
     ) {
         if literal.is_predicate() {
-            for (path_index, path_literal) in self.path.iter().enumerate() {
+            for (path_index, path_literal) in self.path.literals().enumerate()
+            {
                 if literal.might_resolve(
                     &problem.symbol_table,
                     &term_graph,

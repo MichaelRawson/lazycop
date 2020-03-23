@@ -1,6 +1,7 @@
 pub use crate::core::atom::*;
 pub use crate::core::clause::*;
 pub use crate::core::literal::*;
+pub use crate::core::path::*;
 pub use crate::core::policy::*;
 pub use crate::core::problem::*;
 pub use crate::core::rule::*;
