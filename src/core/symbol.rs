@@ -17,7 +17,7 @@ impl SymbolTable {
     }
 
     pub fn arity(&self, id: Id<Symbol>) -> u32 {
-        self.arities[id.index()]
+        *unsafe { self.arities.get_unchecked(id.index()) }
     }
 
     pub fn name(&self, id: Id<Symbol>) -> &str {

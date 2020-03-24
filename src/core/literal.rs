@@ -43,13 +43,22 @@ impl Literal {
             && self.atom.might_unify(symbol_table, term_graph, &other.atom)
     }
 
+    pub fn might_merge(
+        &self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        other: &Self,
+    ) -> bool {
+        self.polarity == other.polarity
+            && self.atom.might_unify(symbol_table, term_graph, &other.atom)
+    }
+
     pub fn resolve<P: Policy>(
         &self,
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
         other: &Self,
     ) -> bool {
-        assert_ne!(self.polarity, other.polarity);
         self.atom.unify::<P>(symbol_table, term_graph, &other.atom)
     }
 
@@ -67,23 +76,16 @@ impl Literal {
         symbol_table: &SymbolTable,
         term_graph: &mut TermGraph,
     ) -> bool {
-        assert!(!self.polarity);
         self.atom.self_unify::<P>(symbol_table, term_graph)
     }
 
-    pub fn resolve_or_disequations<'symbol, 'term, 'iterator>(
+    pub fn resolve_or_disequations(
         &self,
-        symbol_table: &'symbol SymbolTable,
-        term_graph: &'term mut TermGraph,
+        symbol_table: &SymbolTable,
+        term_graph: &mut TermGraph,
         other: &Self,
-    ) -> impl Iterator<Item = Self> + 'iterator
-    where
-        'symbol: 'iterator,
-        'term: 'iterator,
-    {
-        assert_ne!(self.polarity, other.polarity);
+    ) -> Vec<Literal> {
         self.atom
             .unify_or_disequations(symbol_table, term_graph, &other.atom)
-            .map(|eq| Self::new(false, eq))
     }
 }

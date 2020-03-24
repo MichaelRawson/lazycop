@@ -1,72 +1,13 @@
 use crate::prelude::*;
-use std::cell::RefCell;
-use std::iter::FromIterator;
-use std::mem::ManuallyDrop;
-use std::ops::{Deref, DerefMut};
-
-thread_local! {
-    static POOL: RefCell<Vec<Vec<Literal>>> = RefCell::new(vec![])
-}
-
-struct ClauseLiterals {
-    literals: ManuallyDrop<Vec<Literal>>,
-}
-
-impl ClauseLiterals {
-    fn new(literals: Vec<Literal>) -> Self {
-        let literals = ManuallyDrop::new(literals);
-        Self { literals }
-    }
-
-    fn recycle() -> Self {
-        POOL.with(|pool| {
-            let mut pool = pool.borrow_mut();
-            let mut literals = pool.pop().unwrap_or_default();
-            literals.clear();
-            Self::new(literals)
-        })
-    }
-}
-
-impl Deref for ClauseLiterals {
-    type Target = Vec<Literal>;
-    fn deref(&self) -> &Self::Target {
-        &self.literals
-    }
-}
-
-impl DerefMut for ClauseLiterals {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.literals
-    }
-}
-
-impl Clone for ClauseLiterals {
-    fn clone(&self) -> Self {
-        let mut recycled = Self::recycle();
-        recycled.extend_from_slice(&self.literals);
-        recycled
-    }
-}
-
-impl Drop for ClauseLiterals {
-    fn drop(&mut self) {
-        let literals = unsafe { ManuallyDrop::take(&mut self.literals) };
-        POOL.with(|pool| {
-            let mut pool = pool.borrow_mut();
-            pool.push(literals);
-        });
-    }
-}
+use std::ops::Index;
 
 #[derive(Clone)]
 pub struct Clause {
-    literals: ClauseLiterals,
+    literals: Vec<Literal>,
 }
 
 impl Clause {
     pub fn new(literals: Vec<Literal>) -> Self {
-        let literals = ClauseLiterals::new(literals);
         Self { literals }
     }
 
@@ -101,13 +42,10 @@ impl Clause {
     }
 }
 
-impl FromIterator<Literal> for Clause {
-    fn from_iter<T>(iter: T) -> Self
-    where
-        T: IntoIterator<Item = Literal>,
-    {
-        let mut literals = ClauseLiterals::recycle();
-        literals.extend(iter);
-        Self { literals }
+impl Index<Id<Literal>> for Clause {
+    type Output = Literal;
+
+    fn index(&self, id: Id<Literal>) -> &Self::Output {
+        &self.literals[id.index()]
     }
 }

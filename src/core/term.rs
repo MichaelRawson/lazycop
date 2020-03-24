@@ -1,10 +1,5 @@
 use crate::prelude::*;
-use std::cell::RefCell;
-
-thread_local! {
-    static EQUAL_CONSTRAINTS_BUF: RefCell<Vec<(Id<Term>, Id<Term>)>> =
-        RefCell::new(vec![]);
-}
+use std::hint::unreachable_unchecked;
 
 pub struct Term;
 
@@ -26,10 +21,6 @@ pub struct TermGraph {
 }
 
 impl TermGraph {
-    pub fn is_empty(&self) -> bool {
-        self.items.is_empty()
-    }
-
     pub fn clear(&mut self) {
         self.items.clear();
     }
@@ -64,77 +55,47 @@ impl TermGraph {
 
     pub fn view(&self, symbol_table: &SymbolTable, id: Id<Term>) -> TermView {
         let id = self.chase_references(id);
-        match self.items[id.index()] {
+        match *self.get_item(id) {
             Item::Symbol(symbol) => {
                 let arity = symbol_table.arity(symbol);
                 let args = IdRange::after(id, arity);
                 TermView::Function(symbol, args)
             }
-            Item::Reference(refloop) => {
-                assert!(refloop.is_zero());
-                TermView::Variable(id)
-            }
+            Item::Reference(_) => TermView::Variable(id),
         }
-    }
-
-    pub fn equal(
-        &self,
-        symbol_table: &SymbolTable,
-        left: Id<Term>,
-        right: Id<Term>,
-    ) -> bool {
-        EQUAL_CONSTRAINTS_BUF.with(|constraints| {
-            let mut constraints = constraints.borrow_mut();
-            constraints.clear();
-            constraints.push((left, right));
-            while let Some((left, right)) = constraints.pop() {
-                if left == right {
-                    continue;
-                }
-
-                let left_view = self.view(symbol_table, left);
-                let right_view = self.view(symbol_table, right);
-                match (left_view, right_view) {
-                    (TermView::Function(f, ts), TermView::Function(g, ss))
-                        if f == g =>
-                    {
-                        assert_eq!(ts.len(), ss.len());
-                        constraints.extend(ts.zip(ss));
-                    }
-                    _ => {
-                        return false;
-                    }
-                }
-            }
-            true
-        })
     }
 
     pub fn bind(&mut self, variable: Id<Term>, term: Id<Term>) {
         let term = self.chase_references(term);
         let offset = term - variable;
-        let refloop = match &mut self.items[variable.index()] {
+        let refloop = match self.get_item_mut(variable) {
             Item::Reference(refloop) => refloop,
-            _ => unreachable!(),
+            _ => unsafe { unreachable_unchecked() },
         };
-        assert!(refloop.is_zero());
+        *refloop = offset;
+    }
+
+    pub fn bind_vars(&mut self, v1: Id<Term>, v2: Id<Term>) {
+        let (variable, term) = if v1 > v2 { (v1, v2) } else { (v2, v1) };
+        let offset = term - variable;
+        let refloop = match self.get_item_mut(variable) {
+            Item::Reference(refloop) => refloop,
+            _ => unsafe { unreachable_unchecked() },
+        };
         *refloop = offset;
     }
 
     fn chase_references(&self, id: Id<Term>) -> Id<Term> {
         let mut current = id;
         loop {
-            match self.items[current.index()] {
-                Item::Symbol(_) => {
-                    return current;
-                }
-                Item::Reference(offset) if offset.is_zero() => {
-                    return current;
-                }
-                Item::Reference(offset) => {
-                    current = current + offset;
-                }
+            let next = match self.get_item(current) {
+                Item::Reference(offset) => current + *offset,
+                _ => current,
+            };
+            if current == next {
+                return current;
             }
+            current = next;
         }
     }
 
@@ -143,5 +104,13 @@ impl TermGraph {
         let offset = referred - id;
         self.items.push(Item::Reference(offset));
         id
+    }
+
+    fn get_item(&self, id: Id<Term>) -> &Item {
+        unsafe { self.items.get_unchecked(id.index()) }
+    }
+
+    fn get_item_mut(&mut self, id: Id<Term>) -> &mut Item {
+        unsafe { self.items.get_unchecked_mut(id.index()) }
     }
 }

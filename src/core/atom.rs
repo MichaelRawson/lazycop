@@ -41,11 +41,11 @@ impl Atom {
     ) -> bool {
         match (self, other) {
             (Atom::Predicate(p), Atom::Predicate(q)) => {
-                term_graph.equal(symbol_table, *p, *q)
+                equal_terms(symbol_table, term_graph, *p, *q)
             }
             (Atom::Equality(t1, s1), Atom::Equality(t2, s2)) => {
-                term_graph.equal(symbol_table, *t1, *t2)
-                    && term_graph.equal(symbol_table, *s1, *s2)
+                equal_terms(symbol_table, term_graph, *t1, *t2)
+                    && equal_terms(symbol_table, term_graph, *s1, *s2)
             }
             _ => false,
         }
@@ -105,20 +105,15 @@ impl Atom {
         }
     }
 
-    pub fn unify_or_disequations<'symbol, 'term, 'iterator>(
+    pub fn unify_or_disequations(
         &self,
-        symbol_table: &'symbol SymbolTable,
-        term_graph: &'term mut TermGraph,
+        symbol_table: &SymbolTable,
+        term_graph: &mut TermGraph,
         other: &Self,
-    ) -> impl Iterator<Item = Self> + 'iterator
-    where
-        'symbol: 'iterator,
-        'term: 'iterator,
-    {
+    ) -> Vec<Literal> {
         match (self, other) {
             (Atom::Predicate(p), Atom::Predicate(q)) => {
                 unify_or_disequations(symbol_table, term_graph, *p, *q)
-                    .map(|(left, right)| Atom::Equality(left, right))
             }
             _ => unreachable!(),
         }

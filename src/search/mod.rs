@@ -27,6 +27,7 @@ impl Search {
         let mut next_rules = vec![];
         let mut reconstruction = Tableau::new(problem);
         let mut copy = Tableau::new(problem);
+        let mut steps = 0;
         while let Some(script) = self.queue.dequeue() {
             if let Some(proof) = self.step(
                 script,
@@ -35,8 +36,10 @@ impl Search {
                 &mut reconstruction,
                 &mut copy,
             ) {
+                println!("% proof found in {} steps", steps);
                 return Some(proof);
             }
+            steps += 1;
         }
         None
     }
@@ -52,8 +55,6 @@ impl Search {
         script.fill_rules(rules);
         let distance = rules.len();
         reconstruction.reconstruct(&mut Silent, &rules);
-        assert!(!reconstruction.is_blocked());
-        assert!(!reconstruction.is_closed());
 
         reconstruction.fill_possible_rules(next_rules);
         for next_rule in next_rules {

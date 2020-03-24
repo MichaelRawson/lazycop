@@ -1,6 +1,6 @@
 use crate::index::Index;
 use crate::prelude::*;
-use std::collections::HashMap;
+use fnv::FnvHashMap as HashMap;
 use std::mem;
 use tptp::syntax;
 use tptp::syntax::Visitor;
@@ -131,17 +131,9 @@ impl Visitor for Builder {
     }
 
     fn visit_disjunction(&mut self, disjunction: syntax::Disjunction) {
-        assert!(self.term_graph.is_empty());
-        assert!(self.saved_terms.is_empty());
-        assert!(self.clause_variables.is_empty());
-        assert!(self.clause_functions.is_empty());
-        assert!(self.clause_literals.is_empty());
-
         for literal in disjunction.0 {
             self.visit_literal(literal);
         }
-
-        assert!(self.saved_terms.is_empty());
         let term_graph = mem::take(&mut self.term_graph);
         self.clause_variables.clear();
         self.clause_functions.clear();

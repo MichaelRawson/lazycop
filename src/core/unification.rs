@@ -1,17 +1,7 @@
 use crate::prelude::*;
-use std::cell::RefCell;
+use smallvec::SmallVec;
 
-thread_local! {
-    static OCCURS_BUF: RefCell<Vec<Id<Term>>> = RefCell::new(vec![]);
-    static MIGHT_UNIFY_BUF: RefCell<Vec<(Id<Term>, Id<Term>)>> =
-        RefCell::new(vec![]);
-    static UNIFY_CHECKED_BUF: RefCell<Vec<(Id<Term>, Id<Term>)>> =
-        RefCell::new(vec![]);
-    static UNIFY_UNCHECKED_BUF: RefCell<Vec<(Id<Term>, Id<Term>)>> =
-        RefCell::new(vec![]);
-    static UNIFY_OR_DISEQUATION_BUF: RefCell<Vec<(Id<Term>, Id<Term>)>> =
-        RefCell::new(vec![]);
-}
+type Stack<T> = SmallVec<[T; 128]>;
 
 fn occurs(
     symbol_table: &SymbolTable,
@@ -19,24 +9,49 @@ fn occurs(
     variable: Id<Term>,
     term: Id<Term>,
 ) -> bool {
-    OCCURS_BUF.with(|check| {
-        let mut check = check.borrow_mut();
-        check.clear();
-        check.push(term);
-        while let Some(term) = check.pop() {
-            match term_graph.view(symbol_table, term) {
-                TermView::Variable(other) => {
-                    if variable == other {
-                        return true;
-                    }
-                }
-                TermView::Function(_, args) => {
-                    check.extend(args);
+    let mut check: Stack<_> = smallvec![term];
+    while let Some(term) = check.pop() {
+        match term_graph.view(symbol_table, term) {
+            TermView::Variable(other) => {
+                if variable == other {
+                    return true;
                 }
             }
+            TermView::Function(_, args) => {
+                check.extend(args);
+            }
         }
-        false
-    })
+    }
+    false
+}
+
+pub fn equal_terms(
+    symbol_table: &SymbolTable,
+    term_graph: &TermGraph,
+    left: Id<Term>,
+    right: Id<Term>,
+) -> bool {
+    let mut constraints: Stack<_> = smallvec![(left, right)];
+    while let Some((left, right)) = constraints.pop() {
+        if left == right {
+            continue;
+        }
+
+        let left_view = term_graph.view(symbol_table, left);
+        let right_view = term_graph.view(symbol_table, right);
+        match (left_view, right_view) {
+            (TermView::Variable(x), TermView::Variable(y)) if x == y => {}
+            (TermView::Function(f, ts), TermView::Function(g, ss))
+                if f == g =>
+            {
+                constraints.extend(ts.zip(ss));
+            }
+            _ => {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 pub fn might_unify(
@@ -45,30 +60,25 @@ pub fn might_unify(
     left: Id<Term>,
     right: Id<Term>,
 ) -> bool {
-    MIGHT_UNIFY_BUF.with(|constraints| {
-        let mut constraints = constraints.borrow_mut();
-        constraints.clear();
-        constraints.push((left, right));
-        while let Some((left, right)) = constraints.pop() {
-            if left == right {
-                continue;
-            }
+    let mut constraints: Stack<_> = smallvec![(left, right)];
+    while let Some((left, right)) = constraints.pop() {
+        if left == right {
+            continue;
+        }
 
-            let left_view = term_graph.view(symbol_table, left);
-            let right_view = term_graph.view(symbol_table, right);
-            if let (TermView::Function(f, ts), TermView::Function(g, ss)) =
-                (left_view, right_view)
-            {
-                if f == g {
-                    assert_eq!(ts.len(), ss.len());
-                    constraints.extend(ts.zip(ss));
-                } else {
-                    return false;
-                }
+        let left_view = term_graph.view(symbol_table, left);
+        let right_view = term_graph.view(symbol_table, right);
+        if let (TermView::Function(f, ts), TermView::Function(g, ss)) =
+            (left_view, right_view)
+        {
+            if f == g {
+                constraints.extend(ts.zip(ss));
+            } else {
+                return false;
             }
         }
-        true
-    })
+    }
+    true
 }
 
 pub fn unify_checked(
@@ -77,42 +87,37 @@ pub fn unify_checked(
     left: Id<Term>,
     right: Id<Term>,
 ) -> bool {
-    UNIFY_CHECKED_BUF.with(|constraints| {
-        let mut constraints = constraints.borrow_mut();
-        constraints.clear();
-        constraints.push((left, right));
-        while let Some((left, right)) = constraints.pop() {
-            if left == right {
-                continue;
-            }
+    let mut constraints: Stack<_> = smallvec![(left, right)];
+    while let Some((left, right)) = constraints.pop() {
+        if left == right {
+            continue;
+        }
 
-            let left_view = term_graph.view(symbol_table, left);
-            let right_view = term_graph.view(symbol_table, right);
-            match (left_view, right_view) {
-                (TermView::Variable(x), TermView::Variable(y)) => {
-                    term_graph.bind(x, y);
+        let left_view = term_graph.view(symbol_table, left);
+        let right_view = term_graph.view(symbol_table, right);
+        match (left_view, right_view) {
+            (TermView::Variable(x), TermView::Variable(y)) => {
+                term_graph.bind_vars(x, y);
+            }
+            (TermView::Variable(variable), TermView::Function(_, _)) => {
+                if occurs(symbol_table, term_graph, variable, right) {
+                    return false;
                 }
-                (TermView::Variable(variable), TermView::Function(_, _)) => {
-                    if occurs(symbol_table, term_graph, variable, right) {
-                        return false;
-                    }
-                    term_graph.bind(variable, right);
-                }
-                (TermView::Function(_, _), TermView::Variable(_)) => {
-                    constraints.push((right, left));
-                }
-                (TermView::Function(f, ts), TermView::Function(g, ss)) => {
-                    if f == g {
-                        assert_eq!(ts.len(), ss.len());
-                        constraints.extend(ts.zip(ss));
-                    } else {
-                        return false;
-                    }
+                term_graph.bind(variable, right);
+            }
+            (TermView::Function(_, _), TermView::Variable(_)) => {
+                constraints.push((right, left));
+            }
+            (TermView::Function(f, ts), TermView::Function(g, ss)) => {
+                if f == g {
+                    constraints.extend(ts.zip(ss));
+                } else {
+                    return false;
                 }
             }
         }
-        true
-    })
+    }
+    true
 }
 
 pub fn unify_unchecked(
@@ -121,89 +126,76 @@ pub fn unify_unchecked(
     left: Id<Term>,
     right: Id<Term>,
 ) -> bool {
-    UNIFY_UNCHECKED_BUF.with(|constraints| {
-        let mut constraints = constraints.borrow_mut();
-        constraints.clear();
-        constraints.push((left, right));
-        while let Some((left, right)) = constraints.pop() {
-            if left == right {
-                continue;
-            }
+    let mut constraints: Stack<_> = smallvec![(left, right)];
+    while let Some((left, right)) = constraints.pop() {
+        if left == right {
+            continue;
+        }
 
-            let left_view = term_graph.view(symbol_table, left);
-            let right_view = term_graph.view(symbol_table, right);
-            match (left_view, right_view) {
-                (TermView::Variable(x), TermView::Variable(y)) => {
-                    term_graph.bind(x, y);
-                }
-                (TermView::Variable(variable), TermView::Function(_, _)) => {
-                    term_graph.bind(variable, right);
-                }
-                (TermView::Function(_, _), TermView::Variable(variable)) => {
-                    term_graph.bind(variable, left);
-                }
-                (TermView::Function(_, ts), TermView::Function(_, ss)) => {
-                    constraints.extend(ts.zip(ss));
-                }
+        let left_view = term_graph.view(symbol_table, left);
+        let right_view = term_graph.view(symbol_table, right);
+        match (left_view, right_view) {
+            (TermView::Variable(x), TermView::Variable(y)) => {
+                term_graph.bind_vars(x, y);
+            }
+            (TermView::Variable(variable), TermView::Function(_, _)) => {
+                term_graph.bind(variable, right);
+            }
+            (TermView::Function(_, _), TermView::Variable(variable)) => {
+                term_graph.bind(variable, left);
+            }
+            (TermView::Function(_, ts), TermView::Function(_, ss)) => {
+                constraints.extend(ts.zip(ss));
             }
         }
-        true
-    })
+    }
+    true
 }
 
-pub fn unify_or_disequations<'symbol, 'term, 'iterator>(
-    symbol_table: &'symbol SymbolTable,
-    term_graph: &'term mut TermGraph,
+pub fn unify_or_disequations(
+    symbol_table: &SymbolTable,
+    term_graph: &mut TermGraph,
     left: Id<Term>,
     right: Id<Term>,
-) -> impl Iterator<Item = (Id<Term>, Id<Term>)> + 'iterator
-where
-    'symbol: 'iterator,
-    'term: 'iterator,
-{
-    UNIFY_OR_DISEQUATION_BUF.with(|constraints| {
-        let mut constraints = constraints.borrow_mut();
-        constraints.clear();
-        constraints.push((left, right));
-    });
-    std::iter::from_fn(move || {
-        UNIFY_OR_DISEQUATION_BUF.with(|constraints| {
-            let mut constraints = constraints.borrow_mut();
-            while let Some((left, right)) = constraints.pop() {
-                if left == right {
-                    continue;
-                }
+) -> Vec<Literal> {
+    let mut literals = vec![];
+    let mut constraints: Stack<_> = smallvec![(left, right)];
+    while let Some((left, right)) = constraints.pop() {
+        if left == right {
+            continue;
+        }
 
-                let left_view = term_graph.view(symbol_table, left);
-                let right_view = term_graph.view(symbol_table, right);
-                match (left_view, right_view) {
-                    (TermView::Variable(x), TermView::Variable(y)) => {
-                        term_graph.bind(x, y);
-                    }
-                    (
-                        TermView::Variable(variable),
-                        TermView::Function(_, _),
-                    ) => {
-                        if occurs(symbol_table, term_graph, variable, right) {
-                            return Some((left, right));
-                        } else {
-                            term_graph.bind(variable, right);
-                        }
-                    }
-                    (TermView::Function(_, _), TermView::Variable(_)) => {
-                        constraints.push((right, left));
-                    }
-                    (TermView::Function(f, ts), TermView::Function(g, ss)) => {
-                        if f == g {
-                            assert_eq!(ts.len(), ss.len());
-                            constraints.extend(ts.zip(ss));
-                        } else {
-                            return Some((left, right));
-                        }
-                    }
+        let left_view = term_graph.view(symbol_table, left);
+        let right_view = term_graph.view(symbol_table, right);
+        let is_disequation = match (left_view, right_view) {
+            (TermView::Variable(x), TermView::Variable(y)) => {
+                term_graph.bind_vars(x, y);
+                false
+            }
+            (TermView::Variable(variable), TermView::Function(_, _)) => {
+                if occurs(symbol_table, term_graph, variable, right) {
+                    true
+                } else {
+                    term_graph.bind(variable, right);
+                    false
                 }
             }
-            None
-        })
-    })
+            (TermView::Function(_, _), TermView::Variable(_)) => {
+                constraints.push((right, left));
+                false
+            }
+            (TermView::Function(f, ts), TermView::Function(g, ss)) => {
+                if f == g {
+                    constraints.extend(ts.zip(ss).filter(|(t, s)| t != s));
+                    false
+                } else {
+                    true
+                }
+            }
+        };
+        if is_disequation {
+            literals.push(Literal::new(false, Atom::Equality(left, right)));
+        }
+    }
+    literals
 }

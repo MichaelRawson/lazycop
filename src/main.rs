@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate smallvec;
+
 mod core;
 mod index;
 mod input;
@@ -15,6 +18,7 @@ fn main() {
         let mut tableau = core::tableau::Tableau::new(&problem);
         tableau.reconstruct(&mut record, &proof);
         output::szs::end_refutation();
+        output::exit::success()
     } else {
         output::szs::incomplete();
         output::exit::failure()
