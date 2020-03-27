@@ -43,16 +43,6 @@ impl Literal {
             && self.atom.might_unify(symbol_table, term_graph, &other.atom)
     }
 
-    pub fn might_merge(
-        &self,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
-        other: &Self,
-    ) -> bool {
-        self.polarity == other.polarity
-            && self.atom.might_unify(symbol_table, term_graph, &other.atom)
-    }
-
     pub fn resolve<P: Policy>(
         &self,
         symbol_table: &SymbolTable,

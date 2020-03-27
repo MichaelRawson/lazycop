@@ -139,31 +139,6 @@ impl Subgoal {
         true
     }
 
-    pub fn apply_merge<P: Policy, R: Record>(
-        &mut self,
-        record: &mut R,
-        term_graph: &mut TermGraph,
-        problem: &Problem,
-        literal_id: Id<Literal>,
-    ) -> bool {
-        record.start_inference("merge");
-        record.premise(&problem.symbol_table, term_graph, &self.clause);
-        let literal = self.clause.pop_literal();
-        let merge = &self.clause[literal_id];
-        if !literal.resolve::<P>(&problem.symbol_table, term_graph, merge) {
-            return false;
-        }
-        record.conclusion(
-            "merge",
-            &[-1],
-            &problem.symbol_table,
-            term_graph,
-            &self.clause,
-        );
-        record.end_inference();
-        true
-    }
-
     pub fn apply_lemma<P: Policy, R: Record>(
         &mut self,
         record: &mut R,
@@ -219,7 +194,6 @@ impl Subgoal {
         let literal = self.clause.last_literal();
         self.possible_extensions(possible, problem, term_graph, literal);
         self.possible_reductions(possible, problem, term_graph, literal);
-        self.possible_merges(possible, problem, term_graph, literal);
         self.possible_lemmas(possible, problem, term_graph, literal);
         self.possible_symmetry(possible, problem, term_graph, literal);
     }
@@ -264,30 +238,6 @@ impl Subgoal {
                 ) {
                     let path_id = path_index.into();
                     possible.push(Rule::Reduction(path_id));
-                }
-            }
-        }
-    }
-
-    fn possible_merges(
-        &self,
-        possible: &mut Vec<Rule>,
-        problem: &Problem,
-        term_graph: &TermGraph,
-        literal: &Literal,
-    ) {
-        let selected_index = self.clause.len() - 1;
-        if literal.is_predicate() {
-            for (literal_index, other) in self.clause.iter().enumerate() {
-                if literal_index != selected_index
-                    && literal.might_merge(
-                        &problem.symbol_table,
-                        &term_graph,
-                        other,
-                    )
-                {
-                    let literal_id = literal_index.into();
-                    possible.push(Rule::Merge(literal_id));
                 }
             }
         }

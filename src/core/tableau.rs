@@ -76,10 +76,6 @@ impl<'problem> Tableau<'problem> {
                 self.apply_reduction::<P, _>(record, path_id);
                 self.check_regularity::<P>();
             }
-            Rule::Merge(literal_id) => {
-                self.apply_merge::<P, _>(record, literal_id);
-                self.check_regularity::<P>();
-            }
             Rule::Lemma(lemma_id) => {
                 self.apply_lemma::<P, _>(record, lemma_id);
                 self.check_regularity::<P>();
@@ -161,22 +157,6 @@ impl<'problem> Tableau<'problem> {
                 self.subgoals.push(subgoal);
             }
         } else {
-            self.blocked = true;
-        }
-    }
-
-    fn apply_merge<P: Policy, R: Record>(
-        &mut self,
-        record: &mut R,
-        literal_id: Id<Literal>,
-    ) {
-        let subgoal = self.subgoals.last_mut().unwrap();
-        if !subgoal.apply_merge::<P, _>(
-            record,
-            &mut self.term_graph,
-            self.problem,
-            literal_id,
-        ) {
             self.blocked = true;
         }
     }
