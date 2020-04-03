@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use std::hint::unreachable_unchecked;
 
 pub struct Term;
 
@@ -53,9 +52,16 @@ impl TermGraph {
         self.items.extend_from_slice(&other.items);
     }
 
+    pub fn resolve_reference(&self, id: Id<Term>) -> Id<Term> {
+        match self.items[id.index()] {
+            Item::Reference(offset) => id + offset,
+            _ => id,
+        }
+    }
+
     pub fn view(&self, symbol_table: &SymbolTable, id: Id<Term>) -> TermView {
-        let id = self.chase_references(id);
-        match *self.get_item(id) {
+        let id = self.resolve_reference(id);
+        match self.items[id.index()] {
             Item::Symbol(symbol) => {
                 let arity = symbol_table.arity(symbol);
                 let args = IdRange::after(id, arity);
@@ -65,52 +71,10 @@ impl TermGraph {
         }
     }
 
-    pub fn bind(&mut self, variable: Id<Term>, term: Id<Term>) {
-        let term = self.chase_references(term);
-        let offset = term - variable;
-        let refloop = match self.get_item_mut(variable) {
-            Item::Reference(refloop) => refloop,
-            _ => unsafe { unreachable_unchecked() },
-        };
-        *refloop = offset;
-    }
-
-    pub fn bind_vars(&mut self, v1: Id<Term>, v2: Id<Term>) {
-        let (variable, term) = if v1 > v2 { (v1, v2) } else { (v2, v1) };
-        let offset = term - variable;
-        let refloop = match self.get_item_mut(variable) {
-            Item::Reference(refloop) => refloop,
-            _ => unsafe { unreachable_unchecked() },
-        };
-        *refloop = offset;
-    }
-
-    fn chase_references(&self, id: Id<Term>) -> Id<Term> {
-        let mut current = id;
-        loop {
-            let next = match self.get_item(current) {
-                Item::Reference(offset) => current + *offset,
-                _ => current,
-            };
-            if current == next {
-                return current;
-            }
-            current = next;
-        }
-    }
-
     fn add_reference(&mut self, referred: Id<Term>) -> Id<Term> {
         let id = self.items.len().into();
         let offset = referred - id;
         self.items.push(Item::Reference(offset));
         id
-    }
-
-    fn get_item(&self, id: Id<Term>) -> &Item {
-        unsafe { self.items.get_unchecked(id.index()) }
-    }
-
-    fn get_item_mut(&mut self, id: Id<Term>) -> &mut Item {
-        unsafe { self.items.get_unchecked_mut(id.index()) }
     }
 }

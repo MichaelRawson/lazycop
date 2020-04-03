@@ -1,12 +1,6 @@
 pub mod atom;
 pub mod clause;
 pub mod literal;
-pub mod path;
-pub mod policy;
 pub mod problem;
-pub mod rule;
-pub mod subgoal;
 pub mod symbol;
-pub mod tableau;
 pub mod term;
-pub mod unification;

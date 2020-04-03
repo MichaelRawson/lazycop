@@ -6,6 +6,7 @@ pub enum Atom {
     Equality(Id<Term>, Id<Term>),
 }
 
+/*
 impl Atom {
     pub fn is_predicate(&self) -> bool {
         match self {
@@ -119,3 +120,4 @@ impl Atom {
         }
     }
 }
+*/

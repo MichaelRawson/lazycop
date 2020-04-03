@@ -1,10 +1,7 @@
-mod queue;
-mod script;
-
-use queue::Queue;
+use crate::util::queue::Queue;
 use script::Script;
 
-use crate::output::record::Silent;
+use crate::io::record::Silent;
 use crate::prelude::*;
 
 fn heuristic(tableau: &Tableau) -> usize {
@@ -36,7 +33,7 @@ impl Search {
                 &mut reconstruction,
                 &mut copy,
             ) {
-                println!("% proof found in {} steps", steps);
+                eprintln!("proof found in {} steps", steps);
                 return Some(proof);
             }
             steps += 1;

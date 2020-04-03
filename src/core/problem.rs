@@ -1,32 +1,15 @@
-use crate::index::Index;
 use crate::prelude::*;
 
+#[derive(Default)]
 pub struct Problem {
-    pub symbol_table: SymbolTable,
     pub clauses: Vec<(Clause, TermGraph)>,
     pub start_clauses: Vec<Id<Clause>>,
-    pub index: Index,
+    pub predicate_occurrences: [IdMap<Symbol, Vec<Position>>; 2],
+    pub symbol_table: SymbolTable,
 }
 
+/*
 impl Problem {
-    pub fn new(
-        symbol_table: SymbolTable,
-        clauses: Vec<(Clause, TermGraph)>,
-        start_clauses: Vec<Id<Clause>>,
-        index: Index,
-    ) -> Self {
-        Self {
-            symbol_table,
-            clauses,
-            start_clauses,
-            index,
-        }
-    }
-
-    pub fn start_rules(&self) -> impl Iterator<Item = Rule> + '_ {
-        self.start_clauses.iter().copied().map(Rule::Start)
-    }
-
     pub fn copy_clause_into(
         &self,
         term_graph: &mut TermGraph,
@@ -39,3 +22,4 @@ impl Problem {
         clause
     }
 }
+*/

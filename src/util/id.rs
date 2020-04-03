@@ -136,21 +136,3 @@ impl<T> Iterator for IdRange<T> {
         (size, Some(size))
     }
 }
-
-impl<T> ExactSizeIterator for IdRange<T> {
-    fn len(&self) -> usize {
-        (self.stop.id - self.start.id) as usize
-    }
-}
-
-impl<T> DoubleEndedIterator for IdRange<T> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        if self.start == self.stop {
-            return None;
-        }
-
-        let result = Some(self.stop);
-        self.start.id -= 1;
-        result
-    }
-}
