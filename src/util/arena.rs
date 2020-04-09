@@ -1,0 +1,239 @@
+use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
+use std::marker::PhantomData;
+use std::ops::{Add, Index, Sub};
+
+pub struct Arena<T> {
+    items: Vec<T>,
+}
+
+impl<T> Arena<T> {
+    pub fn len(&self) -> Id<T> {
+        let id = self.items.len() as u32;
+        let _phantom = PhantomData;
+        Id { id, _phantom }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    pub fn clear(&mut self) {
+        self.items.clear();
+    }
+
+    pub fn truncate(&mut self, len: Id<T>) {
+        self.items.truncate(len.id as usize);
+    }
+
+    pub fn copy_from(&mut self, other: &Arena<T>)
+    where
+        T: Clone + Copy,
+    {
+        self.items.extend_from_slice(&other.items);
+    }
+
+    #[inline]
+    pub fn push(&mut self, item: T) -> Id<T> {
+        let id = self.len();
+        self.items.push(item);
+        id
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        self.items.pop()
+    }
+
+    pub fn last(&self) -> Option<&T> {
+        self.items.last()
+    }
+
+    pub fn last_mut(&mut self) -> Option<&mut T> {
+        self.items.last_mut()
+    }
+}
+
+impl<T> Default for Arena<T> {
+    fn default() -> Self {
+        let items = vec![];
+        Self { items }
+    }
+}
+
+impl<T> Index<Id<T>> for Arena<T> {
+    type Output = T;
+
+    fn index(&self, id: Id<T>) -> &Self::Output {
+        debug_assert!((id.id as usize) < self.items.len());
+        unsafe { self.items.get_unchecked(id.id as usize) }
+    }
+}
+
+impl<'a, T> IntoIterator for &'a Arena<T> {
+    type Item = Id<T>;
+    type IntoIter = IdRange<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let start = Id::default();
+        let stop = self.len();
+        IdRange::new(start, stop)
+    }
+}
+
+pub struct Id<T> {
+    id: u32,
+    _phantom: PhantomData<T>,
+}
+
+impl<T> Id<T> {
+    fn new(id: u32) -> Self {
+        let _phantom = PhantomData;
+        Self { id, _phantom }
+    }
+
+    pub fn as_usize(self) -> usize {
+        self.id as usize
+    }
+
+    pub fn as_offset(self) -> Offset<T> {
+        Offset::new(self.id as i32)
+    }
+
+    pub fn transmute<S>(self) -> Id<S> {
+        let id = self.id;
+        let _phantom = PhantomData;
+        Id { id, _phantom }
+    }
+
+    pub fn increment(&mut self) {
+        self.id += 1;
+    }
+}
+
+impl<T> Add<Offset<T>> for Id<T> {
+    type Output = Self;
+
+    fn add(self, rhs: Offset<T>) -> Self {
+        Self::new((self.id as i32 + rhs.offset) as u32)
+    }
+}
+
+impl<T> Sub for Id<T> {
+    type Output = Offset<T>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Offset::new(self.id as i32 - rhs.id as i32)
+    }
+}
+
+impl<T> Clone for Id<T> {
+    fn clone(&self) -> Self {
+        Self::new(self.id)
+    }
+}
+
+impl<T> Copy for Id<T> {}
+
+impl<T> Default for Id<T> {
+    fn default() -> Self {
+        let id = 0;
+        let _phantom = PhantomData;
+        Self { id, _phantom }
+    }
+}
+
+impl<T> PartialEq for Id<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl<T> Eq for Id<T> {}
+
+impl<T> PartialOrd for Id<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.id.partial_cmp(&other.id)
+    }
+}
+
+impl<T> Ord for Id<T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl<T> Hash for Id<T> {
+    fn hash<H: Hasher>(&self, hash: &mut H) {
+        self.id.hash(hash);
+    }
+}
+
+pub struct Offset<T> {
+    offset: i32,
+    _phantom: PhantomData<T>,
+}
+
+impl<T> Offset<T> {
+    fn new(offset: i32) -> Self {
+        let _phantom = PhantomData;
+        Offset { offset, _phantom }
+    }
+}
+
+impl<T> Clone for Offset<T> {
+    fn clone(&self) -> Self {
+        Self::new(self.offset)
+    }
+}
+
+impl<T> Copy for Offset<T> {}
+
+pub struct IdRange<T> {
+    start: Id<T>,
+    stop: Id<T>,
+}
+
+impl<T> IdRange<T> {
+    pub fn new(start: Id<T>, stop: Id<T>) -> Self {
+        Self { start, stop }
+    }
+
+    pub fn new_after(from: Id<T>, len: u32) -> Self {
+        let start = Id::new(from.id + 1);
+        let stop = Id::new(start.id + len);
+        Self { start, stop }
+    }
+
+    pub fn len(self) -> u32 {
+        self.stop.id - self.start.id
+    }
+}
+
+impl<T> Clone for IdRange<T> {
+    fn clone(&self) -> Self {
+        let start = self.start;
+        let stop = self.stop;
+        Self { start, stop }
+    }
+}
+
+impl<T> Copy for IdRange<T> {}
+
+impl<T> Iterator for IdRange<T> {
+    type Item = Id<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start == self.stop {
+            return None;
+        }
+
+        let result = Some(self.start);
+        self.start.id += 1;
+        result
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let size = (self.stop.id - self.start.id) as usize;
+        (size, Some(size))
+    }
+}

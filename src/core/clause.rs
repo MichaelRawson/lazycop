@@ -1,53 +1,96 @@
 use crate::prelude::*;
 use std::ops::Index;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Clause {
-    literals: Vec<Literal>,
+    range: IdRange<Literal>,
 }
 
 impl Clause {
-    pub fn new(literals: Vec<Literal>) -> Self {
-        Self { literals }
+    pub fn is_empty(mut self) -> bool {
+        self.range.next().is_none()
     }
 
-    /*
-        pub fn offset(&mut self, offset: Offset<Term>) {
-            for literal in &mut *self.literals {
-                literal.offset(offset);
-            }
-        }
+    pub fn len(self) -> u32 {
+        self.range.len()
+    }
 
-        pub fn is_empty(&self) -> bool {
-            self.literals.is_empty()
-        }
+    pub fn literals<'storage>(
+        self,
+        storage: &'storage ClauseStorage,
+    ) -> impl Iterator<Item = Literal> + 'storage {
+        self.range.map(move |id| storage[id])
+    }
 
-        pub fn iter(&self) -> impl Iterator<Item = &Literal> {
-            self.literals.iter()
-        }
+    pub fn current_literal(
+        mut self,
+        storage: &ClauseStorage,
+    ) -> Option<Literal> {
+        self.range.next().map(|id| storage[id])
+    }
 
-        pub fn len(&self) -> usize {
-            self.literals.len()
-        }
-
-        pub fn last_literal(&self) -> &Literal {
-            self.literals.last().unwrap()
-        }
-
-        pub fn pop_literal(&mut self) -> Literal {
-            self.literals.pop().unwrap()
-        }
-
-        pub fn remove_literal(&mut self, literal_id: Id<Literal>) -> Literal {
-            self.literals.remove(literal_id.index())
-        }
-    */
+    pub fn pop_literal(&mut self, storage: &ClauseStorage) -> Option<Literal> {
+        self.range.next().map(|id| storage[id])
+    }
 }
 
-impl Index<Id<Literal>> for Clause {
+#[derive(Default)]
+pub struct ClauseStorage {
+    arena: Arena<Literal>,
+    mark: Id<Literal>,
+}
+
+impl ClauseStorage {
+    pub fn clear(&mut self) {
+        self.arena.clear();
+    }
+
+    pub fn copy(
+        &mut self,
+        offset: Offset<Term>,
+        from: &Arena<Literal>,
+    ) -> Clause {
+        let start = self.arena.len();
+        for id in from {
+            self.arena.push(from[id].offset(offset));
+        }
+        let stop = self.arena.len();
+        let range = IdRange::new(start, stop);
+        Clause { range }
+    }
+
+    pub fn copy_replace(
+        &mut self,
+        offset: Offset<Term>,
+        from: &Arena<Literal>,
+        except: Id<Literal>,
+        with: Literal,
+    ) -> Clause {
+        let start = self.arena.len();
+        self.arena.push(with);
+        for id in from {
+            if id != except {
+                self.arena.push(from[id].offset(offset));
+            }
+        }
+        let stop = self.arena.len();
+        let range = IdRange::new(start, stop);
+        Clause { range }
+    }
+
+    pub fn mark(&mut self) {
+        self.mark = self.arena.len();
+    }
+
+    pub fn undo_to_mark(&mut self) {
+        self.arena.truncate(self.mark);
+    }
+}
+
+impl Index<Id<Literal>> for ClauseStorage {
     type Output = Literal;
 
     fn index(&self, id: Id<Literal>) -> &Self::Output {
-        &self.literals[id.index()]
+        &self.arena[id]
     }
 }

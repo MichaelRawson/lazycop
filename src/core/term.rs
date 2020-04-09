@@ -1,31 +1,32 @@
 use crate::prelude::*;
 
-pub struct Term;
+pub struct Variable;
 
 #[derive(Clone, Copy)]
 pub enum TermView {
-    Variable(Id<Term>),
+    Variable(Id<Variable>),
     Function(Id<Symbol>, IdRange<Term>),
 }
 
 #[derive(Clone, Copy)]
-enum Item {
-    Symbol(Id<Symbol>),
+pub enum Term {
+    Symbol(Id<Symbol>, u32),
     Reference(Offset<Term>),
 }
 
 #[derive(Default)]
 pub struct TermGraph {
-    items: Vec<Item>,
+    arena: Arena<Term>,
+    mark: Id<Term>,
 }
 
 impl TermGraph {
     pub fn clear(&mut self) {
-        self.items.clear();
+        self.arena.clear();
     }
 
     pub fn add_variable(&mut self) -> Id<Term> {
-        let id = self.items.len().into();
+        let id = self.arena.len();
         self.add_reference(id)
     }
 
@@ -34,8 +35,8 @@ impl TermGraph {
         symbol: Id<Symbol>,
         args: &[Id<Term>],
     ) -> Id<Term> {
-        let id = self.items.len().into();
-        self.items.push(Item::Symbol(symbol));
+        let id = self.arena.len();
+        self.arena.push(Term::Symbol(symbol, args.len() as u32));
         for arg in args {
             self.add_reference(*arg);
         }
@@ -43,38 +44,43 @@ impl TermGraph {
     }
 
     pub fn current_offset(&self) -> Offset<Term> {
-        let base: Id<Term> = 0.into();
-        let current: Id<Term> = self.items.len().into();
-        current - base
+        self.arena.len().as_offset()
     }
 
-    pub fn copy_from(&mut self, other: &Self) {
-        self.items.extend_from_slice(&other.items);
+    pub fn copy(&mut self, other: &Self) {
+        self.arena.copy_from(&other.arena);
     }
 
-    pub fn resolve_reference(&self, id: Id<Term>) -> Id<Term> {
-        match self.items[id.index()] {
-            Item::Reference(offset) => id + offset,
-            _ => id,
-        }
+    pub fn mark(&mut self) {
+        self.mark = self.arena.len();
     }
 
-    pub fn view(&self, symbol_table: &SymbolTable, id: Id<Term>) -> TermView {
+    pub fn undo_to_mark(&mut self) {
+        self.arena.truncate(self.mark);
+    }
+
+    pub fn view(&self, id: Id<Term>) -> TermView {
         let id = self.resolve_reference(id);
-        match self.items[id.index()] {
-            Item::Symbol(symbol) => {
-                let arity = symbol_table.arity(symbol);
-                let args = IdRange::after(id, arity);
+        match self.arena[id] {
+            Term::Symbol(symbol, arity) => {
+                let args = IdRange::new_after(id, arity);
                 TermView::Function(symbol, args)
             }
-            Item::Reference(_) => TermView::Variable(id),
+            Term::Reference(_) => TermView::Variable(id.transmute()),
         }
     }
 
     fn add_reference(&mut self, referred: Id<Term>) -> Id<Term> {
-        let id = self.items.len().into();
+        let id = self.arena.len();
         let offset = referred - id;
-        self.items.push(Item::Reference(offset));
+        self.arena.push(Term::Reference(offset));
         id
+    }
+
+    fn resolve_reference(&self, id: Id<Term>) -> Id<Term> {
+        match self.arena[id] {
+            Term::Reference(offset) => id + offset,
+            _ => id,
+        }
     }
 }

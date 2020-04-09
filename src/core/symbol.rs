@@ -4,23 +4,15 @@ pub struct Symbol;
 
 #[derive(Default)]
 pub struct SymbolTable {
-    arities: Vec<u32>,
-    names: Vec<String>,
+    names: Arena<String>,
 }
 
 impl SymbolTable {
-    pub fn push(&mut self, name: String, arity: u32) -> Id<Symbol> {
-        let id = self.arities.len().into();
-        self.arities.push(arity);
-        self.names.push(name);
-        id
-    }
-
-    pub fn arity(&self, id: Id<Symbol>) -> u32 {
-        *unsafe { self.arities.get_unchecked(id.index()) }
+    pub fn append(&mut self, name: String) -> Id<Symbol> {
+        self.names.push(name).transmute()
     }
 
     pub fn name(&self, id: Id<Symbol>) -> &str {
-        &self.names[id.index()]
+        &self.names[id.transmute()]
     }
 }

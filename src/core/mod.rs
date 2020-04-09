@@ -1,6 +1,12 @@
 pub mod atom;
 pub mod clause;
+pub mod constraint;
+pub mod goal;
+pub mod goal_stack;
 pub mod literal;
 pub mod problem;
+pub mod rule;
+pub mod solver;
 pub mod symbol;
+pub mod tableau;
 pub mod term;

@@ -1,7 +1,8 @@
 use crate::io::exit;
+use crate::io::record::Record;
 use crate::io::szs;
 use crate::prelude::*;
-use crate::util::problem_builder::ProblemBuilder;
+use crate::util::variable_map::VariableMap;
 use std::fmt;
 use std::io::Read;
 use tptp::parsers::TPTPIterator;
@@ -76,13 +77,10 @@ impl<'v> Visitor<'v> for TPTPProblemBuilder {
                 self.visit_fof_term(infix.right);
                 self.builder.equality(false);
             }
-            ast::Literal::Atomic(ast::FofAtomicFormula::Defined(d)) => {
-                report_inappropriate(d)
+            ast::Literal::Atomic(atomic) => report_inappropriate(atomic),
+            ast::Literal::NegatedAtomic(negated) => {
+                report_inappropriate(negated)
             }
-            ast::Literal::Atomic(ast::FofAtomicFormula::System(s)) => {
-                report_inappropriate(s)
-            }
-            _ => todo!(),
         }
     }
 
@@ -127,42 +125,42 @@ pub fn load_from_stdin() -> Problem {
     builder.finish()
 }
 
-/*
-struct PrintSymbol<'symbols>(pub &'symbols SymbolTable, pub Id<Symbol>);
+struct FmtSymbol<'a>(pub &'a SymbolTable, pub Id<Symbol>);
 
-impl fmt::Display for PrintSymbol<'_> {
+impl fmt::Display for FmtSymbol<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let PrintSymbol(symbol_table, symbol_id) = self;
+        let FmtSymbol(symbol_table, symbol_id) = self;
         write!(f, "{}", symbol_table.name(*symbol_id))
     }
 }
 
-struct PrintTerm<'symbols, 'terms>(
-    pub &'symbols SymbolTable,
-    pub &'terms TermGraph,
+struct FmtTerm<'a>(
+    pub &'a VariableMap,
+    pub &'a SymbolTable,
+    pub &'a TermGraph,
     pub Id<Term>,
 );
 
-impl fmt::Display for PrintTerm<'_, '_> {
+impl fmt::Display for FmtTerm<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let PrintTerm(symbol_table, term_graph, term_id) = self;
-        let mut todo = vec![vec![*term_id]];
+        let FmtTerm(variable_map, symbol_table, term_graph, term_id) = self;
+        let mut arg_stack = vec![vec![*term_id]];
 
-        while let Some(args) = todo.last_mut() {
+        while let Some(args) = arg_stack.last_mut() {
             if let Some(next_arg) = args.pop() {
                 let mut needs_comma = !args.is_empty();
-                match term_graph.view(symbol_table, next_arg) {
-                    TermView::Variable(id) => {
-                        write!(f, "X{}", id.index())?;
+                match term_graph.view(next_arg) {
+                    TermView::Variable(x) => {
+                        write!(f, "X{}", variable_map.get(x))?;
                     }
                     TermView::Function(symbol, new_args) => {
-                        write!(f, "{}", PrintSymbol(symbol_table, symbol))?;
+                        write!(f, "{}", FmtSymbol(symbol_table, symbol))?;
                         let mut new_args: Vec<_> = new_args.collect();
                         if !new_args.is_empty() {
                             write!(f, "(")?;
                             needs_comma = false;
                             new_args.reverse();
-                            todo.push(new_args);
+                            arg_stack.push(new_args);
                         }
                     }
                 }
@@ -170,8 +168,8 @@ impl fmt::Display for PrintTerm<'_, '_> {
                     write!(f, ",")?;
                 }
             } else {
-                todo.pop();
-                if let Some(args) = todo.last_mut() {
+                arg_stack.pop();
+                if let Some(args) = arg_stack.last_mut() {
                     write!(f, ")")?;
                     if !args.is_empty() {
                         write!(f, ",")?;
@@ -183,51 +181,67 @@ impl fmt::Display for PrintTerm<'_, '_> {
     }
 }
 
-struct PrintLiteral<'symbols, 'terms, 'literal>(
-    pub &'symbols SymbolTable,
-    pub &'terms TermGraph,
-    pub &'literal Literal,
+struct FmtLiteral<'a>(
+    pub &'a VariableMap,
+    pub &'a SymbolTable,
+    pub &'a TermGraph,
+    pub Literal,
 );
 
-impl fmt::Display for PrintLiteral<'_, '_, '_> {
+impl fmt::Display for FmtLiteral<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let PrintLiteral(symbol_table, term_graph, literal) = self;
+        let FmtLiteral(variable_map, symbol_table, term_graph, literal) = self;
         match (literal.polarity, literal.atom) {
-            (true, Atom::Predicate(p)) => {
-                write!(f, "{}", PrintTerm(symbol_table, term_graph, p))
-            }
-            (false, Atom::Predicate(p)) => {
-                write!(f, "~{}", PrintTerm(symbol_table, term_graph, p))
-            }
+            (true, Atom::Predicate(p)) => write!(
+                f,
+                "{}",
+                FmtTerm(variable_map, symbol_table, term_graph, p)
+            ),
+            (false, Atom::Predicate(p)) => write!(
+                f,
+                "~{}",
+                FmtTerm(variable_map, symbol_table, term_graph, p)
+            ),
             (true, Atom::Equality(left, right)) => write!(
                 f,
                 "{} = {}",
-                PrintTerm(symbol_table, term_graph, left),
-                PrintTerm(symbol_table, term_graph, right)
+                FmtTerm(variable_map, symbol_table, term_graph, left),
+                FmtTerm(variable_map, symbol_table, term_graph, right)
             ),
             (false, Atom::Equality(left, right)) => write!(
                 f,
                 "{} != {}",
-                PrintTerm(symbol_table, term_graph, left),
-                PrintTerm(symbol_table, term_graph, right)
+                FmtTerm(variable_map, symbol_table, term_graph, left),
+                FmtTerm(variable_map, symbol_table, term_graph, right)
             ),
         }
     }
 }
 
-struct PrintClause<'symbols, 'terms, 'clause>(
-    pub &'symbols SymbolTable,
-    pub &'terms TermGraph,
-    pub &'clause Clause,
+struct FmtClause<'a>(
+    pub &'a VariableMap,
+    pub &'a SymbolTable,
+    pub &'a TermGraph,
+    pub &'a ClauseStorage,
+    pub Clause,
 );
 
-impl fmt::Display for PrintClause<'_, '_, '_> {
+impl fmt::Display for FmtClause<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let PrintClause(symbol_table, term_graph, clause) = self;
-
-        let mut literals = clause.iter();
+        let FmtClause(
+            variable_map,
+            symbol_table,
+            term_graph,
+            clause_storage,
+            clause,
+        ) = self;
+        let mut literals = clause.literals(clause_storage);
         if let Some(literal) = literals.next() {
-            write!(f, "{}", PrintLiteral(symbol_table, term_graph, literal))?;
+            write!(
+                f,
+                "{}",
+                FmtLiteral(variable_map, symbol_table, term_graph, literal)
+            )?;
         } else {
             write!(f, "$false")?;
         }
@@ -235,10 +249,80 @@ impl fmt::Display for PrintClause<'_, '_, '_> {
             write!(
                 f,
                 " | {}",
-                PrintLiteral(symbol_table, term_graph, literal)
+                FmtLiteral(variable_map, symbol_table, term_graph, literal)
             )?;
         }
         Ok(())
     }
 }
-*/
+
+#[derive(Default)]
+pub struct TPTPProof {
+    variable_map: VariableMap,
+}
+
+impl Record for TPTPProof {
+    fn start_inference(&mut self, inference: &'static str) {
+        println!("% {}", inference);
+    }
+
+    fn therefore(&mut self) {
+        println!("% {:-<77}", "");
+    }
+
+    fn clause(
+        &mut self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+        clause: Clause,
+    ) {
+        println!(
+            "cnf(clause, plain, {}).",
+            FmtClause(
+                &self.variable_map,
+                symbol_table,
+                term_graph,
+                clause_storage,
+                clause
+            )
+        );
+    }
+
+    fn equality_constraint(
+        &mut self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) {
+        println!(
+            "cnf(constraint, assumption, {} = {}).",
+            FmtTerm(&self.variable_map, symbol_table, term_graph, left),
+            FmtTerm(&self.variable_map, symbol_table, term_graph, right),
+        );
+    }
+
+    fn binding(
+        &mut self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        variable: Id<Variable>,
+        term: Id<Term>,
+    ) {
+        println!(
+            "cnf(binding, plain, {} = {}).",
+            FmtTerm(
+                &self.variable_map,
+                symbol_table,
+                term_graph,
+                variable.transmute()
+            ),
+            FmtTerm(&self.variable_map, symbol_table, term_graph, term)
+        );
+    }
+
+    fn end_inference(&mut self) {
+        println!()
+    }
+}

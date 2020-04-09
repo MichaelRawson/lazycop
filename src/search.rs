@@ -1,77 +1,45 @@
-use crate::util::queue::Queue;
-use script::Script;
-
+use crate::core::tableau::Tableau;
 use crate::io::record::Silent;
 use crate::prelude::*;
+use crate::util::queue::Queue;
+use crate::util::rc_stack::RcStack;
+use std::collections::VecDeque;
 
-fn heuristic(tableau: &Tableau) -> usize {
-    tableau.num_literals()
-}
+pub fn astar(problem: &Problem) -> Option<VecDeque<Rule>> {
+    let mut queue = Queue::default();
+    queue.enqueue(RcStack::default(), 0);
 
-#[derive(Default)]
-pub struct Search {
-    queue: Queue,
-}
-
-impl Search {
-    pub fn search(&mut self, problem: &Problem) -> Option<Vec<Rule>> {
-        self.queue.clear();
-        for rule in problem.start_rules() {
-            self.queue.enqueue(Script::start(rule), 0);
+    let mut script = VecDeque::new();
+    let mut possible = vec![];
+    let mut tableau = Tableau::new(problem);
+    let mut record = Silent; //crate::io::tptp::TPTPProof::default();
+    let mut steps = 0 as usize;
+    while let Some(rule_stack) = queue.dequeue() {
+        steps += 1;
+        script.clear();
+        tableau.clear();
+        for rule in rule_stack.items() {
+            script.push_front(*rule);
+        }
+        for rule in &script {
+            tableau.apply_rule(&mut record, *rule);
         }
 
-        let mut rules = vec![];
-        let mut next_rules = vec![];
-        let mut reconstruction = Tableau::new(problem);
-        let mut copy = Tableau::new(problem);
-        let mut steps = 0;
-        while let Some(script) = self.queue.dequeue() {
-            if let Some(proof) = self.step(
-                script,
-                &mut rules,
-                &mut next_rules,
-                &mut reconstruction,
-                &mut copy,
-            ) {
-                eprintln!("proof found in {} steps", steps);
-                return Some(proof);
+        possible.clear();
+        tableau.possible_rules(&mut possible);
+        for rule in &possible {
+            tableau.apply_rule(&mut record, *rule);
+            if tableau.solve_constraints(&mut record) {
+                if tableau.is_closed() {
+                    println!("% proof found in {} steps", steps);
+                    script.push_back(*rule);
+                    return Some(script);
+                }
+                let estimate = tableau.open_branches() + (script.len() as u32);
+                queue.enqueue(rule_stack.push(*rule), estimate);
             }
-            steps += 1;
+            tableau.undo();
         }
-        None
     }
-
-    fn step<'problem>(
-        &mut self,
-        script: Rc<Script>,
-        rules: &mut Vec<Rule>,
-        next_rules: &mut Vec<Rule>,
-        reconstruction: &mut Tableau<'problem>,
-        copy: &mut Tableau<'problem>,
-    ) -> Option<Vec<Rule>> {
-        script.fill_rules(rules);
-        let distance = rules.len();
-        reconstruction.reconstruct(&mut Silent, &rules);
-
-        reconstruction.fill_possible_rules(next_rules);
-        for next_rule in next_rules {
-            copy.duplicate(&reconstruction);
-            copy.apply_rule::<Checked, _>(&mut Silent, *next_rule);
-            if copy.is_blocked() {
-                continue;
-            }
-            if copy.is_closed() {
-                let script = Script::new(script, *next_rule);
-                let mut proof_rules = vec![];
-                script.fill_rules(&mut proof_rules);
-                return Some(proof_rules);
-            }
-
-            let estimate = heuristic(&copy);
-            let priority = (distance + estimate) as u32;
-            let next_script = Script::new(script.clone(), *next_rule);
-            self.queue.enqueue(next_script, priority);
-        }
-        None
-    }
+    None
 }

@@ -3,7 +3,7 @@ use std::collections::BinaryHeap;
 
 struct Item<T> {
     item: T,
-    priority: u32
+    priority: u32,
 }
 
 impl<T> PartialEq for Item<T> {
@@ -38,10 +38,6 @@ impl<T> Default for Queue<T> {
 }
 
 impl<T> Queue<T> {
-    pub fn clear(&mut self) {
-        self.heap.clear();
-    }
-
     pub fn enqueue(&mut self, item: T, priority: u32) {
         self.heap.push(Item { item, priority });
     }
