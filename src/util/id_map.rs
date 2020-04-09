@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use std::marker::PhantomData;
 
-pub struct IdMap<K, V> {
+pub(crate) struct IdMap<K, V> {
     map: Vec<Option<V>>,
     _phantom: PhantomData<K>,
 }
@@ -15,17 +15,17 @@ impl<K, V> Default for IdMap<K, V> {
 }
 
 impl<K, V> IdMap<K, V> {
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         let len = self.map.len();
         self.map.clear();
         self.map.resize_with(len, Default::default);
     }
 
-    pub fn get(&self, id: Id<K>) -> Option<&V> {
+    pub(crate) fn get(&self, id: Id<K>) -> Option<&V> {
         self.map.get(id.as_usize())?.as_ref()
     }
 
-    pub fn set(&mut self, id: Id<K>, value: V) {
+    pub(crate) fn set(&mut self, id: Id<K>, value: V) {
         let index = id.as_usize();
         if index >= self.map.len() {
             self.map.resize_with(index + 1, Default::default);
@@ -35,7 +35,7 @@ impl<K, V> IdMap<K, V> {
 }
 
 impl<K, V: Default> IdMap<K, V> {
-    pub fn get_mut_default(&mut self, id: Id<K>) -> &mut V {
+    pub(crate) fn get_mut_default(&mut self, id: Id<K>) -> &mut V {
         let index = id.as_usize();
         if index >= self.map.len() {
             self.set(id, V::default());

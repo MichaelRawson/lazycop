@@ -2,41 +2,42 @@ use crate::core::goal::Goal;
 use crate::io::record::Record;
 use crate::prelude::*;
 
+#[derive(Clone, Copy)]
+pub(crate) struct Lemma {
+    valid_for: Id<Goal>,
+    literal: Literal,
+}
+
 #[derive(Default)]
-pub struct GoalStack {
+pub(crate) struct GoalStack {
     stack: Arena<Goal>,
-    previous: Arena<Goal>,
+    lemmata: Arena<Lemma>,
 }
 
 impl GoalStack {
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.stack.is_empty()
     }
 
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.stack.clear();
-        self.previous.clear();
+        self.lemmata.clear();
     }
 
-    pub fn mark(&mut self) {
-        self.previous.clear();
-        self.previous.copy_from(&self.stack);
+    pub(crate) fn copy_from(&mut self, other: &GoalStack) {
+        self.clear();
+        self.stack.copy_from(&other.stack);
+        self.lemmata.copy_from(&other.lemmata);
     }
 
-    pub fn undo_to_mark(&mut self) {
-        self.stack.clear();
-        self.stack.copy_from(&self.previous);
-    }
-
-    pub fn open_branches(&self) -> u32 {
-        1 + self
-            .stack
+    pub(crate) fn open_branches(&self) -> u32 {
+        self.stack
             .into_iter()
-            .map(|id| self.stack[id].open_branches())
+            .map(|id| self.stack[id].num_open_branches())
             .sum::<u32>()
     }
 
-    pub fn apply_rule<R: Record>(
+    pub(crate) fn apply_rule<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
@@ -47,6 +48,7 @@ impl GoalStack {
     ) {
         match rule {
             Rule::Start(start) => {
+                record.start_inference("start");
                 let start = Goal::start(
                     record,
                     problem,
@@ -57,7 +59,13 @@ impl GoalStack {
                 self.stack.push(start);
             }
             Rule::Reduction(reduction) => {
-                let by = self.stack[reduction.goal];
+                record.start_inference("reduction");
+                let literal = self.stack[reduction.goal]
+                    .clause
+                    .current_literal(clause_storage)
+                    .expect("reduction with empty clause");
+                let mut valid_for = reduction.goal;
+                valid_for.increment();
                 let goal =
                     self.stack.last_mut().expect("reduction on empty tableau");
                 goal.reduction(
@@ -66,11 +74,41 @@ impl GoalStack {
                     term_graph,
                     clause_storage,
                     constraint_list,
-                    by,
+                    literal,
+                    valid_for,
                 );
-                self.check_closed_branches(clause_storage);
+                self.close_branches(
+                    record,
+                    &problem.symbol_table,
+                    term_graph,
+                    clause_storage,
+                );
+            }
+            Rule::Lemma(lemma) => {
+                record.start_inference("lemma");
+                let lemma = self.lemmata[lemma.lemma];
+                let goal = self
+                    .stack
+                    .last_mut()
+                    .expect("lemma applies on empty tableau");
+                goal.lemma(
+                    record,
+                    &problem.symbol_table,
+                    term_graph,
+                    clause_storage,
+                    constraint_list,
+                    lemma.literal,
+                    lemma.valid_for,
+                );
+                self.close_branches(
+                    record,
+                    &problem.symbol_table,
+                    term_graph,
+                    clause_storage,
+                );
             }
             Rule::EqualityReduction => {
+                record.start_inference("equality reduction");
                 let goal = self
                     .stack
                     .last_mut()
@@ -82,13 +120,15 @@ impl GoalStack {
                     clause_storage,
                     constraint_list,
                 );
-                self.check_closed_branches(clause_storage);
+                self.close_branches(
+                    record,
+                    &problem.symbol_table,
+                    term_graph,
+                    clause_storage,
+                );
             }
             Rule::Extension(extension) => {
-                self.add_regularity_constraints(
-                    clause_storage,
-                    constraint_list,
-                );
+                record.start_inference("extension");
                 let goal =
                     self.stack.last_mut().expect("extension on empty tableau");
                 let new_goal = goal.extension(
@@ -99,12 +139,19 @@ impl GoalStack {
                     constraint_list,
                     extension.position,
                 );
+                self.add_regularity_constraints(
+                    constraint_list,
+                    term_graph,
+                    clause_storage,
+                    &new_goal,
+                );
                 self.stack.push(new_goal);
             }
         }
+        record.end_inference();
     }
 
-    pub fn possible_rules(
+    pub(crate) fn possible_rules(
         &self,
         possible: &mut Vec<Rule>,
         problem: &Problem,
@@ -117,43 +164,58 @@ impl GoalStack {
                 problem,
                 term_graph,
                 clause_storage,
-                *goal,
+                goal,
             );
         } else {
             self.possible_start_rules(possible, problem);
         }
     }
 
-    fn check_closed_branches(&mut self, clause_storage: &ClauseStorage) {
-        let goal = self.stack.last().expect("empty tableau");
-        if !goal.is_finished() {
-            return;
-        }
-        self.stack.pop();
-        while let Some(goal) = self.stack.last_mut() {
-            goal.pop_literal(clause_storage);
-            if goal.is_finished() {
-                self.stack.pop();
-            } else {
-                break;
+    fn close_branches<R: Record>(
+        &mut self,
+        record: &mut R,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+    ) {
+        while let Some(solved) = self.stack.last() {
+            if !solved.clause.is_empty() {
+                return;
+            }
+            let valid_for = solved.valid_for;
+            self.stack.pop();
+            if let Some(parent) = self.stack.last_mut() {
+                let (valid_for, literal) =
+                    parent.mark_literal_solved(clause_storage, valid_for);
+                record.lemma(symbol_table, term_graph, literal);
+                let lemma = Lemma { valid_for, literal };
+                let id = self.lemmata.push(lemma);
+                if valid_for < self.stack.len() {
+                    self.stack[valid_for].lemmata =
+                        self.stack[valid_for].lemmata.push(id);
+                }
             }
         }
     }
 
     fn add_regularity_constraints(
         &self,
-        clause_storage: &ClauseStorage,
         constraint_list: &mut ConstraintList,
+        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+        goal: &Goal,
     ) {
-        let mut path_literals = self.path_literals(clause_storage);
-        let literal = path_literals.next().expect("empty path");
-        if let Atom::Predicate(left) = literal.atom {
-            for path_literal in path_literals {
-                if literal.polarity == path_literal.polarity {
-                    if let Atom::Predicate(right) = path_literal.atom {
-                        constraint_list.add_disequality(left, right);
-                    }
+        for literal in goal.clause.literals(clause_storage) {
+            for path_literal in self.path_literals(clause_storage) {
+                if literal.polarity != path_literal.polarity {
+                    continue;
                 }
+                Atom::compute_disequation(
+                    &literal.atom,
+                    &path_literal.atom,
+                    constraint_list,
+                    term_graph,
+                );
             }
         }
     }
@@ -179,46 +241,124 @@ impl GoalStack {
         problem: &Problem,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        goal: Goal,
+        goal: &Goal,
     ) {
-        let literal =
-            goal.current_literal(clause_storage).expect("empty goal");
+        let literal = goal
+            .clause
+            .current_literal(clause_storage)
+            .expect("empty goal");
         match literal.atom {
-            Atom::Predicate(term) => {
-                let p = if let TermView::Function(p, _) = term_graph.view(term)
-                {
-                    p
-                } else {
-                    unreachable!("non-functional predicate");
-                };
-                if let Some(positions) = problem.predicate_occurrences
-                    [!literal.polarity as usize]
-                    .get(p)
-                {
-                    possible.extend(
-                        positions
-                            .iter()
-                            .copied()
-                            .map(|position| ExtensionRule { position })
-                            .map(Rule::Extension),
-                    );
-                }
-                for goal in self.stack.into_iter() {
-                    let path_literal = self.stack[goal]
-                        .current_literal(clause_storage)
-                        .expect("empty goal in stack");
-                    if path_literal.polarity == literal.polarity {
-                        continue;
-                    }
-                    if let Atom::Predicate(_) = path_literal.atom {
-                        possible.push(Rule::Reduction(ReductionRule { goal }));
-                    }
-                }
-            }
+            Atom::Predicate(term) => self.possible_predicate_rules(
+                possible,
+                problem,
+                term_graph,
+                clause_storage,
+                literal.polarity,
+                term,
+            ),
             Atom::Equality(_, _) => {
                 if !literal.polarity {
                     possible.push(Rule::EqualityReduction);
                 }
+            }
+        }
+    }
+
+    fn possible_predicate_rules(
+        &self,
+        possible: &mut Vec<Rule>,
+        problem: &Problem,
+        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+        polarity: bool,
+        term: Id<Term>,
+    ) {
+        self.possible_reduction_rules(
+            possible,
+            term_graph,
+            clause_storage,
+            polarity,
+            term,
+        );
+        self.possible_lemma_rules(possible, term_graph, polarity, term);
+        self.possible_extension_rules(
+            possible, problem, term_graph, polarity, term,
+        );
+    }
+
+    fn possible_reduction_rules(
+        &self,
+        possible: &mut Vec<Rule>,
+        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+        polarity: bool,
+        term: Id<Term>,
+    ) {
+        let mut parent_goals = self.stack.into_iter().rev();
+        parent_goals.next();
+        for goal in parent_goals {
+            let path_literal = self.stack[goal]
+                .clause
+                .current_literal(clause_storage)
+                .expect("empty goal in stack");
+            if path_literal.polarity == polarity {
+                continue;
+            }
+            if let Atom::Predicate(other) = path_literal.atom {
+                if let (TermView::Function(f, _), TermView::Function(g, _)) =
+                    (term_graph.view(term), term_graph.view(other))
+                {
+                    if f == g {
+                        possible.push(Rule::Reduction(ReductionRule { goal }));
+                    }
+                }
+            }
+        }
+    }
+
+    fn possible_lemma_rules(
+        &self,
+        possible: &mut Vec<Rule>,
+        term_graph: &TermGraph,
+        polarity: bool,
+        term: Id<Term>,
+    ) {
+        for lemma in self.available_lemmata() {
+            let literal = self.lemmata[lemma].literal;
+            if literal.polarity != polarity {
+                continue;
+            }
+            if let Atom::Predicate(other) = literal.atom {
+                if let (TermView::Function(f, _), TermView::Function(g, _)) =
+                    (term_graph.view(term), term_graph.view(other))
+                {
+                    if f == g {
+                        possible.push(Rule::Lemma(LemmaRule { lemma }));
+                    }
+                }
+            }
+        }
+    }
+
+    fn possible_extension_rules(
+        &self,
+        possible: &mut Vec<Rule>,
+        problem: &Problem,
+        term_graph: &TermGraph,
+        polarity: bool,
+        term: Id<Term>,
+    ) {
+        if let TermView::Function(p, _) = term_graph.view(term) {
+            if let Some(positions) =
+                problem.predicate_occurrences[!polarity as usize].get(p)
+            {
+                possible.extend(
+                    positions
+                        .iter()
+                        .copied()
+                        .map(|position| ExtensionRule { position })
+                        .map(Rule::Extension),
+                );
             }
         }
     }
@@ -231,10 +371,17 @@ impl GoalStack {
         'storage: 'iterator,
         'a: 'iterator,
     {
-        self.stack.into_iter().map(move |id| {
+        self.stack.into_iter().rev().skip(1).map(move |id| {
             self.stack[id]
+                .clause
                 .current_literal(clause_storage)
                 .expect("empty clause in stack")
         })
+    }
+
+    fn available_lemmata(&self) -> impl Iterator<Item = Id<Lemma>> + '_ {
+        self.stack
+            .into_iter()
+            .flat_map(move |id| self.stack[id].lemmata.items().copied())
     }
 }

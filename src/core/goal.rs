@@ -1,42 +1,41 @@
+use crate::core::goal_stack::Lemma;
 use crate::io::record::Record;
 use crate::prelude::*;
+use crate::util::rc_stack::RcStack;
 
-#[derive(Clone, Copy)]
-pub struct Goal {
-    clause: Clause,
+#[derive(Clone)]
+pub(crate) struct Goal {
+    pub(crate) clause: Clause,
+    pub(crate) lemmata: RcStack<Id<Lemma>>,
+    pub(crate) valid_for: Id<Goal>,
 }
 
 impl Goal {
-    pub fn is_finished(self) -> bool {
-        self.clause.is_empty()
-    }
-
-    pub fn open_branches(self) -> u32 {
+    pub(crate) fn num_open_branches(&self) -> u32 {
         self.clause.len() - 1
     }
 
-    pub fn current_literal(
-        self,
-        clause_storage: &ClauseStorage,
-    ) -> Option<Literal> {
-        self.clause.current_literal(clause_storage)
-    }
-
-    pub fn pop_literal(
+    pub(crate) fn mark_literal_solved(
         &mut self,
         clause_storage: &ClauseStorage,
-    ) -> Option<Literal> {
-        self.clause.pop_literal(clause_storage)
+        valid_for: Id<Goal>,
+    ) -> (Id<Goal>, Literal) {
+        let valid_for = std::cmp::max(self.valid_for, valid_for);
+        self.valid_for = Id::default();
+        let literal = self
+            .clause
+            .pop_literal(clause_storage)
+            .expect("literal marked solved on empty goal");
+        (valid_for, literal)
     }
 
-    pub fn start<R: Record>(
+    pub(crate) fn start<R: Record>(
         record: &mut R,
         problem: &Problem,
         term_graph: &mut TermGraph,
         clause_storage: &mut ClauseStorage,
         start_clause: Id<ProblemClause>,
     ) -> Self {
-        record.start_inference("start");
         record.therefore();
         let (literals, new_term_graph) = problem.clause_data(start_clause);
         let clause =
@@ -48,21 +47,26 @@ impl Goal {
             &clause_storage,
             clause,
         );
-        record.end_inference();
-        Self { clause }
+        let lemmata = RcStack::default();
+        let valid_for = Id::default();
+        Self {
+            clause,
+            lemmata,
+            valid_for,
+        }
     }
 
-    pub fn reduction<R: Record>(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn reduction<R: Record>(
         &mut self,
         record: &mut R,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
         constraint_list: &mut ConstraintList,
-        by: Goal,
+        matching: Literal,
+        valid_for: Id<Goal>,
     ) {
-        record.start_inference("reduction");
-        record.clause(&symbol_table, &term_graph, &clause_storage, by.clause);
         record.clause(
             &symbol_table,
             &term_graph,
@@ -70,33 +74,72 @@ impl Goal {
             self.clause,
         );
         record.therefore();
-        let matching = by
-            .clause
-            .current_literal(&clause_storage)
-            .expect("reduction by empty clause");
         let literal = self
             .clause
             .pop_literal(&clause_storage)
             .expect("reduction on empty clause");
-        let (left, right) = if let (Atom::Predicate(p), Atom::Predicate(q)) =
+        self.valid_for = std::cmp::max(self.valid_for, valid_for);
+        if let (Atom::Predicate(p), Atom::Predicate(q)) =
             (literal.atom, matching.atom)
         {
-            (p, q)
+            constraint_list.add_equality(p, q);
+            record.equality_constraint(&symbol_table, &term_graph, p, q);
         } else {
             unreachable!("reduction on non-predicate literal");
         };
-        constraint_list.add_equality(left, right);
-        record.equality_constraint(&symbol_table, &term_graph, left, right);
         record.clause(
             &symbol_table,
             &term_graph,
             &clause_storage,
             self.clause,
         );
-        record.end_inference();
     }
 
-    pub fn equality_reduction<R: Record>(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn lemma<R: Record>(
+        &mut self,
+        record: &mut R,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+        constraint_list: &mut ConstraintList,
+        lemma: Literal,
+        valid_for: Id<Goal>,
+    ) {
+        record.clause(
+            &symbol_table,
+            &term_graph,
+            &clause_storage,
+            self.clause,
+        );
+        record.lemma(
+            &symbol_table,
+            &term_graph,
+            lemma,
+        );
+        record.therefore();
+        let literal = self
+            .clause
+            .pop_literal(&clause_storage)
+            .expect("lemma applied on empty clause");
+        self.valid_for = std::cmp::max(self.valid_for, valid_for);
+        if let (Atom::Predicate(p), Atom::Predicate(q)) =
+            (literal.atom, lemma.atom)
+        {
+            constraint_list.add_equality(p, q);
+            record.equality_constraint(&symbol_table, &term_graph, p, q);
+        } else {
+            unreachable!("lemma applied on non-predicate literal");
+        };
+        record.clause(
+            &symbol_table,
+            &term_graph,
+            &clause_storage,
+            self.clause,
+        );
+    }
+
+    pub(crate) fn equality_reduction<R: Record>(
         &mut self,
         record: &mut R,
         symbol_table: &SymbolTable,
@@ -104,7 +147,6 @@ impl Goal {
         clause_storage: &ClauseStorage,
         constraint_list: &mut ConstraintList,
     ) {
-        record.start_inference("equality reduction");
         record.clause(
             &symbol_table,
             &term_graph,
@@ -129,10 +171,9 @@ impl Goal {
             &clause_storage,
             self.clause,
         );
-        record.end_inference();
     }
 
-    pub fn extension<R: Record>(
+    pub(crate) fn extension<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
@@ -141,7 +182,6 @@ impl Goal {
         constraint_list: &mut ConstraintList,
         position: Position,
     ) -> Self {
-        record.start_inference("extension");
         record.clause(
             &problem.symbol_table,
             &term_graph,
@@ -172,13 +212,15 @@ impl Goal {
 
         for original_literal in self.clause.literals(&clause_storage) {
             for new_literal in clause.literals(&clause_storage) {
-                if original_literal.polarity != new_literal.polarity {
-                    if let (Atom::Predicate(p), Atom::Predicate(q)) =
-                        (original_literal.atom, new_literal.atom)
-                    {
-                        constraint_list.add_disequality(p, q);
-                    }
+                if original_literal.polarity == new_literal.polarity {
+                    continue;
                 }
+                Atom::compute_disequation(
+                    &original_literal.atom,
+                    &new_literal.atom,
+                    constraint_list,
+                    term_graph,
+                );
             }
         }
 
@@ -188,7 +230,12 @@ impl Goal {
             &clause_storage,
             clause,
         );
-        record.end_inference();
-        Self { clause }
+        let lemmata = RcStack::default();
+        let valid_for = Id::default();
+        Self {
+            clause,
+            lemmata,
+            valid_for,
+        }
     }
 }

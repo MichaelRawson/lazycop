@@ -7,7 +7,7 @@ struct RcData<T> {
     data: T,
 }
 
-pub struct Rc<T> {
+pub(crate) struct Rc<T> {
     ptr: NonNull<RcData<T>>,
 }
 
@@ -34,7 +34,7 @@ impl<T> Rc<T> {
         self.set_count(self.get_count() - 1);
     }
 
-    pub fn new(data: T) -> Self {
+    pub(crate) fn new(data: T) -> Self {
         let count = unsafe { NonZeroU32::new_unchecked(1) };
         let boxed = Box::new(RcData { count, data });
         let ptr = unsafe { NonNull::new_unchecked(Box::into_raw(boxed)) };

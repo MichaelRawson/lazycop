@@ -1,54 +1,53 @@
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
-use std::ops::{Add, Index, Sub};
+use std::ops::{Add, Index, IndexMut, Sub};
 
-pub struct Arena<T> {
+pub(crate) struct Arena<T> {
     items: Vec<T>,
 }
 
 impl<T> Arena<T> {
-    pub fn len(&self) -> Id<T> {
+    pub(crate) fn len(&self) -> Id<T> {
         let id = self.items.len() as u32;
         let _phantom = PhantomData;
         Id { id, _phantom }
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.items.clear();
     }
 
-    pub fn truncate(&mut self, len: Id<T>) {
+    pub(crate) fn truncate(&mut self, len: Id<T>) {
         self.items.truncate(len.id as usize);
     }
 
-    pub fn copy_from(&mut self, other: &Arena<T>)
+    pub(crate) fn copy_from(&mut self, other: &Arena<T>)
     where
-        T: Clone + Copy,
+        T: Clone,
     {
         self.items.extend_from_slice(&other.items);
     }
 
-    #[inline]
-    pub fn push(&mut self, item: T) -> Id<T> {
+    pub(crate) fn push(&mut self, item: T) -> Id<T> {
         let id = self.len();
         self.items.push(item);
         id
     }
 
-    pub fn pop(&mut self) -> Option<T> {
+    pub(crate) fn pop(&mut self) -> Option<T> {
         self.items.pop()
     }
 
-    pub fn last(&self) -> Option<&T> {
+    pub(crate) fn last(&self) -> Option<&T> {
         self.items.last()
     }
 
-    pub fn last_mut(&mut self) -> Option<&mut T> {
+    pub(crate) fn last_mut(&mut self) -> Option<&mut T> {
         self.items.last_mut()
     }
 }
@@ -69,6 +68,13 @@ impl<T> Index<Id<T>> for Arena<T> {
     }
 }
 
+impl<T> IndexMut<Id<T>> for Arena<T> {
+    fn index_mut(&mut self, id: Id<T>) -> &mut Self::Output {
+        debug_assert!((id.id as usize) < self.items.len());
+        unsafe { self.items.get_unchecked_mut(id.id as usize) }
+    }
+}
+
 impl<'a, T> IntoIterator for &'a Arena<T> {
     type Item = Id<T>;
     type IntoIter = IdRange<T>;
@@ -80,7 +86,7 @@ impl<'a, T> IntoIterator for &'a Arena<T> {
     }
 }
 
-pub struct Id<T> {
+pub(crate) struct Id<T> {
     id: u32,
     _phantom: PhantomData<T>,
 }
@@ -91,22 +97,22 @@ impl<T> Id<T> {
         Self { id, _phantom }
     }
 
-    pub fn as_usize(self) -> usize {
+    pub(crate) fn increment(&mut self) {
+        self.id += 1;
+    }
+
+    pub(crate) fn as_usize(self) -> usize {
         self.id as usize
     }
 
-    pub fn as_offset(self) -> Offset<T> {
+    pub(crate) fn as_offset(self) -> Offset<T> {
         Offset::new(self.id as i32)
     }
 
-    pub fn transmute<S>(self) -> Id<S> {
+    pub(crate) fn transmute<S>(self) -> Id<S> {
         let id = self.id;
         let _phantom = PhantomData;
         Id { id, _phantom }
-    }
-
-    pub fn increment(&mut self) {
-        self.id += 1;
     }
 }
 
@@ -168,7 +174,7 @@ impl<T> Hash for Id<T> {
     }
 }
 
-pub struct Offset<T> {
+pub(crate) struct Offset<T> {
     offset: i32,
     _phantom: PhantomData<T>,
 }
@@ -188,23 +194,23 @@ impl<T> Clone for Offset<T> {
 
 impl<T> Copy for Offset<T> {}
 
-pub struct IdRange<T> {
+pub(crate) struct IdRange<T> {
     start: Id<T>,
     stop: Id<T>,
 }
 
 impl<T> IdRange<T> {
-    pub fn new(start: Id<T>, stop: Id<T>) -> Self {
+    pub(crate) fn new(start: Id<T>, stop: Id<T>) -> Self {
         Self { start, stop }
     }
 
-    pub fn new_after(from: Id<T>, len: u32) -> Self {
+    pub(crate) fn new_after(from: Id<T>, len: u32) -> Self {
         let start = Id::new(from.id + 1);
         let stop = Id::new(start.id + len);
         Self { start, stop }
     }
 
-    pub fn len(self) -> u32 {
+    pub(crate) fn len(self) -> u32 {
         self.stop.id - self.start.id
     }
 }
@@ -235,5 +241,16 @@ impl<T> Iterator for IdRange<T> {
     fn size_hint(&self) -> (usize, Option<usize>) {
         let size = (self.stop.id - self.start.id) as usize;
         (size, Some(size))
+    }
+}
+
+impl<T> DoubleEndedIterator for IdRange<T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.start == self.stop {
+            return None;
+        }
+
+        self.stop.id -= 1;
+        Some(self.stop)
     }
 }

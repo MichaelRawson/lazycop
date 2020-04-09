@@ -5,7 +5,7 @@ use crate::util::queue::Queue;
 use crate::util::rc_stack::RcStack;
 use std::collections::VecDeque;
 
-pub fn astar(problem: &Problem) -> Option<VecDeque<Rule>> {
+pub(crate) fn astar(problem: &Problem) -> Option<VecDeque<Rule>> {
     let mut queue = Queue::default();
     queue.enqueue(RcStack::default(), 0);
 
@@ -27,6 +27,7 @@ pub fn astar(problem: &Problem) -> Option<VecDeque<Rule>> {
 
         possible.clear();
         tableau.possible_rules(&mut possible);
+        tableau.mark();
         for rule in &possible {
             tableau.apply_rule(&mut record, *rule);
             if tableau.solve_constraints(&mut record) {

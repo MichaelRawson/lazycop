@@ -26,7 +26,7 @@ impl<T> Ord for Item<T> {
     }
 }
 
-pub struct Queue<T> {
+pub(crate) struct Queue<T> {
     heap: BinaryHeap<Item<T>>,
 }
 
@@ -38,11 +38,11 @@ impl<T> Default for Queue<T> {
 }
 
 impl<T> Queue<T> {
-    pub fn enqueue(&mut self, item: T, priority: u32) {
+    pub(crate) fn enqueue(&mut self, item: T, priority: u32) {
         self.heap.push(Item { item, priority });
     }
 
-    pub fn dequeue(&mut self) -> Option<T> {
+    pub(crate) fn dequeue(&mut self) -> Option<T> {
         Some(self.heap.pop()?.item)
     }
 }

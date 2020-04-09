@@ -3,14 +3,14 @@ use crate::prelude::*;
 use crate::util::id_map::IdMap;
 
 #[derive(Default)]
-pub struct Solver {
+pub(crate) struct Solver {
     bindings: IdMap<Variable, Id<Term>>,
     pairs: Vec<(Id<Term>, Id<Term>)>,
     terms: Vec<Id<Term>>,
 }
 
 impl Solver {
-    pub fn solve<R: Record>(
+    pub(crate) fn solve<R: Record>(
         &mut self,
         record: &mut R,
         symbol_table: &SymbolTable,
@@ -82,7 +82,6 @@ impl Solver {
         true
     }
 
-    #[inline]
     fn check_disequality(&mut self, term_graph: &TermGraph) -> bool {
         while let Some((left, right)) = self.pairs.pop() {
             let (left, lview) = self.view(term_graph, left);

@@ -1,9 +1,9 @@
 use std::process::exit;
 
-pub fn success() -> ! {
+pub(crate) fn success() -> ! {
     exit(0)
 }
 
-pub fn failure() -> ! {
+pub(crate) fn failure() -> ! {
     exit(1)
 }

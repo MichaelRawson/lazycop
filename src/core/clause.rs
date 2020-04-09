@@ -2,50 +2,53 @@ use crate::prelude::*;
 use std::ops::Index;
 
 #[derive(Clone, Copy)]
-pub struct Clause {
+pub(crate) struct Clause {
     range: IdRange<Literal>,
 }
 
 impl Clause {
-    pub fn is_empty(mut self) -> bool {
+    pub(crate) fn is_empty(mut self) -> bool {
         self.range.next().is_none()
     }
 
-    pub fn len(self) -> u32 {
+    pub(crate) fn len(self) -> u32 {
         self.range.len()
     }
 
-    pub fn literals<'storage>(
+    pub(crate) fn literals<'storage>(
         self,
         storage: &'storage ClauseStorage,
     ) -> impl Iterator<Item = Literal> + 'storage {
         self.range.map(move |id| storage[id])
     }
 
-    pub fn current_literal(
+    pub(crate) fn current_literal(
         mut self,
         storage: &ClauseStorage,
     ) -> Option<Literal> {
         self.range.next().map(|id| storage[id])
     }
 
-    pub fn pop_literal(&mut self, storage: &ClauseStorage) -> Option<Literal> {
+    pub(crate) fn pop_literal(
+        &mut self,
+        storage: &ClauseStorage,
+    ) -> Option<Literal> {
         self.range.next().map(|id| storage[id])
     }
 }
 
 #[derive(Default)]
-pub struct ClauseStorage {
+pub(crate) struct ClauseStorage {
     arena: Arena<Literal>,
     mark: Id<Literal>,
 }
 
 impl ClauseStorage {
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.arena.clear();
     }
 
-    pub fn copy(
+    pub(crate) fn copy(
         &mut self,
         offset: Offset<Term>,
         from: &Arena<Literal>,
@@ -59,7 +62,7 @@ impl ClauseStorage {
         Clause { range }
     }
 
-    pub fn copy_replace(
+    pub(crate) fn copy_replace(
         &mut self,
         offset: Offset<Term>,
         from: &Arena<Literal>,
@@ -78,11 +81,11 @@ impl ClauseStorage {
         Clause { range }
     }
 
-    pub fn mark(&mut self) {
+    pub(crate) fn mark(&mut self) {
         self.mark = self.arena.len();
     }
 
-    pub fn undo_to_mark(&mut self) {
+    pub(crate) fn undo_to_mark(&mut self) {
         self.arena.truncate(self.mark);
     }
 }

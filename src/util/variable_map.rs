@@ -3,13 +3,13 @@ use crate::util::id_map::IdMap;
 use std::cell::{Cell, RefCell};
 
 #[derive(Default)]
-pub struct VariableMap {
+pub(crate) struct VariableMap {
     map: RefCell<IdMap<Variable, usize>>,
     count: Cell<usize>,
 }
 
 impl VariableMap {
-    pub fn get(&self, variable: Id<Variable>) -> usize {
+    pub(crate) fn get(&self, variable: Id<Variable>) -> usize {
         if let Some(count) = self.map.borrow().get(variable) {
             return *count;
         }

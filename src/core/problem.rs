@@ -3,23 +3,23 @@ use crate::util::id_map::IdMap;
 use std::collections::HashMap;
 use std::mem;
 
-pub struct ProblemClause {
+pub(crate) struct ProblemClause {
     literals: Arena<Literal>,
     term_graph: TermGraph,
 }
 
-pub type Position = (Id<ProblemClause>, Id<Literal>);
+pub(crate) type Position = (Id<ProblemClause>, Id<Literal>);
 
 #[derive(Default)]
-pub struct Problem {
+pub(crate) struct Problem {
     clauses: Arena<ProblemClause>,
-    pub start_clauses: Vec<Id<ProblemClause>>,
-    pub predicate_occurrences: [IdMap<Symbol, Vec<Position>>; 2],
-    pub symbol_table: SymbolTable,
+    pub(crate) start_clauses: Vec<Id<ProblemClause>>,
+    pub(crate) predicate_occurrences: [IdMap<Symbol, Vec<Position>>; 2],
+    pub(crate) symbol_table: SymbolTable,
 }
 
 impl Problem {
-    pub fn clause_data(
+    pub(crate) fn clause_data(
         &self,
         id: Id<ProblemClause>,
     ) -> (&Arena<Literal>, &TermGraph) {
@@ -34,7 +34,7 @@ impl Problem {
 type FunctionKey = (Id<Symbol>, Vec<Id<Term>>);
 
 #[derive(Default)]
-pub struct ProblemBuilder {
+pub(crate) struct ProblemBuilder {
     problem: Problem,
     symbols: HashMap<(String, u32), Id<Symbol>>,
     variable_map: HashMap<String, Id<Term>>,
@@ -45,11 +45,11 @@ pub struct ProblemBuilder {
 }
 
 impl ProblemBuilder {
-    pub fn finish(self) -> Problem {
+    pub(crate) fn finish(self) -> Problem {
         self.problem
     }
 
-    pub fn variable(&mut self, variable: String) {
+    pub(crate) fn variable(&mut self, variable: String) {
         let term_graph = &mut self.term_graph;
         let id = *self
             .variable_map
@@ -58,7 +58,7 @@ impl ProblemBuilder {
         self.saved_terms.push(id);
     }
 
-    pub fn function(&mut self, symbol: String, arity: u32) {
+    pub(crate) fn function(&mut self, symbol: String, arity: u32) {
         let symbol_table = &mut self.problem.symbol_table;
         let symbol = *self
             .symbols
@@ -76,7 +76,7 @@ impl ProblemBuilder {
         self.saved_terms.push(id);
     }
 
-    pub fn predicate(&mut self, polarity: bool) {
+    pub(crate) fn predicate(&mut self, polarity: bool) {
         let term = self.saved_terms.pop().expect("predicate without a term?");
         let atom = Atom::Predicate(term);
         let symbol = match self.term_graph.view(term) {
@@ -92,14 +92,14 @@ impl ProblemBuilder {
         self.saved_literals.push(Literal::new(polarity, atom));
     }
 
-    pub fn equality(&mut self, polarity: bool) {
+    pub(crate) fn equality(&mut self, polarity: bool) {
         let right = self.saved_terms.pop().expect("equality without term?");
         let left = self.saved_terms.pop().expect("equality without term?");
         let atom = Atom::Equality(left, right);
         self.saved_literals.push(Literal::new(polarity, atom));
     }
 
-    pub fn clause(&mut self, start_clause: bool) {
+    pub(crate) fn clause(&mut self, start_clause: bool) {
         let term_graph = mem::take(&mut self.term_graph);
         self.variable_map.clear();
         self.function_map.clear();

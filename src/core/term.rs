@@ -1,36 +1,36 @@
 use crate::prelude::*;
 
-pub struct Variable;
+pub(crate) struct Variable;
 
 #[derive(Clone, Copy)]
-pub enum TermView {
+pub(crate) enum TermView {
     Variable(Id<Variable>),
     Function(Id<Symbol>, IdRange<Term>),
 }
 
 #[derive(Clone, Copy)]
-pub enum Term {
+pub(crate) enum Term {
     Symbol(Id<Symbol>, u32),
     Reference(Offset<Term>),
 }
 
 #[derive(Default)]
-pub struct TermGraph {
+pub(crate) struct TermGraph {
     arena: Arena<Term>,
     mark: Id<Term>,
 }
 
 impl TermGraph {
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.arena.clear();
     }
 
-    pub fn add_variable(&mut self) -> Id<Term> {
+    pub(crate) fn add_variable(&mut self) -> Id<Term> {
         let id = self.arena.len();
         self.add_reference(id)
     }
 
-    pub fn add_function(
+    pub(crate) fn add_function(
         &mut self,
         symbol: Id<Symbol>,
         args: &[Id<Term>],
@@ -43,23 +43,23 @@ impl TermGraph {
         id
     }
 
-    pub fn current_offset(&self) -> Offset<Term> {
+    pub(crate) fn current_offset(&self) -> Offset<Term> {
         self.arena.len().as_offset()
     }
 
-    pub fn copy(&mut self, other: &Self) {
+    pub(crate) fn copy(&mut self, other: &Self) {
         self.arena.copy_from(&other.arena);
     }
 
-    pub fn mark(&mut self) {
+    pub(crate) fn mark(&mut self) {
         self.mark = self.arena.len();
     }
 
-    pub fn undo_to_mark(&mut self) {
+    pub(crate) fn undo_to_mark(&mut self) {
         self.arena.truncate(self.mark);
     }
 
-    pub fn view(&self, id: Id<Term>) -> TermView {
+    pub(crate) fn view(&self, id: Id<Term>) -> TermView {
         let id = self.resolve_reference(id);
         match self.arena[id] {
             Term::Symbol(symbol, arity) => {

@@ -107,7 +107,7 @@ fn read_stdin_chunk(buf: &mut Vec<u8>) -> usize {
     read
 }
 
-pub fn load_from_stdin() -> Problem {
+pub(crate) fn load_from_stdin() -> Problem {
     let mut builder = TPTPProblemBuilder::default();
     let mut buf = vec![];
 
@@ -125,7 +125,7 @@ pub fn load_from_stdin() -> Problem {
     builder.finish()
 }
 
-struct FmtSymbol<'a>(pub &'a SymbolTable, pub Id<Symbol>);
+struct FmtSymbol<'a>(pub(crate) &'a SymbolTable, pub(crate) Id<Symbol>);
 
 impl fmt::Display for FmtSymbol<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -135,10 +135,10 @@ impl fmt::Display for FmtSymbol<'_> {
 }
 
 struct FmtTerm<'a>(
-    pub &'a VariableMap,
-    pub &'a SymbolTable,
-    pub &'a TermGraph,
-    pub Id<Term>,
+    pub(crate) &'a VariableMap,
+    pub(crate) &'a SymbolTable,
+    pub(crate) &'a TermGraph,
+    pub(crate) Id<Term>,
 );
 
 impl fmt::Display for FmtTerm<'_> {
@@ -182,10 +182,10 @@ impl fmt::Display for FmtTerm<'_> {
 }
 
 struct FmtLiteral<'a>(
-    pub &'a VariableMap,
-    pub &'a SymbolTable,
-    pub &'a TermGraph,
-    pub Literal,
+    pub(crate) &'a VariableMap,
+    pub(crate) &'a SymbolTable,
+    pub(crate) &'a TermGraph,
+    pub(crate) Literal,
 );
 
 impl fmt::Display for FmtLiteral<'_> {
@@ -219,11 +219,11 @@ impl fmt::Display for FmtLiteral<'_> {
 }
 
 struct FmtClause<'a>(
-    pub &'a VariableMap,
-    pub &'a SymbolTable,
-    pub &'a TermGraph,
-    pub &'a ClauseStorage,
-    pub Clause,
+    pub(crate) &'a VariableMap,
+    pub(crate) &'a SymbolTable,
+    pub(crate) &'a TermGraph,
+    pub(crate) &'a ClauseStorage,
+    pub(crate) Clause,
 );
 
 impl fmt::Display for FmtClause<'_> {
@@ -257,7 +257,7 @@ impl fmt::Display for FmtClause<'_> {
 }
 
 #[derive(Default)]
-pub struct TPTPProof {
+pub(crate) struct TPTPProof {
     variable_map: VariableMap,
 }
 
@@ -286,6 +286,18 @@ impl Record for TPTPProof {
                 clause_storage,
                 clause
             )
+        );
+    }
+
+    fn lemma(
+        &mut self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        literal: Literal,
+    ) {
+        println!(
+            "cnf(lemmata, lemma, {})",
+            FmtLiteral(&self.variable_map, symbol_table, term_graph, literal)
         );
     }
 

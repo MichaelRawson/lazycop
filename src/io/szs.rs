@@ -1,27 +1,27 @@
-pub fn os_error() {
+pub(crate) fn os_error() {
     println!("% SZS status OSError");
 }
 
-pub fn input_error() {
+pub(crate) fn input_error() {
     println!("% SZS status InputError");
 }
 
-pub fn inappropriate() {
+pub(crate) fn inappropriate() {
     println!("% SZS status Inappropriate");
 }
 
-pub fn incomplete() {
+pub(crate) fn incomplete() {
     println!("% SZS status Incomplete");
 }
 
-pub fn unsatisfiable() {
+pub(crate) fn unsatisfiable() {
     println!("% SZS status Unsatisfiable");
 }
 
-pub fn begin_refutation() {
+pub(crate) fn begin_refutation() {
     println!("% SZS begin CNFRefutation");
 }
 
-pub fn end_refutation() {
+pub(crate) fn end_refutation() {
     println!("% SZS end CNFRefutation");
 }

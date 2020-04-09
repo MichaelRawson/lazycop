@@ -1,4 +1,4 @@
-pub mod exit;
-pub mod record;
-pub mod szs;
-pub mod tptp;
+pub(crate) mod exit;
+pub(crate) mod record;
+pub(crate) mod szs;
+pub(crate) mod tptp;
