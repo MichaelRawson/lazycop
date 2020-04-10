@@ -64,10 +64,14 @@ impl ProblemBuilder {
             .symbols
             .entry((symbol.clone(), arity))
             .or_insert_with(|| symbol_table.append(symbol));
+        self.problem.predicate_occurrences[0]
+            .ensure_capacity(symbol_table.len());
+        self.problem.predicate_occurrences[1]
+            .ensure_capacity(symbol_table.len());
+
         let args = self
             .saved_terms
             .split_off(self.saved_terms.len() - (arity as usize));
-
         let term_graph = &mut self.term_graph;
         let id = *self
             .function_map
@@ -86,8 +90,7 @@ impl ProblemBuilder {
 
         let clause_id = self.problem.clauses.len();
         let literal_id = self.saved_literals.len();
-        self.problem.predicate_occurrences[polarity as usize]
-            .get_mut_default(symbol)
+        self.problem.predicate_occurrences[polarity as usize][symbol]
             .push((clause_id, literal_id));
         self.saved_literals.push(Literal::new(polarity, atom));
     }

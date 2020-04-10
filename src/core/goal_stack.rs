@@ -4,7 +4,7 @@ use crate::prelude::*;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Lemma {
-    valid_for: Id<Goal>,
+    valid_from: Id<Goal>,
     literal: Literal,
 }
 
@@ -24,7 +24,7 @@ impl GoalStack {
         self.lemmata.clear();
     }
 
-    pub(crate) fn copy_from(&mut self, other: &GoalStack) {
+    pub(crate) fn reset_to(&mut self, other: &GoalStack) {
         self.clear();
         self.stack.copy_from(&other.stack);
         self.lemmata.copy_from(&other.lemmata);
@@ -34,7 +34,7 @@ impl GoalStack {
         self.stack
             .into_iter()
             .map(|id| self.stack[id].num_open_branches())
-            .sum::<u32>()
+            .sum()
     }
 
     pub(crate) fn apply_rule<R: Record>(
@@ -48,7 +48,6 @@ impl GoalStack {
     ) {
         match rule {
             Rule::Start(start) => {
-                record.start_inference("start");
                 let start = Goal::start(
                     record,
                     problem,
@@ -59,13 +58,12 @@ impl GoalStack {
                 self.stack.push(start);
             }
             Rule::Reduction(reduction) => {
-                record.start_inference("reduction");
                 let literal = self.stack[reduction.goal]
                     .clause
                     .current_literal(clause_storage)
                     .expect("reduction with empty clause");
-                let mut valid_for = reduction.goal;
-                valid_for.increment();
+                let mut valid_from = reduction.goal;
+                valid_from.increment();
                 let goal =
                     self.stack.last_mut().expect("reduction on empty tableau");
                 goal.reduction(
@@ -75,17 +73,11 @@ impl GoalStack {
                     clause_storage,
                     constraint_list,
                     literal,
-                    valid_for,
+                    valid_from,
                 );
-                self.close_branches(
-                    record,
-                    &problem.symbol_table,
-                    term_graph,
-                    clause_storage,
-                );
+                self.close_branches(clause_storage);
             }
             Rule::Lemma(lemma) => {
-                record.start_inference("lemma");
                 let lemma = self.lemmata[lemma.lemma];
                 let goal = self
                     .stack
@@ -98,17 +90,11 @@ impl GoalStack {
                     clause_storage,
                     constraint_list,
                     lemma.literal,
-                    lemma.valid_for,
+                    lemma.valid_from,
                 );
-                self.close_branches(
-                    record,
-                    &problem.symbol_table,
-                    term_graph,
-                    clause_storage,
-                );
+                self.close_branches(clause_storage);
             }
             Rule::EqualityReduction => {
-                record.start_inference("equality reduction");
                 let goal = self
                     .stack
                     .last_mut()
@@ -120,15 +106,9 @@ impl GoalStack {
                     clause_storage,
                     constraint_list,
                 );
-                self.close_branches(
-                    record,
-                    &problem.symbol_table,
-                    term_graph,
-                    clause_storage,
-                );
+                self.close_branches(clause_storage);
             }
             Rule::Extension(extension) => {
-                record.start_inference("extension");
                 let goal =
                     self.stack.last_mut().expect("extension on empty tableau");
                 let new_goal = goal.extension(
@@ -136,19 +116,11 @@ impl GoalStack {
                     problem,
                     term_graph,
                     clause_storage,
-                    constraint_list,
                     extension.position,
-                );
-                self.add_regularity_constraints(
-                    constraint_list,
-                    term_graph,
-                    clause_storage,
-                    &new_goal,
                 );
                 self.stack.push(new_goal);
             }
         }
-        record.end_inference();
     }
 
     pub(crate) fn possible_rules(
@@ -171,51 +143,25 @@ impl GoalStack {
         }
     }
 
-    fn close_branches<R: Record>(
-        &mut self,
-        record: &mut R,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
-        clause_storage: &ClauseStorage,
-    ) {
+    fn close_branches(&mut self, clause_storage: &ClauseStorage) {
         while let Some(solved) = self.stack.last() {
             if !solved.clause.is_empty() {
                 return;
             }
-            let valid_for = solved.valid_for;
+            let valid_from = solved.valid_from;
             self.stack.pop();
             if let Some(parent) = self.stack.last_mut() {
-                let (valid_for, literal) =
-                    parent.mark_literal_solved(clause_storage, valid_for);
-                record.lemma(symbol_table, term_graph, literal);
-                let lemma = Lemma { valid_for, literal };
+                let (valid_from, literal) =
+                    parent.mark_literal_solved(clause_storage, valid_from);
+                let lemma = Lemma {
+                    valid_from,
+                    literal,
+                };
                 let id = self.lemmata.push(lemma);
-                if valid_for < self.stack.len() {
-                    self.stack[valid_for].lemmata =
-                        self.stack[valid_for].lemmata.push(id);
+                if valid_from < self.stack.len() {
+                    self.stack[valid_from].lemmata =
+                        self.stack[valid_from].lemmata.push(id);
                 }
-            }
-        }
-    }
-
-    fn add_regularity_constraints(
-        &self,
-        constraint_list: &mut ConstraintList,
-        term_graph: &TermGraph,
-        clause_storage: &ClauseStorage,
-        goal: &Goal,
-    ) {
-        for literal in goal.clause.literals(clause_storage) {
-            for path_literal in self.path_literals(clause_storage) {
-                if literal.polarity != path_literal.polarity {
-                    continue;
-                }
-                Atom::compute_disequation(
-                    &literal.atom,
-                    &path_literal.atom,
-                    constraint_list,
-                    term_graph,
-                );
             }
         }
     }
@@ -348,35 +294,17 @@ impl GoalStack {
         polarity: bool,
         term: Id<Term>,
     ) {
+        let opposite = !polarity as usize;
         if let TermView::Function(p, _) = term_graph.view(term) {
-            if let Some(positions) =
-                problem.predicate_occurrences[!polarity as usize].get(p)
-            {
-                possible.extend(
-                    positions
-                        .iter()
-                        .copied()
-                        .map(|position| ExtensionRule { position })
-                        .map(Rule::Extension),
-                );
-            }
+            let positions = &problem.predicate_occurrences[opposite][p];
+            possible.extend(
+                positions
+                    .iter()
+                    .copied()
+                    .map(|position| ExtensionRule { position })
+                    .map(Rule::Extension),
+            );
         }
-    }
-
-    fn path_literals<'a, 'storage, 'iterator>(
-        &'a self,
-        clause_storage: &'storage ClauseStorage,
-    ) -> impl Iterator<Item = Literal> + 'iterator
-    where
-        'storage: 'iterator,
-        'a: 'iterator,
-    {
-        self.stack.into_iter().rev().skip(1).map(move |id| {
-            self.stack[id]
-                .clause
-                .current_literal(clause_storage)
-                .expect("empty clause in stack")
-        })
     }
 
     fn available_lemmata(&self) -> impl Iterator<Item = Id<Lemma>> + '_ {

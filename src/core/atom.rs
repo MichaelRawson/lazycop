@@ -15,21 +15,4 @@ impl Atom {
             }
         }
     }
-
-    pub(crate) fn compute_disequation(
-        left: &Self,
-        right: &Self,
-        constraint_list: &mut ConstraintList,
-        term_graph: &TermGraph,
-    ) {
-        if let (Atom::Predicate(p), Atom::Predicate(q)) = (left, right) {
-            if let (TermView::Function(f, _), TermView::Function(g, _)) =
-                (term_graph.view(*p), term_graph.view(*q))
-            {
-                if f == g {
-                    constraint_list.add_disequality(*p, *q);
-                }
-            }
-        }
-    }
 }

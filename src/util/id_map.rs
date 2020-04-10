@@ -1,8 +1,9 @@
 use crate::prelude::*;
 use std::marker::PhantomData;
+use std::ops::{Index, IndexMut};
 
 pub(crate) struct IdMap<K, V> {
-    map: Vec<Option<V>>,
+    map: Vec<V>,
     _phantom: PhantomData<K>,
 }
 
@@ -14,38 +15,40 @@ impl<K, V> Default for IdMap<K, V> {
     }
 }
 
+impl<K, V> Index<Id<K>> for IdMap<K, V> {
+    type Output = V;
+
+    fn index(&self, id: Id<K>) -> &Self::Output {
+        &self.map[id.as_usize()]
+    }
+}
+
+impl<K, V> IndexMut<Id<K>> for IdMap<K, V> {
+    fn index_mut(&mut self, id: Id<K>) -> &mut Self::Output {
+        &mut self.map[id.as_usize()]
+    }
+}
+
 impl<K, V> IdMap<K, V> {
     pub(crate) fn clear(&mut self) {
-        let len = self.map.len();
         self.map.clear();
-        self.map.resize_with(len, Default::default);
-    }
-
-    pub(crate) fn get(&self, id: Id<K>) -> Option<&V> {
-        self.map.get(id.as_usize())?.as_ref()
-    }
-
-    pub(crate) fn set(&mut self, id: Id<K>, value: V) {
-        let index = id.as_usize();
-        if index >= self.map.len() {
-            self.map.resize_with(index + 1, Default::default);
-        }
-        self.map[index] = Some(value)
     }
 }
 
 impl<K, V: Default> IdMap<K, V> {
-    pub(crate) fn get_mut_default(&mut self, id: Id<K>) -> &mut V {
-        let index = id.as_usize();
-        if index >= self.map.len() {
-            self.set(id, V::default());
+    pub(crate) fn ensure_capacity(&mut self, enough: Id<K>) {
+        let required = enough.as_usize();
+        if required >= self.map.len() {
+            self.map.resize_with(required + 1, Default::default);
         }
-        if self.map[index].is_none() {
-            self.map[index] = Some(V::default());
-        }
-        match &mut self.map[index] {
-            Some(value) => value,
-            None => unreachable!("just set this index"),
-        }
+    }
+}
+
+impl<'a, K, V> IntoIterator for &'a IdMap<K, V> {
+    type Item = Id<K>;
+    type IntoIter = IdRange<K>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        IdRange::new_including(Id::default(), self.map.len() as u32)
     }
 }

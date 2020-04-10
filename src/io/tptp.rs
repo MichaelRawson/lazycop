@@ -2,6 +2,7 @@ use crate::io::exit;
 use crate::io::record::Record;
 use crate::io::szs;
 use crate::prelude::*;
+use crate::util::id_map::IdMap;
 use crate::util::variable_map::VariableMap;
 use std::fmt;
 use std::io::Read;
@@ -259,18 +260,13 @@ impl fmt::Display for FmtClause<'_> {
 #[derive(Default)]
 pub(crate) struct TPTPProof {
     variable_map: VariableMap,
+    clause_stack: Vec<usize>,
+    assumptions_list: Vec<usize>,
+    clause_number: usize,
 }
 
 impl Record for TPTPProof {
-    fn start_inference(&mut self, inference: &'static str) {
-        println!("% {}", inference);
-    }
-
-    fn therefore(&mut self) {
-        println!("% {:-<77}", "");
-    }
-
-    fn clause(
+    fn start(
         &mut self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
@@ -278,7 +274,8 @@ impl Record for TPTPProof {
         clause: Clause,
     ) {
         println!(
-            "cnf(clause, plain, {}).",
+            "cnf({}, negated_conjecture, {}).",
+            self.clause_number,
             FmtClause(
                 &self.variable_map,
                 symbol_table,
@@ -287,54 +284,204 @@ impl Record for TPTPProof {
                 clause
             )
         );
+        self.clause_stack.push(self.clause_number);
+        self.clause_number += 1;
+    }
+
+    fn reduction(
+        &mut self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+        clause: Clause,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) {
+        let parent = self
+            .clause_stack
+            .pop()
+            .expect("printing reduction on empty clause stack");
+        println!(
+            "cnf({}, assumption, {} = {}).",
+            self.clause_number,
+            FmtTerm(&self.variable_map, symbol_table, term_graph, left),
+            FmtTerm(&self.variable_map, symbol_table, term_graph, right)
+        );
+        self.assumptions_list.push(self.clause_number);
+        self.clause_number += 1;
+        println!(
+            "cnf({}, plain, {}, inference(reduction, [], [{}])).",
+            self.clause_number,
+            FmtClause(
+                &self.variable_map,
+                symbol_table,
+                term_graph,
+                clause_storage,
+                clause
+            ),
+            parent
+        );
+        if !clause.is_empty() {
+            self.clause_stack.push(self.clause_number);
+        }
+        self.clause_number += 1;
     }
 
     fn lemma(
         &mut self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
-        literal: Literal,
-    ) {
-        println!(
-            "cnf(lemmata, lemma, {})",
-            FmtLiteral(&self.variable_map, symbol_table, term_graph, literal)
-        );
-    }
-
-    fn equality_constraint(
-        &mut self,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+        clause: Clause,
         left: Id<Term>,
         right: Id<Term>,
     ) {
+        let parent = self
+            .clause_stack
+            .pop()
+            .expect("printing lemma on empty clause stack");
         println!(
-            "cnf(constraint, assumption, {} = {}).",
+            "cnf({}, assumption, {} = {}).",
+            self.clause_number,
             FmtTerm(&self.variable_map, symbol_table, term_graph, left),
-            FmtTerm(&self.variable_map, symbol_table, term_graph, right),
+            FmtTerm(&self.variable_map, symbol_table, term_graph, right)
         );
-    }
-
-    fn binding(
-        &mut self,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
-        variable: Id<Variable>,
-        term: Id<Term>,
-    ) {
+        self.assumptions_list.push(self.clause_number);
+        self.clause_number += 1;
         println!(
-            "cnf(binding, plain, {} = {}).",
-            FmtTerm(
+            "cnf({}, plain, {}, inference(lemma, [assumptions([{}])], [{}])).",
+            self.clause_number,
+            FmtClause(
                 &self.variable_map,
                 symbol_table,
                 term_graph,
-                variable.transmute()
+                clause_storage,
+                clause
             ),
-            FmtTerm(&self.variable_map, symbol_table, term_graph, term)
+            self.clause_number - 1,
+            parent
         );
+        if !clause.is_empty() {
+            self.clause_stack.push(self.clause_number);
+        }
+        self.clause_number += 1;
     }
 
-    fn end_inference(&mut self) {
-        println!()
+    fn equality_reduction(
+        &mut self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+        clause: Clause,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) {
+        let parent = self
+            .clause_stack
+            .pop()
+            .expect("printing equality reduction on empty stack");
+        println!(
+            "cnf({}, assumption, {} = {}).",
+            self.clause_number,
+            FmtTerm(&self.variable_map, symbol_table, term_graph, left),
+            FmtTerm(&self.variable_map, symbol_table, term_graph, right)
+        );
+        self.assumptions_list.push(self.clause_number);
+        self.clause_number += 1;
+        println!(
+            "cnf({}, plain, {}, inference(equality_reduction, [assumptions([{}])], [{}])).",
+            self.clause_number,
+            FmtClause(
+                &self.variable_map,
+                symbol_table,
+                term_graph,
+                clause_storage,
+                clause
+            ),
+            self.clause_number - 1,
+            parent
+        );
+        if !clause.is_empty() {
+            self.clause_stack.push(self.clause_number);
+        }
+        self.clause_number += 1;
+    }
+
+    fn extension(
+        &mut self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+        clause: Clause,
+        extension_clause: Clause,
+    ) {
+        let parent = self
+            .clause_stack
+            .pop()
+            .expect("printing extension on empty stack");
+        println!(
+            "cnf({}, plain, {}, inference(extension, [], [{}])).",
+            self.clause_number,
+            FmtClause(
+                &self.variable_map,
+                symbol_table,
+                term_graph,
+                clause_storage,
+                clause
+            ),
+            parent
+        );
+        if !clause.is_empty() {
+            self.clause_stack.push(self.clause_number);
+        }
+        self.clause_number += 1;
+        println!(
+            "cnf({}, plain, {}, inference(extension, [], [{}])).",
+            self.clause_number,
+            FmtClause(
+                &self.variable_map,
+                symbol_table,
+                term_graph,
+                clause_storage,
+                extension_clause
+            ),
+            parent
+        );
+        self.clause_stack.push(self.clause_number);
+        self.clause_number += 1;
+    }
+
+    fn constraint_solving(
+        &mut self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        bindings: &IdMap<Variable, Option<Id<Term>>>,
+    ) {
+        print!(
+            "cnf({}, plain, $false, inference(constraint_solving, [",
+            self.clause_number,
+        );
+        let mut after_first_bind = false;
+        for id in bindings.into_iter() {
+            if let Some(bound) = bindings[id] {
+                if after_first_bind {
+                    print!(", ");
+                }
+                print!(
+                    "bind(X{}, {})",
+                    self.variable_map.get(id),
+                    FmtTerm(
+                        &self.variable_map,
+                        symbol_table,
+                        term_graph,
+                        bound
+                    )
+                );
+                after_first_bind = true;
+            }
+        }
+        println!("], {:?})).", self.assumptions_list);
+        self.clause_stack.clear();
+        self.assumptions_list.clear();
     }
 }

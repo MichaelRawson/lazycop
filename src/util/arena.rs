@@ -204,6 +204,12 @@ impl<T> IdRange<T> {
         Self { start, stop }
     }
 
+    pub(crate) fn new_including(from: Id<T>, len: u32) -> Self {
+        let start = Id::new(from.id);
+        let stop = Id::new(start.id + len);
+        Self { start, stop }
+    }
+
     pub(crate) fn new_after(from: Id<T>, len: u32) -> Self {
         let start = Id::new(from.id + 1);
         let stop = Id::new(start.id + len);

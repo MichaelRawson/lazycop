@@ -52,14 +52,14 @@ impl<'problem> Tableau<'problem> {
         self.term_graph.mark();
         self.clause_storage.mark();
         self.constraint_list.mark();
-        self.previous.copy_from(&self.goals);
+        self.previous.reset_to(&self.goals);
     }
 
     pub(crate) fn undo(&mut self) {
         self.term_graph.undo_to_mark();
         self.clause_storage.undo_to_mark();
         self.constraint_list.undo_to_mark();
-        self.goals.copy_from(&self.previous);
+        self.goals.reset_to(&self.previous);
     }
 
     pub(crate) fn apply_rule<R: Record>(
@@ -95,7 +95,6 @@ impl<'problem> Tableau<'problem> {
             &self.problem.symbol_table,
             &self.term_graph,
             &self.constraint_list.equalities,
-            &self.constraint_list.disequalities,
         )
     }
 }

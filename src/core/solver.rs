@@ -4,7 +4,7 @@ use crate::util::id_map::IdMap;
 
 #[derive(Default)]
 pub(crate) struct Solver {
-    bindings: IdMap<Variable, Id<Term>>,
+    bindings: IdMap<Variable, Option<Id<Term>>>,
     pairs: Vec<(Id<Term>, Id<Term>)>,
     terms: Vec<Id<Term>>,
 }
@@ -16,36 +16,19 @@ impl Solver {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         equalities: &[(Id<Term>, Id<Term>)],
-        disequalities: &[(Id<Term>, Id<Term>)],
     ) -> bool {
         self.bindings.clear();
+        self.bindings.ensure_capacity(term_graph.len().transmute());
         self.pairs.clear();
         self.pairs.extend_from_slice(equalities);
-        record.start_inference("constraint solving");
-        for (left, right) in self.pairs.iter().copied() {
-            record.equality_constraint(symbol_table, term_graph, left, right);
-        }
-        record.therefore();
-        if !self.solve_equalities(record, symbol_table, term_graph) {
+        if !self.solve_equalities(term_graph) {
             return false;
         }
-        record.end_inference();
-
-        for (left, right) in disequalities.iter().copied() {
-            self.pairs.push((left, right));
-            if !self.check_disequality(term_graph) {
-                return false;
-            }
-        }
+        record.constraint_solving(symbol_table, term_graph, &self.bindings);
         true
     }
 
-    fn solve_equalities<R: Record>(
-        &mut self,
-        record: &mut R,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
-    ) -> bool {
+    fn solve_equalities(&mut self, term_graph: &TermGraph) -> bool {
         while let Some((left, right)) = self.pairs.pop() {
             let (left, lview) = self.view(term_graph, left);
             let (right, rview) = self.view(term_graph, right);
@@ -55,19 +38,19 @@ impl Solver {
 
             match (lview, rview) {
                 (TermView::Variable(x), TermView::Variable(_)) => {
-                    self.bind(record, symbol_table, term_graph, x, right);
+                    self.bind(x, right);
                 }
                 (TermView::Variable(x), _) => {
                     if self.occurs(term_graph, x, right) {
                         return false;
                     }
-                    self.bind(record, symbol_table, term_graph, x, right);
+                    self.bind(x, right);
                 }
                 (_, TermView::Variable(x)) => {
                     if self.occurs(term_graph, x, left) {
                         return false;
                     }
-                    self.bind(record, symbol_table, term_graph, x, left);
+                    self.bind(x, left);
                 }
                 (TermView::Function(f, ts), TermView::Function(g, ss))
                     if f == g =>
@@ -80,27 +63,6 @@ impl Solver {
             }
         }
         true
-    }
-
-    fn check_disequality(&mut self, term_graph: &TermGraph) -> bool {
-        while let Some((left, right)) = self.pairs.pop() {
-            let (left, lview) = self.view(term_graph, left);
-            let (right, rview) = self.view(term_graph, right);
-            if left == right {
-                continue;
-            }
-            match (lview, rview) {
-                (TermView::Function(f, ts), TermView::Function(g, ss))
-                    if f == g =>
-                {
-                    self.pairs.extend(ts.zip(ss));
-                }
-                _ => {
-                    return true;
-                }
-            }
-        }
-        false
     }
 
     fn occurs(
@@ -126,16 +88,8 @@ impl Solver {
         false
     }
 
-    fn bind<R: Record>(
-        &mut self,
-        record: &mut R,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
-        variable: Id<Variable>,
-        term: Id<Term>,
-    ) {
-        record.binding(symbol_table, term_graph, variable, term);
-        self.bindings.set(variable, term);
+    fn bind(&mut self, variable: Id<Variable>, term: Id<Term>) {
+        self.bindings[variable] = Some(term);
     }
 
     fn view(
@@ -146,8 +100,8 @@ impl Solver {
         loop {
             match term_graph.view(term) {
                 TermView::Variable(x) => {
-                    if let Some(next) = self.bindings.get(x) {
-                        term = *next;
+                    if let Some(next) = self.bindings[x] {
+                        term = next;
                     } else {
                         return (x.transmute(), TermView::Variable(x));
                     }

@@ -25,22 +25,8 @@ impl TermGraph {
         self.arena.clear();
     }
 
-    pub(crate) fn add_variable(&mut self) -> Id<Term> {
-        let id = self.arena.len();
-        self.add_reference(id)
-    }
-
-    pub(crate) fn add_function(
-        &mut self,
-        symbol: Id<Symbol>,
-        args: &[Id<Term>],
-    ) -> Id<Term> {
-        let id = self.arena.len();
-        self.arena.push(Term::Symbol(symbol, args.len() as u32));
-        for arg in args {
-            self.add_reference(*arg);
-        }
-        id
+    pub(crate) fn len(&self) -> Id<Term> {
+        self.arena.len()
     }
 
     pub(crate) fn current_offset(&self) -> Offset<Term> {
@@ -57,6 +43,24 @@ impl TermGraph {
 
     pub(crate) fn undo_to_mark(&mut self) {
         self.arena.truncate(self.mark);
+    }
+
+    pub(crate) fn add_variable(&mut self) -> Id<Term> {
+        let id = self.arena.len();
+        self.add_reference(id)
+    }
+
+    pub(crate) fn add_function(
+        &mut self,
+        symbol: Id<Symbol>,
+        args: &[Id<Term>],
+    ) -> Id<Term> {
+        let id = self.arena.len();
+        self.arena.push(Term::Symbol(symbol, args.len() as u32));
+        for arg in args {
+            self.add_reference(*arg);
+        }
+        id
     }
 
     pub(crate) fn view(&self, id: Id<Term>) -> TermView {

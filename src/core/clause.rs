@@ -15,6 +15,12 @@ impl Clause {
         self.range.len()
     }
 
+    pub(crate) fn peek_rest(self) -> Clause {
+        let mut range = self.range;
+        range.next();
+        Self { range }
+    }
+
     pub(crate) fn literals<'storage>(
         self,
         storage: &'storage ClauseStorage,
