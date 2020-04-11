@@ -26,8 +26,8 @@ impl GoalStack {
 
     pub(crate) fn reset_to(&mut self, other: &GoalStack) {
         self.clear();
-        self.stack.copy_from(&other.stack);
-        self.lemmata.copy_from(&other.lemmata);
+        self.stack.extend_from(&other.stack);
+        self.lemmata.extend_from(&other.lemmata);
     }
 
     pub(crate) fn open_branches(&self) -> u32 {
@@ -152,7 +152,7 @@ impl GoalStack {
             self.stack.pop();
             if let Some(parent) = self.stack.last_mut() {
                 let (valid_from, literal) =
-                    parent.mark_literal_solved(clause_storage, valid_from);
+                    parent.solve_literal(clause_storage, valid_from);
                 let lemma = Lemma {
                     valid_from,
                     literal,

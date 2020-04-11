@@ -451,18 +451,18 @@ impl Record for TPTPProof {
         self.clause_number += 1;
     }
 
-    fn constraint_solving(
+    fn unification(
         &mut self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         bindings: &IdMap<Variable, Option<Id<Term>>>,
     ) {
         print!(
-            "cnf({}, plain, $false, inference(constraint_solving, [",
+            "cnf({}, plain, $false, inference(unification, [",
             self.clause_number,
         );
         let mut after_first_bind = false;
-        for id in bindings.into_iter() {
+        for id in bindings {
             if let Some(bound) = bindings[id] {
                 if after_first_bind {
                     print!(", ");

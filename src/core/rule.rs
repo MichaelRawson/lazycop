@@ -19,7 +19,7 @@ pub(crate) struct LemmaRule {
 
 #[derive(Clone, Copy)]
 pub(crate) struct ExtensionRule {
-    pub(crate) position: Position,
+    pub(crate) position: Id<Position>,
 }
 
 #[derive(Clone, Copy)]

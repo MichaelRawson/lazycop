@@ -26,7 +26,7 @@ impl<T> Arena<T> {
         self.items.truncate(len.id as usize);
     }
 
-    pub(crate) fn copy_from(&mut self, other: &Arena<T>)
+    pub(crate) fn extend_from(&mut self, other: &Arena<T>)
     where
         T: Clone,
     {
@@ -59,19 +59,26 @@ impl<T> Default for Arena<T> {
     }
 }
 
+impl<T> Extend<T> for Arena<T> {
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = T>,
+    {
+        self.items.extend(iter);
+    }
+}
+
 impl<T> Index<Id<T>> for Arena<T> {
     type Output = T;
 
     fn index(&self, id: Id<T>) -> &Self::Output {
-        debug_assert!((id.id as usize) < self.items.len());
-        unsafe { self.items.get_unchecked(id.id as usize) }
+        &self.items[id.id as usize]
     }
 }
 
 impl<T> IndexMut<Id<T>> for Arena<T> {
     fn index_mut(&mut self, id: Id<T>) -> &mut Self::Output {
-        debug_assert!((id.id as usize) < self.items.len());
-        unsafe { self.items.get_unchecked_mut(id.id as usize) }
+        &mut self.items[id.id as usize]
     }
 }
 

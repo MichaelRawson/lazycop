@@ -38,6 +38,10 @@ impl<T> Default for Queue<T> {
 }
 
 impl<T> Queue<T> {
+    pub(crate) fn clear(&mut self) {
+        self.heap.clear();
+    }
+
     pub(crate) fn enqueue(&mut self, item: T, priority: u32) {
         self.heap.push(Item { item, priority });
     }

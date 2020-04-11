@@ -17,14 +17,14 @@ impl Solver {
         term_graph: &TermGraph,
         equalities: &[(Id<Term>, Id<Term>)],
     ) -> bool {
-        self.bindings.clear();
         self.bindings.ensure_capacity(term_graph.len().transmute());
+        self.bindings.wipe();
         self.pairs.clear();
         self.pairs.extend_from_slice(equalities);
         if !self.solve_equalities(term_graph) {
             return false;
         }
-        record.constraint_solving(symbol_table, term_graph, &self.bindings);
+        record.unification(symbol_table, term_graph, &self.bindings);
         true
     }
 
@@ -38,19 +38,16 @@ impl Solver {
 
             match (lview, rview) {
                 (TermView::Variable(x), TermView::Variable(_)) => {
-                    self.bind(x, right);
+                    self.bindings[x] = Some(right);
+                }
+                (_, TermView::Variable(_)) => {
+                    self.pairs.push((right, left));
                 }
                 (TermView::Variable(x), _) => {
                     if self.occurs(term_graph, x, right) {
                         return false;
                     }
-                    self.bind(x, right);
-                }
-                (_, TermView::Variable(x)) => {
-                    if self.occurs(term_graph, x, left) {
-                        return false;
-                    }
-                    self.bind(x, left);
+                    self.bindings[x] = Some(right);
                 }
                 (TermView::Function(f, ts), TermView::Function(g, ss))
                     if f == g =>
@@ -86,10 +83,6 @@ impl Solver {
             }
         }
         false
-    }
-
-    fn bind(&mut self, variable: Id<Variable>, term: Id<Term>) {
-        self.bindings[variable] = Some(term);
     }
 
     fn view(

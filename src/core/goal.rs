@@ -12,10 +12,10 @@ pub(crate) struct Goal {
 
 impl Goal {
     pub(crate) fn num_open_branches(&self) -> u32 {
-        self.clause.len() - 1
+        self.clause.len()
     }
 
-    pub(crate) fn mark_literal_solved(
+    pub(crate) fn solve_literal(
         &mut self,
         clause_storage: &ClauseStorage,
         valid_from: Id<Goal>,
@@ -36,10 +36,15 @@ impl Goal {
         clause_storage: &mut ClauseStorage,
         start_clause: Id<ProblemClause>,
     ) -> Self {
-        let (literals, new_term_graph) = problem.clause_data(start_clause);
-        let clause =
-            clause_storage.copy(term_graph.current_offset(), literals);
-        term_graph.copy(new_term_graph);
+        let offset = term_graph.current_offset();
+        let problem_clause = &problem[start_clause];
+        let clause = clause_storage.clause(
+            problem_clause
+                .literals
+                .into_iter()
+                .map(|id| problem_clause.literals[id].offset(offset)),
+        );
+        term_graph.extend_from(&problem_clause.term_graph);
         record.start(
             &problem.symbol_table,
             &term_graph,
@@ -66,18 +71,10 @@ impl Goal {
         matching: Literal,
         valid_from: Id<Goal>,
     ) {
-        let literal = self
-            .clause
-            .pop_literal(&clause_storage)
-            .expect("reduction on empty clause");
+        let literal = self.pop_literal(clause_storage);
         self.valid_from = std::cmp::max(self.valid_from, valid_from);
-        let (p, q) = if let (Atom::Predicate(p), Atom::Predicate(q)) =
-            (literal.atom, matching.atom)
-        {
-            (p, q)
-        } else {
-            unreachable!("reduction on non-predicate literal");
-        };
+        let p = literal.atom.get_predicate();
+        let q = matching.atom.get_predicate();
         constraint_list.add_equality(p, q);
         record.reduction(
             &symbol_table,
@@ -100,18 +97,10 @@ impl Goal {
         lemma: Literal,
         valid_from: Id<Goal>,
     ) {
-        let literal = self
-            .clause
-            .pop_literal(&clause_storage)
-            .expect("lemma applied on empty clause");
+        let literal = self.pop_literal(clause_storage);
         self.valid_from = std::cmp::max(self.valid_from, valid_from);
-        let (p, q) = if let (Atom::Predicate(p), Atom::Predicate(q)) =
-            (literal.atom, lemma.atom)
-        {
-            (p, q)
-        } else {
-            unreachable!("lemma applied on non-predicate literal");
-        };
+        let p = literal.atom.get_predicate();
+        let q = lemma.atom.get_predicate();
         constraint_list.add_equality(p, q);
         record.lemma(
             &symbol_table,
@@ -131,15 +120,8 @@ impl Goal {
         clause_storage: &ClauseStorage,
         constraint_list: &mut ConstraintList,
     ) {
-        let literal = self
-            .clause
-            .pop_literal(&clause_storage)
-            .expect("equality reduction on empty clause");
-        let (left, right) = if let Atom::Equality(left, right) = literal.atom {
-            (left, right)
-        } else {
-            unreachable!("equality reduction on non-equality literal");
-        };
+        let literal = self.pop_literal(clause_storage);
+        let (left, right) = literal.atom.get_equality();
         constraint_list.add_equality(left, right);
         record.equality_reduction(
             &symbol_table,
@@ -157,27 +139,24 @@ impl Goal {
         problem: &Problem,
         term_graph: &mut TermGraph,
         clause_storage: &mut ClauseStorage,
-        position: Position,
+        position: Id<Position>,
     ) -> Self {
         let offset = term_graph.current_offset();
-        let literal = self
-            .clause
-            .current_literal(&clause_storage)
-            .expect("extension on empty clause");
-        let (problem_clause, matching_literal) = position;
-        let (literals, new_term_graph) = problem.clause_data(problem_clause);
-        let (left, right) =
-            match (literal.atom, literals[matching_literal].atom) {
-                (Atom::Predicate(p), Atom::Predicate(q)) => (p, q + offset),
-                _ => unreachable!("extension on non-matching literal"),
-            };
-        term_graph.copy(new_term_graph);
-        let clause = clause_storage.copy_replace(
-            offset,
-            literals,
-            matching_literal,
-            Literal::new(false, Atom::Equality(left, right)),
+        let literal = self.current_literal(clause_storage);
+        let position = &problem[position];
+        let problem_clause = &problem[position.clause];
+        let matching = problem_clause.literals[position.literal];
+        let p = literal.atom.get_predicate();
+        let q = matching.atom.offset(offset).get_predicate();
+        let clause = clause_storage.clause_with(
+            problem_clause
+                .literals
+                .into_iter()
+                .filter(|id| *id != position.literal)
+                .map(|id| problem_clause.literals[id].offset(offset)),
+            Literal::new(false, Atom::Equality(p, q)),
         );
+        term_graph.extend_from(&problem_clause.term_graph);
 
         record.extension(
             &problem.symbol_table,
@@ -193,5 +172,17 @@ impl Goal {
             lemmata,
             valid_from,
         }
+    }
+
+    fn current_literal(&self, clause_storage: &ClauseStorage) -> Literal {
+        self.clause
+            .current_literal(clause_storage)
+            .expect("empty clause")
+    }
+
+    fn pop_literal(&mut self, clause_storage: &ClauseStorage) -> Literal {
+        self.clause
+            .pop_literal(clause_storage)
+            .expect("empty clause")
     }
 }

@@ -54,7 +54,7 @@ pub(crate) trait Record {
     ) {
     }
 
-    fn constraint_solving(
+    fn unification(
         &mut self,
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,

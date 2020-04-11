@@ -2,32 +2,40 @@ use crate::prelude::*;
 use crate::util::id_map::IdMap;
 use std::collections::HashMap;
 use std::mem;
+use std::ops::Index;
 
 pub(crate) struct ProblemClause {
-    literals: Arena<Literal>,
-    term_graph: TermGraph,
+    pub(crate) literals: Arena<Literal>,
+    pub(crate) term_graph: TermGraph,
 }
 
-pub(crate) type Position = (Id<ProblemClause>, Id<Literal>);
+pub(crate) struct Position {
+    pub(crate) clause: Id<ProblemClause>,
+    pub(crate) literal: Id<Literal>,
+}
 
 #[derive(Default)]
 pub(crate) struct Problem {
     clauses: Arena<ProblemClause>,
+    positions: Arena<Position>,
     pub(crate) start_clauses: Vec<Id<ProblemClause>>,
-    pub(crate) predicate_occurrences: [IdMap<Symbol, Vec<Position>>; 2],
+    pub(crate) predicate_occurrences: [IdMap<Symbol, Vec<Id<Position>>>; 2],
     pub(crate) symbol_table: SymbolTable,
 }
 
-impl Problem {
-    pub(crate) fn clause_data(
-        &self,
-        id: Id<ProblemClause>,
-    ) -> (&Arena<Literal>, &TermGraph) {
-        let ProblemClause {
-            literals,
-            term_graph,
-        } = &self.clauses[id];
-        (literals, term_graph)
+impl Index<Id<ProblemClause>> for Problem {
+    type Output = ProblemClause;
+
+    fn index(&self, id: Id<ProblemClause>) -> &Self::Output {
+        &self.clauses[id]
+    }
+}
+
+impl Index<Id<Position>> for Problem {
+    type Output = Position;
+
+    fn index(&self, id: Id<Position>) -> &Self::Output {
+        &self.positions[id]
     }
 }
 
@@ -81,23 +89,25 @@ impl ProblemBuilder {
     }
 
     pub(crate) fn predicate(&mut self, polarity: bool) {
-        let term = self.saved_terms.pop().expect("predicate without a term?");
+        let term = self.saved_terms.pop().expect("predicate without a term");
         let atom = Atom::Predicate(term);
         let symbol = match self.term_graph.view(term) {
             TermView::Function(symbol, _) => symbol,
             _ => unreachable!(),
         };
 
-        let clause_id = self.problem.clauses.len();
-        let literal_id = self.saved_literals.len();
+        let clause = self.problem.clauses.len();
+        let literal = self.saved_literals.len();
+        let position = Position { clause, literal };
+        let position = self.problem.positions.push(position);
         self.problem.predicate_occurrences[polarity as usize][symbol]
-            .push((clause_id, literal_id));
+            .push(position);
         self.saved_literals.push(Literal::new(polarity, atom));
     }
 
     pub(crate) fn equality(&mut self, polarity: bool) {
-        let right = self.saved_terms.pop().expect("equality without term?");
-        let left = self.saved_terms.pop().expect("equality without term?");
+        let right = self.saved_terms.pop().expect("equality without term");
+        let left = self.saved_terms.pop().expect("equality without term");
         let atom = Atom::Equality(left, right);
         self.saved_literals.push(Literal::new(polarity, atom));
     }

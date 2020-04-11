@@ -5,17 +5,18 @@ use crate::util::queue::Queue;
 use crate::util::rc_stack::RcStack;
 use std::collections::VecDeque;
 
-pub(crate) fn astar(problem: &Problem) -> Option<VecDeque<Rule>> {
-    let mut queue = Queue::default();
+pub(crate) fn astar(
+    queue: &mut Queue<RcStack<Rule>>,
+    problem: &Problem,
+) -> Option<VecDeque<Rule>> {
+    queue.clear();
     queue.enqueue(RcStack::default(), 0);
 
+    let mut tableau = Tableau::new(problem);
     let mut script = VecDeque::new();
     let mut possible = vec![];
-    let mut tableau = Tableau::new(problem);
     let mut record = Silent; //crate::io::tptp::TPTPProof::default();
-    let mut steps = 0 as usize;
     while let Some(rule_stack) = queue.dequeue() {
-        steps += 1;
         script.clear();
         tableau.clear();
         for rule in rule_stack.items() {
@@ -32,7 +33,6 @@ pub(crate) fn astar(problem: &Problem) -> Option<VecDeque<Rule>> {
             tableau.apply_rule(&mut record, *rule);
             if tableau.solve_constraints(&mut record) {
                 if tableau.is_closed() {
-                    println!("% proof found in {} steps", steps);
                     script.push_back(*rule);
                     return Some(script);
                 }

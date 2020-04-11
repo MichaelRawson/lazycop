@@ -6,7 +6,8 @@ mod util;
 
 fn main() {
     let problem = io::tptp::load_from_stdin();
-    if let Some(proof) = search::astar(&problem) {
+    let mut queue = util::queue::Queue::default();
+    if let Some(proof) = search::astar(&mut queue, &problem) {
         io::szs::unsatisfiable();
         io::szs::begin_refutation();
         let mut record = io::tptp::TPTPProof::default();

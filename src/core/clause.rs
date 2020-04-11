@@ -45,54 +45,45 @@ impl Clause {
 
 #[derive(Default)]
 pub(crate) struct ClauseStorage {
-    arena: Arena<Literal>,
+    literals: Arena<Literal>,
     mark: Id<Literal>,
 }
 
 impl ClauseStorage {
     pub(crate) fn clear(&mut self) {
-        self.arena.clear();
+        self.literals.clear();
     }
 
-    pub(crate) fn copy(
+    pub(crate) fn clause<T: IntoIterator<Item = Literal>>(
         &mut self,
-        offset: Offset<Term>,
-        from: &Arena<Literal>,
+        literals: T,
     ) -> Clause {
-        let start = self.arena.len();
-        for id in from {
-            self.arena.push(from[id].offset(offset));
-        }
-        let stop = self.arena.len();
+        let start = self.literals.len();
+        self.literals.extend(literals);
+        let stop = self.literals.len();
         let range = IdRange::new(start, stop);
         Clause { range }
     }
 
-    pub(crate) fn copy_replace(
+    pub(crate) fn clause_with<T: IntoIterator<Item = Literal>>(
         &mut self,
-        offset: Offset<Term>,
-        from: &Arena<Literal>,
-        except: Id<Literal>,
+        literals: T,
         with: Literal,
     ) -> Clause {
-        let start = self.arena.len();
-        self.arena.push(with);
-        for id in from {
-            if id != except {
-                self.arena.push(from[id].offset(offset));
-            }
-        }
-        let stop = self.arena.len();
+        let start = self.literals.len();
+        self.literals.push(with);
+        self.literals.extend(literals);
+        let stop = self.literals.len();
         let range = IdRange::new(start, stop);
         Clause { range }
     }
 
     pub(crate) fn mark(&mut self) {
-        self.mark = self.arena.len();
+        self.mark = self.literals.len();
     }
 
     pub(crate) fn undo_to_mark(&mut self) {
-        self.arena.truncate(self.mark);
+        self.literals.truncate(self.mark);
     }
 }
 
@@ -100,6 +91,15 @@ impl Index<Id<Literal>> for ClauseStorage {
     type Output = Literal;
 
     fn index(&self, id: Id<Literal>) -> &Self::Output {
-        &self.arena[id]
+        &self.literals[id]
+    }
+}
+
+impl Extend<Literal> for ClauseStorage {
+    fn extend<T>(&mut self, iter: T)
+    where
+        T: IntoIterator<Item = Literal>,
+    {
+        self.literals.extend(iter);
     }
 }

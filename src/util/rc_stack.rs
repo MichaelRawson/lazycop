@@ -19,7 +19,6 @@ impl<T> Default for RcStack<T> {
 }
 
 impl<T> RcStack<T> {
-    #[must_use]
     pub(crate) fn push(&self, item: T) -> Self {
         let link = Rc::new(Link::Cons(item, self.link.clone()));
         Self { link }

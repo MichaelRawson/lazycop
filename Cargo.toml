@@ -8,5 +8,4 @@ edition = "2018"
 tptp = "0.18"
 
 [profile.release]
-lto = "fat"
 panic = "abort"

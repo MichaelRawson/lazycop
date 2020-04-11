@@ -33,8 +33,8 @@ impl TermGraph {
         self.arena.len().as_offset()
     }
 
-    pub(crate) fn copy(&mut self, other: &Self) {
-        self.arena.copy_from(&other.arena);
+    pub(crate) fn extend_from(&mut self, other: &Self) {
+        self.arena.extend_from(&other.arena);
     }
 
     pub(crate) fn mark(&mut self) {
