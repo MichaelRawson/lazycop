@@ -95,6 +95,7 @@ impl<'problem> Tableau<'problem> {
             &self.problem.symbol_table,
             &self.term_graph,
             &self.constraint_list.equalities,
+            &self.constraint_list.disequalities,
         )
     }
 }

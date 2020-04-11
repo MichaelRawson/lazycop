@@ -16,12 +16,16 @@ impl Solver {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         equalities: &[(Id<Term>, Id<Term>)],
+        disequalities: &[(Atom, Atom)],
     ) -> bool {
         self.bindings.ensure_capacity(term_graph.len().transmute());
         self.bindings.wipe();
         self.pairs.clear();
         self.pairs.extend_from_slice(equalities);
         if !self.solve_equalities(term_graph) {
+            return false;
+        }
+        if !self.solve_disequalities(term_graph, disequalities) {
             return false;
         }
         record.unification(symbol_table, term_graph, &self.bindings);
@@ -60,6 +64,63 @@ impl Solver {
             }
         }
         true
+    }
+
+    fn solve_disequalities(
+        &mut self,
+        term_graph: &TermGraph,
+        disequalities: &[(Atom, Atom)],
+    ) -> bool {
+        for (left, right) in disequalities {
+            match (left, right) {
+                (Atom::Predicate(p), Atom::Predicate(q)) => {
+                    if !self.solve_disequality(term_graph, *p, *q) {
+                        return false;
+                    }
+                }
+                (Atom::Equality(l1, r1), Atom::Equality(l2, r2)) => {
+                    if self.solve_disequality(term_graph, *l1, *l2)
+                        && self.solve_disequality(term_graph, *r1, *r2)
+                    {
+                        return false;
+                    }
+                    if self.solve_disequality(term_graph, *l1, *r2)
+                        && self.solve_disequality(term_graph, *l2, *r1)
+                    {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+        true
+    }
+
+    fn solve_disequality(
+        &mut self,
+        term_graph: &TermGraph,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) -> bool {
+        self.pairs.clear();
+        self.pairs.push((left, right));
+        while let Some((left, right)) = self.pairs.pop() {
+            let (left, lview) = self.view(term_graph, left);
+            let (right, rview) = self.view(term_graph, right);
+            if left == right {
+                continue;
+            }
+            if let (TermView::Function(f, ts), TermView::Function(g, ss)) =
+                (lview, rview)
+            {
+                if f == g {
+                    self.pairs.extend(ts.zip(ss));
+                    continue;
+                }
+            }
+            return true;
+        }
+        false
     }
 
     fn occurs(

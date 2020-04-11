@@ -139,6 +139,7 @@ impl Goal {
         problem: &Problem,
         term_graph: &mut TermGraph,
         clause_storage: &mut ClauseStorage,
+        constraint_list: &mut ConstraintList,
         position: Id<Position>,
     ) -> Self {
         let offset = term_graph.current_offset();
@@ -157,6 +158,21 @@ impl Goal {
             Literal::new(false, Atom::Equality(p, q)),
         );
         term_graph.extend_from(&problem_clause.term_graph);
+        for original_literal in self.clause.literals(&clause_storage) {
+            for new_literal in clause.literals(&clause_storage).skip(1) {
+                if original_literal.polarity == new_literal.polarity {
+                    continue;
+                }
+                if !original_literal
+                    .atom
+                    .possibly_equal(&new_literal.atom, term_graph)
+                {
+                    continue;
+                }
+                constraint_list
+                    .add_disequality(original_literal.atom, new_literal.atom);
+            }
+        }
 
         record.extension(
             &problem.symbol_table,
@@ -174,13 +190,19 @@ impl Goal {
         }
     }
 
-    fn current_literal(&self, clause_storage: &ClauseStorage) -> Literal {
+    pub(crate) fn current_literal(
+        &self,
+        clause_storage: &ClauseStorage,
+    ) -> Literal {
         self.clause
             .current_literal(clause_storage)
             .expect("empty clause")
     }
 
-    fn pop_literal(&mut self, clause_storage: &ClauseStorage) -> Literal {
+    pub(crate) fn pop_literal(
+        &mut self,
+        clause_storage: &ClauseStorage,
+    ) -> Literal {
         self.clause
             .pop_literal(clause_storage)
             .expect("empty clause")
