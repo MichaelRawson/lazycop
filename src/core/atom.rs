@@ -48,16 +48,16 @@ impl Atom {
     }
 
     pub(crate) fn possibly_equal(
-        &self,
-        other: &Self,
+        left: &Self,
+        right: &Self,
         term_graph: &TermGraph,
     ) -> bool {
-        if self.is_predicate() {
-            other.is_predicate()
-                && self.get_predicate_symbol(term_graph)
-                    == other.get_predicate_symbol(term_graph)
+        if left.is_predicate() {
+            right.is_predicate()
+                && left.get_predicate_symbol(term_graph)
+                    == right.get_predicate_symbol(term_graph)
         } else {
-            !other.is_predicate()
+            !right.is_predicate()
         }
     }
 }

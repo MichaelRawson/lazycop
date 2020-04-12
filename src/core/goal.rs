@@ -15,20 +15,6 @@ impl Goal {
         self.clause.len()
     }
 
-    pub(crate) fn solve_literal(
-        &mut self,
-        clause_storage: &ClauseStorage,
-        valid_from: Id<Goal>,
-    ) -> (Id<Goal>, Literal) {
-        let valid_from = std::cmp::max(self.valid_from, valid_from);
-        self.valid_from = Id::default();
-        let literal = self
-            .clause
-            .pop_literal(clause_storage)
-            .expect("literal marked solved on empty goal");
-        (valid_from, literal)
-    }
-
     pub(crate) fn start<R: Record>(
         record: &mut R,
         problem: &Problem,
@@ -163,14 +149,16 @@ impl Goal {
                 if original_literal.polarity == new_literal.polarity {
                     continue;
                 }
-                if !original_literal
-                    .atom
-                    .possibly_equal(&new_literal.atom, term_graph)
-                {
-                    continue;
+                if Atom::possibly_equal(
+                    &original_literal.atom,
+                    &new_literal.atom,
+                    term_graph,
+                ) {
+                    constraint_list.add_disequality(
+                        original_literal.atom,
+                        new_literal.atom,
+                    );
                 }
-                constraint_list
-                    .add_disequality(original_literal.atom, new_literal.atom);
             }
         }
 

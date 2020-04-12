@@ -137,46 +137,63 @@ impl GoalStack {
             .stack
             .last()
             .expect("adding constraints to empty stack");
+        let path_literals = self.path_literals(clause_storage);
         let lemma_literals =
             self.available_lemmata().map(|id| self.lemmata[id].literal);
-        let regularity_literals =
-            self.path_literals(clause_storage).chain(lemma_literals);
-        for path_literal in regularity_literals {
+        let regularity_literals = path_literals.chain(lemma_literals);
+        for regularity_literal in regularity_literals {
             for literal in goal.clause.literals(clause_storage) {
-                if path_literal.polarity != literal.polarity {
+                if regularity_literal.polarity != literal.polarity {
                     continue;
                 }
-                if !path_literal.atom.possibly_equal(&literal.atom, term_graph)
-                {
+                if !Atom::possibly_equal(
+                    &regularity_literal.atom,
+                    &literal.atom,
+                    term_graph,
+                ) {
                     continue;
                 }
                 constraint_list
-                    .add_disequality(path_literal.atom, literal.atom);
+                    .add_disequality(regularity_literal.atom, literal.atom);
             }
         }
     }
 
     fn close_branches(&mut self, clause_storage: &ClauseStorage) {
-        while let Some(solved) = self.stack.last() {
-            if !solved.clause.is_empty() {
+        while let Some(last) = self.stack.last() {
+            if !last.clause.is_empty() {
                 return;
             }
-            let valid_from = solved.valid_from;
-            self.stack.pop();
-            if let Some(parent) = self.stack.last_mut() {
-                let (valid_from, mut literal) =
-                    parent.solve_literal(clause_storage, valid_from);
-                literal.polarity = !literal.polarity;
-                let lemma = Lemma {
-                    valid_from,
-                    literal,
-                };
-                let id = self.lemmata.push(lemma);
-                if valid_from < self.stack.len() {
-                    self.stack[valid_from].lemmata =
-                        self.stack[valid_from].lemmata.push(id);
-                }
+            let solved = self.stack.pop().expect("just got this goal");
+            self.fold_up(clause_storage, solved.valid_from);
+        }
+    }
+
+    fn fold_up(
+        &mut self,
+        clause_storage: &ClauseStorage,
+        child_valid_from: Id<Goal>,
+    ) {
+        let height = self.stack.len();
+        if let Some(goal) = self.stack.last_mut() {
+            let mut literal = goal
+                .clause
+                .pop_literal(clause_storage)
+                .expect("empty clause in stack");
+            literal.polarity = !literal.polarity;
+            if child_valid_from < height {
+                goal.valid_from =
+                    std::cmp::max(goal.valid_from, child_valid_from);
             }
+            let valid_from = goal.valid_from;
+            assert!(valid_from < height);
+            let lemma = Lemma {
+                valid_from,
+                literal,
+            };
+            let id = self.lemmata.push(lemma);
+            self.stack[valid_from].lemmata =
+                self.stack[valid_from].lemmata.push(id);
         }
     }
 

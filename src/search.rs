@@ -15,7 +15,7 @@ pub(crate) fn astar(
     let mut tableau = Tableau::new(problem);
     let mut script = VecDeque::new();
     let mut possible = vec![];
-    let mut record = Silent;
+    let mut record = Silent; //crate::io::tptp::TPTPProof::default();
     while let Some(rule_stack) = queue.dequeue() {
         script.clear();
         tableau.clear();
