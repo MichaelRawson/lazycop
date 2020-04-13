@@ -49,6 +49,13 @@ impl<'v> Visitor<'v> for TPTPProblemBuilder {
         }
     }
 
+    fn visit_fof_defined_term(
+        &mut self,
+        fof_defined_term: ast::FofDefinedTerm,
+    ) {
+        self.builder.function(format!("{}", fof_defined_term), 0);
+    }
+
     fn visit_literal(&mut self, literal: ast::Literal) {
         match literal {
             ast::Literal::Atomic(ast::FofAtomicFormula::Plain(p)) => {
@@ -78,7 +85,11 @@ impl<'v> Visitor<'v> for TPTPProblemBuilder {
                 self.visit_fof_term(infix.right);
                 self.builder.equality(false);
             }
-            ast::Literal::Atomic(atomic) => report_inappropriate(atomic),
+            ast::Literal::Atomic(atomic) => {
+                if format!("{}", &atomic) != "$false" {
+                    report_inappropriate(atomic)
+                }
+            }
             ast::Literal::NegatedAtomic(negated) => {
                 report_inappropriate(negated)
             }
@@ -113,8 +124,8 @@ pub(crate) fn load_from_stdin() -> Problem {
     let mut buf = vec![];
 
     while read_stdin_chunk(&mut buf) > 0 {
-        let parser = TPTPIterator::<()>::new(&buf);
-        for result in parser {
+        let mut parser = TPTPIterator::<()>::new(&buf);
+        for result in &mut parser {
             let input = result.unwrap_or_else(|_| {
                 println!("% unsupported syntax");
                 szs::input_error();
@@ -122,7 +133,9 @@ pub(crate) fn load_from_stdin() -> Problem {
             });
             builder.visit_tptp_input(input);
         }
+        buf = parser.remaining.to_vec();
     }
+    assert!(buf.is_empty());
     builder.finish()
 }
 

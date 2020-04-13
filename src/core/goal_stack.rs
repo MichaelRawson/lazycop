@@ -56,6 +56,7 @@ impl GoalStack {
                     start.start_clause,
                 );
                 self.stack.push(start);
+                self.close_branches(clause_storage);
             }
             Rule::Reduction(reduction) => {
                 let literal =
