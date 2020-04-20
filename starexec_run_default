@@ -3,7 +3,7 @@
 form=`grep "^% SPC *: [A-Z0-9_]*$" $1 | sed 's/% SPC *: //' | cut -d '_' -f 1`
 if test -z $form || test $form = "CNF" || test $form = "FOF"
 then
-	exec ./vampire --mode clausify $1 | ./lazycop
+	exec ./vampire -t 0 --mode clausify $1 | ./lazycop
 else
 	echo "% SZS status Inappropriate"
 	exit 1

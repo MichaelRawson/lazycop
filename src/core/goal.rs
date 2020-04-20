@@ -1,16 +1,16 @@
-use crate::core::goal_stack::Lemma;
 use crate::io::record::Record;
 use crate::prelude::*;
-use crate::util::rc_stack::RcStack;
 
 #[derive(Clone)]
 pub(crate) struct Goal {
     pub(crate) clause: Clause,
-    pub(crate) lemmata: RcStack<Id<Lemma>>,
-    pub(crate) valid_from: Id<Goal>,
 }
 
 impl Goal {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.clause.is_empty()
+    }
+
     pub(crate) fn num_open_branches(&self) -> u32 {
         self.clause.len()
     }
@@ -35,18 +35,11 @@ impl Goal {
             &problem.symbol_table,
             &term_graph,
             &clause_storage,
-            clause,
+            clause.open(),
         );
-        let lemmata = RcStack::default();
-        let valid_from = Id::default();
-        Self {
-            clause,
-            lemmata,
-            valid_from,
-        }
+        Self { clause }
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn reduction<R: Record>(
         &mut self,
         record: &mut R,
@@ -55,10 +48,8 @@ impl Goal {
         clause_storage: &ClauseStorage,
         constraint_list: &mut ConstraintList,
         matching: Literal,
-        valid_from: Id<Goal>,
     ) {
         let literal = self.pop_literal(clause_storage);
-        self.valid_from = std::cmp::max(self.valid_from, valid_from);
         let p = literal.atom.get_predicate();
         let q = matching.atom.get_predicate();
         constraint_list.add_equality(p, q);
@@ -66,13 +57,12 @@ impl Goal {
             &symbol_table,
             &term_graph,
             &clause_storage,
-            self.clause,
+            self.clause.open(),
             p,
             q,
         );
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn lemma<R: Record>(
         &mut self,
         record: &mut R,
@@ -81,10 +71,8 @@ impl Goal {
         clause_storage: &ClauseStorage,
         constraint_list: &mut ConstraintList,
         lemma: Literal,
-        valid_from: Id<Goal>,
     ) {
         let literal = self.pop_literal(clause_storage);
-        self.valid_from = std::cmp::max(self.valid_from, valid_from);
         let p = literal.atom.get_predicate();
         let q = lemma.atom.get_predicate();
         constraint_list.add_equality(p, q);
@@ -92,7 +80,7 @@ impl Goal {
             &symbol_table,
             &term_graph,
             &clause_storage,
-            self.clause,
+            self.clause.open(),
             p,
             q,
         );
@@ -113,7 +101,7 @@ impl Goal {
             &symbol_table,
             &term_graph,
             &clause_storage,
-            self.clause,
+            self.clause.open(),
             left,
             right,
         );
@@ -144,8 +132,10 @@ impl Goal {
             Literal::new(false, Atom::Equality(p, q)),
         );
         term_graph.extend_from(&problem_clause.term_graph);
-        for original_literal in self.clause.literals(&clause_storage) {
-            for new_literal in clause.literals(&clause_storage).skip(1) {
+        for original_literal in self.clause.open() {
+            for new_literal in clause.open().skip(1) {
+                let original_literal = clause_storage[original_literal];
+                let new_literal = clause_storage[new_literal];
                 if original_literal.polarity == new_literal.polarity {
                     continue;
                 }
@@ -162,37 +152,33 @@ impl Goal {
             }
         }
 
+        let mut original_clause = self.clause.open();
+        original_clause.next();
         record.extension(
             &problem.symbol_table,
             &term_graph,
             &clause_storage,
-            self.clause.peek_rest(),
-            clause,
+            original_clause,
+            clause.open(),
         );
-        let lemmata = RcStack::default();
-        let valid_from = Id::default();
-        Self {
-            clause,
-            lemmata,
-            valid_from,
-        }
+        Self { clause }
     }
 
     pub(crate) fn current_literal(
         &self,
         clause_storage: &ClauseStorage,
     ) -> Literal {
-        self.clause
-            .current_literal(clause_storage)
-            .expect("empty clause")
+        clause_storage[self.clause.open().next().expect("empty clause")]
     }
 
     pub(crate) fn pop_literal(
         &mut self,
         clause_storage: &ClauseStorage,
     ) -> Literal {
-        self.clause
-            .pop_literal(clause_storage)
-            .expect("empty clause")
+        clause_storage[self.clause.pop_literal().expect("empty clause")]
+    }
+
+    pub(crate) fn discard_literal(&mut self) {
+        self.clause.pop_literal();
     }
 }

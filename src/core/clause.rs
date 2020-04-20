@@ -3,43 +3,36 @@ use std::ops::Index;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Clause {
-    range: IdRange<Literal>,
+    start: Id<Literal>,
+    current: Id<Literal>,
+    end: Id<Literal>,
 }
 
 impl Clause {
-    pub(crate) fn is_empty(mut self) -> bool {
-        self.range.next().is_none()
+    pub(crate) fn is_empty(&self) -> bool {
+        self.current == self.end
     }
 
-    pub(crate) fn len(self) -> u32 {
-        self.range.len()
+    pub(crate) fn closed(&self) -> IdRange<Literal> {
+        IdRange::new(self.start, self.current)
     }
 
-    pub(crate) fn peek_rest(self) -> Clause {
-        let mut range = self.range;
-        range.next();
-        Self { range }
+    pub(crate) fn open(&self) -> IdRange<Literal> {
+        IdRange::new(self.current, self.end)
     }
 
-    pub(crate) fn literals<'storage>(
-        self,
-        storage: &'storage ClauseStorage,
-    ) -> impl Iterator<Item = Literal> + 'storage {
-        self.range.map(move |id| storage[id])
+    pub(crate) fn len(&self) -> u32 {
+        self.open().len()
     }
 
-    pub(crate) fn current_literal(
-        mut self,
-        storage: &ClauseStorage,
-    ) -> Option<Literal> {
-        self.range.next().map(|id| storage[id])
+    pub(crate) fn current_literal(&self) -> Id<Literal> {
+        self.current
     }
 
-    pub(crate) fn pop_literal(
-        &mut self,
-        storage: &ClauseStorage,
-    ) -> Option<Literal> {
-        self.range.next().map(|id| storage[id])
+    pub(crate) fn pop_literal(&mut self) -> Option<Id<Literal>> {
+        let result = self.open().next();
+        self.current.increment();
+        result
     }
 }
 
@@ -60,9 +53,13 @@ impl ClauseStorage {
     ) -> Clause {
         let start = self.literals.len();
         self.literals.extend(literals);
-        let stop = self.literals.len();
-        let range = IdRange::new(start, stop);
-        Clause { range }
+        let end = self.literals.len();
+        let current = start;
+        Clause {
+            start,
+            current,
+            end,
+        }
     }
 
     pub(crate) fn clause_with<T: IntoIterator<Item = Literal>>(
@@ -73,9 +70,13 @@ impl ClauseStorage {
         let start = self.literals.len();
         self.literals.push(with);
         self.literals.extend(literals);
-        let stop = self.literals.len();
-        let range = IdRange::new(start, stop);
-        Clause { range }
+        let end = self.literals.len();
+        let current = start;
+        Clause {
+            start,
+            current,
+            end,
+        }
     }
 
     pub(crate) fn mark(&mut self) {

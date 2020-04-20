@@ -1,5 +1,3 @@
-use crate::core::goal::Goal;
-use crate::core::goal_stack::Lemma;
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -9,12 +7,12 @@ pub(crate) struct StartRule {
 
 #[derive(Clone, Copy)]
 pub(crate) struct ReductionRule {
-    pub(crate) goal: Id<Goal>,
+    pub(crate) literal: Id<Literal>,
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct LemmaRule {
-    pub(crate) lemma: Id<Lemma>,
+    pub(crate) literal: Id<Literal>,
 }
 
 #[derive(Clone, Copy)]

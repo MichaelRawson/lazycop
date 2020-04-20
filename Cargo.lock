@@ -143,9 +143,9 @@ dependencies = [
 
 [[package]]
 name = "tptp"
-version = "0.18.1"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65e50ca3d931cae226c761dda51e6c9acedf1c2c727537ba3b509ce37cd5493e"
+checksum = "9bebc549d1a50d803c11ee1ab27757c12dbd5b64a80aa04bb42621c543a44a18"
 dependencies = [
  "derive_more",
  "nom",

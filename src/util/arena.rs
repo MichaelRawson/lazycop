@@ -223,6 +223,10 @@ impl<T> IdRange<T> {
         Self { start, stop }
     }
 
+    pub(crate) fn is_empty(self) -> bool {
+        self.start == self.stop
+    }
+
     pub(crate) fn len(self) -> u32 {
         self.stop.id - self.start.id
     }

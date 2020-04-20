@@ -237,7 +237,7 @@ struct FmtClause<'a>(
     pub(crate) &'a SymbolTable,
     pub(crate) &'a TermGraph,
     pub(crate) &'a ClauseStorage,
-    pub(crate) Clause,
+    pub(crate) IdRange<Literal>,
 );
 
 impl fmt::Display for FmtClause<'_> {
@@ -247,10 +247,10 @@ impl fmt::Display for FmtClause<'_> {
             symbol_table,
             term_graph,
             clause_storage,
-            clause,
+            mut literals,
         ) = self;
-        let mut literals = clause.literals(clause_storage);
         if let Some(literal) = literals.next() {
+            let literal = clause_storage[literal];
             write!(
                 f,
                 "{}",
@@ -260,6 +260,7 @@ impl fmt::Display for FmtClause<'_> {
             write!(f, "$false")?;
         }
         for literal in literals {
+            let literal = clause_storage[literal];
             write!(
                 f,
                 " | {}",
@@ -284,7 +285,7 @@ impl Record for TPTPProof {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        clause: Clause,
+        clause: IdRange<Literal>,
     ) {
         println!(
             "cnf({}, negated_conjecture, {}).",
@@ -306,7 +307,7 @@ impl Record for TPTPProof {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        clause: Clause,
+        clause: IdRange<Literal>,
         left: Id<Term>,
         right: Id<Term>,
     ) {
@@ -345,7 +346,7 @@ impl Record for TPTPProof {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        clause: Clause,
+        clause: IdRange<Literal>,
         left: Id<Term>,
         right: Id<Term>,
     ) {
@@ -385,7 +386,7 @@ impl Record for TPTPProof {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        clause: Clause,
+        clause: IdRange<Literal>,
         left: Id<Term>,
         right: Id<Term>,
     ) {
@@ -425,8 +426,8 @@ impl Record for TPTPProof {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        clause: Clause,
-        extension_clause: Clause,
+        clause: IdRange<Literal>,
+        extension_clause: IdRange<Literal>,
     ) {
         let parent = self
             .clause_stack
