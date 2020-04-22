@@ -13,23 +13,23 @@ impl Clause {
         self.current == self.end
     }
 
-    pub(crate) fn closed(&self) -> IdRange<Literal> {
+    pub(crate) fn len(&self) -> u32 {
+        IdRange::new(self.current, self.end).len()
+    }
+
+    pub(crate) fn closed(&self) -> impl Iterator<Item = Id<Literal>> {
         IdRange::new(self.start, self.current)
     }
 
-    pub(crate) fn open(&self) -> IdRange<Literal> {
+    pub(crate) fn open(&self) -> impl Iterator<Item = Id<Literal>> {
         IdRange::new(self.current, self.end)
-    }
-
-    pub(crate) fn len(&self) -> u32 {
-        self.open().len()
     }
 
     pub(crate) fn current_literal(&self) -> Id<Literal> {
         self.current
     }
 
-    pub(crate) fn pop_literal(&mut self) -> Option<Id<Literal>> {
+    pub(crate) fn close_literal(&mut self) -> Option<Id<Literal>> {
         let result = self.open().next();
         self.current.increment();
         result
@@ -47,7 +47,7 @@ impl ClauseStorage {
         self.literals.clear();
     }
 
-    pub(crate) fn clause<T: IntoIterator<Item = Literal>>(
+    pub(crate) fn create_clause<T: IntoIterator<Item = Literal>>(
         &mut self,
         literals: T,
     ) -> Clause {
@@ -62,7 +62,7 @@ impl ClauseStorage {
         }
     }
 
-    pub(crate) fn clause_with<T: IntoIterator<Item = Literal>>(
+    pub(crate) fn create_clause_with<T: IntoIterator<Item = Literal>>(
         &mut self,
         literals: T,
         with: Literal,

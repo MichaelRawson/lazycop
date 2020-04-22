@@ -2,55 +2,58 @@ use crate::prelude::*;
 use crate::util::id_map::IdMap;
 
 pub(crate) trait Record {
-    fn start(
+    fn start<T: Iterator<Item = Id<Literal>>>(
         &mut self,
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _clause: IdRange<Literal>,
+        _literals: T,
     ) {
     }
 
-    fn reduction(
+    fn reduction<T: Iterator<Item = Id<Literal>>>(
         &mut self,
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _clause: IdRange<Literal>,
+        _literals: T,
         _left: Id<Term>,
         _right: Id<Term>,
     ) {
     }
 
-    fn lemma(
+    fn lemma<T: Iterator<Item = Id<Literal>>>(
         &mut self,
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _clause: IdRange<Literal>,
+        _literals: T,
         _left: Id<Term>,
         _right: Id<Term>,
     ) {
     }
 
-    fn equality_reduction(
+    fn equality_reduction<T: Iterator<Item = Id<Literal>>>(
         &mut self,
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _clause: IdRange<Literal>,
+        _literals: T,
         _left: Id<Term>,
         _right: Id<Term>,
     ) {
     }
 
-    fn extension(
+    fn extension<
+        T: Iterator<Item = Id<Literal>>,
+        S: Iterator<Item = Id<Literal>>,
+    >(
         &mut self,
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _clause: IdRange<Literal>,
-        _extension_clause: IdRange<Literal>,
+        _literals: T,
+        _extension_literals: S,
     ) {
     }
 

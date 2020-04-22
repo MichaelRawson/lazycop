@@ -139,136 +139,97 @@ pub(crate) fn load_from_stdin() -> Problem {
     builder.finish()
 }
 
-struct FmtSymbol<'a>(pub(crate) &'a SymbolTable, pub(crate) Id<Symbol>);
-
-impl fmt::Display for FmtSymbol<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let FmtSymbol(symbol_table, symbol_id) = self;
-        write!(f, "{}", symbol_table.name(*symbol_id))
-    }
+fn print_symbol(symbol_table: &SymbolTable, symbol: Id<Symbol>) {
+    print!("{}", symbol_table.name(symbol));
 }
 
-struct FmtTerm<'a>(
-    pub(crate) &'a VariableMap,
-    pub(crate) &'a SymbolTable,
-    pub(crate) &'a TermGraph,
-    pub(crate) Id<Term>,
-);
-
-impl fmt::Display for FmtTerm<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let FmtTerm(variable_map, symbol_table, term_graph, term_id) = self;
-        let mut arg_stack = vec![vec![*term_id]];
-
-        while let Some(args) = arg_stack.last_mut() {
-            if let Some(next_arg) = args.pop() {
-                let mut needs_comma = !args.is_empty();
-                match term_graph.view(next_arg) {
-                    TermView::Variable(x) => {
-                        write!(f, "X{}", variable_map.get(x))?;
-                    }
-                    TermView::Function(symbol, new_args) => {
-                        write!(f, "{}", FmtSymbol(symbol_table, symbol))?;
-                        let mut new_args: Vec<_> = new_args.collect();
-                        if !new_args.is_empty() {
-                            write!(f, "(")?;
-                            needs_comma = false;
-                            new_args.reverse();
-                            arg_stack.push(new_args);
-                        }
-                    }
+fn print_term(
+    variable_map: &mut VariableMap,
+    symbol_table: &SymbolTable,
+    term_graph: &TermGraph,
+    term: Id<Term>,
+) {
+    let mut arg_stack = vec![vec![term]];
+    while let Some(args) = arg_stack.last_mut() {
+        if let Some(next_arg) = args.pop() {
+            let mut needs_comma = !args.is_empty();
+            match term_graph.view(next_arg) {
+                TermView::Variable(x) => {
+                    print!("X{}", variable_map.get(x));
                 }
-                if needs_comma {
-                    write!(f, ",")?;
-                }
-            } else {
-                arg_stack.pop();
-                if let Some(args) = arg_stack.last_mut() {
-                    write!(f, ")")?;
-                    if !args.is_empty() {
-                        write!(f, ",")?;
+                TermView::Function(symbol, new_args) => {
+                    print_symbol(symbol_table, symbol);
+                    let mut new_args: Vec<_> = new_args.collect();
+                    if !new_args.is_empty() {
+                        print!("(");
+                        needs_comma = false;
+                        new_args.reverse();
+                        arg_stack.push(new_args);
                     }
                 }
             }
-        }
-        Ok(())
-    }
-}
-
-struct FmtLiteral<'a>(
-    pub(crate) &'a VariableMap,
-    pub(crate) &'a SymbolTable,
-    pub(crate) &'a TermGraph,
-    pub(crate) Literal,
-);
-
-impl fmt::Display for FmtLiteral<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let FmtLiteral(variable_map, symbol_table, term_graph, literal) = self;
-        match (literal.polarity, literal.atom) {
-            (true, Atom::Predicate(p)) => write!(
-                f,
-                "{}",
-                FmtTerm(variable_map, symbol_table, term_graph, p)
-            ),
-            (false, Atom::Predicate(p)) => write!(
-                f,
-                "~{}",
-                FmtTerm(variable_map, symbol_table, term_graph, p)
-            ),
-            (true, Atom::Equality(left, right)) => write!(
-                f,
-                "{} = {}",
-                FmtTerm(variable_map, symbol_table, term_graph, left),
-                FmtTerm(variable_map, symbol_table, term_graph, right)
-            ),
-            (false, Atom::Equality(left, right)) => write!(
-                f,
-                "{} != {}",
-                FmtTerm(variable_map, symbol_table, term_graph, left),
-                FmtTerm(variable_map, symbol_table, term_graph, right)
-            ),
-        }
-    }
-}
-
-struct FmtClause<'a>(
-    pub(crate) &'a VariableMap,
-    pub(crate) &'a SymbolTable,
-    pub(crate) &'a TermGraph,
-    pub(crate) &'a ClauseStorage,
-    pub(crate) IdRange<Literal>,
-);
-
-impl fmt::Display for FmtClause<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let FmtClause(
-            variable_map,
-            symbol_table,
-            term_graph,
-            clause_storage,
-            mut literals,
-        ) = self;
-        if let Some(literal) = literals.next() {
-            let literal = clause_storage[literal];
-            write!(
-                f,
-                "{}",
-                FmtLiteral(variable_map, symbol_table, term_graph, literal)
-            )?;
+            if needs_comma {
+                print!(",");
+            }
         } else {
-            write!(f, "$false")?;
+            arg_stack.pop();
+            if let Some(args) = arg_stack.last_mut() {
+                print!(")");
+                if !args.is_empty() {
+                    print!(",");
+                }
+            }
         }
-        for literal in literals {
-            let literal = clause_storage[literal];
-            write!(
-                f,
-                " | {}",
-                FmtLiteral(variable_map, symbol_table, term_graph, literal)
-            )?;
-        }
-        Ok(())
     }
+}
+
+fn print_literal(
+    variable_map: &mut VariableMap,
+    symbol_table: &SymbolTable,
+    term_graph: &TermGraph,
+    literal: Literal,
+) {
+    match (literal.polarity, literal.atom) {
+        (true, Atom::Predicate(p)) => {
+            print_term(variable_map, symbol_table, term_graph, p);
+        }
+        (false, Atom::Predicate(p)) => {
+            print!("~");
+            print_term(variable_map, symbol_table, term_graph, p);
+        }
+        (true, Atom::Equality(left, right)) => {
+            print_term(variable_map, symbol_table, term_graph, left);
+            print!(" = ");
+            print_term(variable_map, symbol_table, term_graph, right)
+        }
+        (false, Atom::Equality(left, right)) => {
+            print_term(variable_map, symbol_table, term_graph, left);
+            print!(" != ");
+            print_term(variable_map, symbol_table, term_graph, right)
+        }
+    }
+}
+
+fn print_literals<T: Iterator<Item = Id<Literal>>>(
+    variable_map: &mut VariableMap,
+    symbol_table: &SymbolTable,
+    term_graph: &TermGraph,
+    clause_storage: &ClauseStorage,
+    mut literals: T,
+) -> bool {
+    if let Some(literal) = literals.next() {
+        let literal = clause_storage[literal];
+        print_literal(variable_map, symbol_table, term_graph, literal);
+    } else {
+        print!("$false");
+        return false;
+    }
+    for literal in literals {
+        let literal = clause_storage[literal];
+        print!(" | ");
+        print_literal(variable_map, symbol_table, term_graph, literal);
+    }
+    true
 }
 
 #[derive(Default)]
@@ -280,73 +241,70 @@ pub(crate) struct TPTPProof {
 }
 
 impl Record for TPTPProof {
-    fn start(
+    fn start<T: Iterator<Item = Id<Literal>>>(
         &mut self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        clause: IdRange<Literal>,
+        literals: T,
     ) {
-        println!(
-            "cnf({}, negated_conjecture, {}).",
-            self.clause_number,
-            FmtClause(
-                &self.variable_map,
-                symbol_table,
-                term_graph,
-                clause_storage,
-                clause
-            )
+        print!("cnf({}, negated_conjecture, ", self.clause_number);
+        print_literals(
+            &mut self.variable_map,
+            symbol_table,
+            term_graph,
+            clause_storage,
+            literals,
         );
+        println!(").");
         self.clause_stack.push(self.clause_number);
         self.clause_number += 1;
     }
 
-    fn reduction(
+    fn reduction<T: Iterator<Item = Id<Literal>>>(
         &mut self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        clause: IdRange<Literal>,
+        literals: T,
         left: Id<Term>,
         right: Id<Term>,
     ) {
         let parent = self
             .clause_stack
             .pop()
-            .expect("printing reduction on empty clause stack");
-        println!(
-            "cnf({}, assumption, {} = {}).",
-            self.clause_number,
-            FmtTerm(&self.variable_map, symbol_table, term_graph, left),
-            FmtTerm(&self.variable_map, symbol_table, term_graph, right)
-        );
+            .expect("reduction on empty clause stack");
+        print!("cnf({}, assumption, ", self.clause_number);
+        print_term(&mut self.variable_map, symbol_table, term_graph, left);
+        print!(" = ");
+        print_term(&mut self.variable_map, symbol_table, term_graph, right);
+        println!(").");
         self.assumptions_list.push(self.clause_number);
         self.clause_number += 1;
-        println!(
-            "cnf({}, plain, {}, inference(reduction, [], [{}])).",
-            self.clause_number,
-            FmtClause(
-                &self.variable_map,
-                symbol_table,
-                term_graph,
-                clause_storage,
-                clause
-            ),
-            parent
-        );
-        if !clause.is_empty() {
+        print!("cnf({}, plain, ", self.clause_number);
+        if print_literals(
+            &mut self.variable_map,
+            symbol_table,
+            term_graph,
+            clause_storage,
+            literals,
+        ) {
             self.clause_stack.push(self.clause_number);
         }
+        println!(
+            ", inference(reduction, [assumptions([{}])], [{}])).",
+            self.clause_number - 1,
+            parent
+        );
         self.clause_number += 1;
     }
 
-    fn lemma(
+    fn lemma<T: Iterator<Item = Id<Literal>>>(
         &mut self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        clause: IdRange<Literal>,
+        literals: T,
         left: Id<Term>,
         right: Id<Term>,
     ) {
@@ -354,39 +312,37 @@ impl Record for TPTPProof {
             .clause_stack
             .pop()
             .expect("printing lemma on empty clause stack");
-        println!(
-            "cnf({}, assumption, {} = {}).",
-            self.clause_number,
-            FmtTerm(&self.variable_map, symbol_table, term_graph, left),
-            FmtTerm(&self.variable_map, symbol_table, term_graph, right)
-        );
+        print!("cnf({}, assumption, ", self.clause_number);
+        print_term(&mut self.variable_map, symbol_table, term_graph, left);
+        print!(" = ");
+        print_term(&mut self.variable_map, symbol_table, term_graph, right);
+        println!(").");
         self.assumptions_list.push(self.clause_number);
         self.clause_number += 1;
+        print!("cnf({}, plain, ", self.clause_number);
+        if print_literals(
+            &mut self.variable_map,
+            symbol_table,
+            term_graph,
+            clause_storage,
+            literals,
+        ) {
+            self.clause_stack.push(self.clause_number);
+        }
         println!(
-            "cnf({}, plain, {}, inference(lemma, [assumptions([{}])], [{}])).",
-            self.clause_number,
-            FmtClause(
-                &self.variable_map,
-                symbol_table,
-                term_graph,
-                clause_storage,
-                clause
-            ),
+            ", inference(lemma, [assumptions([{}])], [{}])).",
             self.clause_number - 1,
             parent
         );
-        if !clause.is_empty() {
-            self.clause_stack.push(self.clause_number);
-        }
         self.clause_number += 1;
     }
 
-    fn equality_reduction(
+    fn equality_reduction<T: Iterator<Item = Id<Literal>>>(
         &mut self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        clause: IdRange<Literal>,
+        literals: T,
         left: Id<Term>,
         right: Id<Term>,
     ) {
@@ -394,73 +350,69 @@ impl Record for TPTPProof {
             .clause_stack
             .pop()
             .expect("printing equality reduction on empty stack");
-        println!(
-            "cnf({}, assumption, {} = {}).",
-            self.clause_number,
-            FmtTerm(&self.variable_map, symbol_table, term_graph, left),
-            FmtTerm(&self.variable_map, symbol_table, term_graph, right)
-        );
+        print!("cnf({}, assumption, ", self.clause_number);
+        print_term(&mut self.variable_map, symbol_table, term_graph, left);
+        print!(" = ");
+        print_term(&mut self.variable_map, symbol_table, term_graph, right);
+        println!(").");
         self.assumptions_list.push(self.clause_number);
         self.clause_number += 1;
+
+        print!("cnf({}, plain, ", self.clause_number);
+        if print_literals(
+            &mut self.variable_map,
+            symbol_table,
+            term_graph,
+            clause_storage,
+            literals,
+        ) {
+            self.clause_stack.push(self.clause_number);
+        }
         println!(
-            "cnf({}, plain, {}, inference(equality_reduction, [assumptions([{}])], [{}])).",
-            self.clause_number,
-            FmtClause(
-                &self.variable_map,
-                symbol_table,
-                term_graph,
-                clause_storage,
-                clause
-            ),
+            ", inference(equality_reduction, [assumptions([{}])], [{}])).",
             self.clause_number - 1,
             parent
         );
-        if !clause.is_empty() {
-            self.clause_stack.push(self.clause_number);
-        }
         self.clause_number += 1;
     }
 
-    fn extension(
+    fn extension<
+        T: Iterator<Item = Id<Literal>>,
+        S: Iterator<Item = Id<Literal>>,
+    >(
         &mut self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        clause: IdRange<Literal>,
-        extension_clause: IdRange<Literal>,
+        literals: T,
+        extension_literals: S,
     ) {
         let parent = self
             .clause_stack
             .pop()
             .expect("printing extension on empty stack");
-        println!(
-            "cnf({}, plain, {}, inference(extension, [], [{}])).",
-            self.clause_number,
-            FmtClause(
-                &self.variable_map,
-                symbol_table,
-                term_graph,
-                clause_storage,
-                clause
-            ),
-            parent
-        );
-        if !clause.is_empty() {
+        print!("cnf({}, plain, ", self.clause_number);
+        if print_literals(
+            &mut self.variable_map,
+            symbol_table,
+            term_graph,
+            clause_storage,
+            literals,
+        ) {
             self.clause_stack.push(self.clause_number);
         }
+        println!(", inference(extension, [], [{}])).", parent);
         self.clause_number += 1;
-        println!(
-            "cnf({}, plain, {}, inference(extension, [], [{}])).",
-            self.clause_number,
-            FmtClause(
-                &self.variable_map,
-                symbol_table,
-                term_graph,
-                clause_storage,
-                extension_clause
-            ),
-            parent
+
+        print!("cnf({}, plain, ", self.clause_number);
+        print_literals(
+            &mut self.variable_map,
+            symbol_table,
+            term_graph,
+            clause_storage,
+            extension_literals,
         );
+        println!(", inference(extension, [], [{}])).", parent);
         self.clause_stack.push(self.clause_number);
         self.clause_number += 1;
     }
@@ -481,16 +433,14 @@ impl Record for TPTPProof {
                 if after_first_bind {
                     print!(", ");
                 }
-                print!(
-                    "bind(X{}, {})",
-                    self.variable_map.get(id),
-                    FmtTerm(
-                        &self.variable_map,
-                        symbol_table,
-                        term_graph,
-                        bound
-                    )
+                print!("bind(X{}, ", self.variable_map.get(id));
+                print_term(
+                    &mut self.variable_map,
+                    symbol_table,
+                    term_graph,
+                    bound,
                 );
+                print!(")");
                 after_first_bind = true;
             }
         }

@@ -22,10 +22,7 @@ impl GoalStack {
     }
 
     pub(crate) fn open_branches(&self) -> u32 {
-        self.stack
-            .into_iter()
-            .map(|id| self.stack[id].num_open_branches())
-            .sum()
+        self.stack.into_iter().map(|id| self.stack[id].len()).sum::<u32>() + 1
     }
 
     pub(crate) fn apply_rule<R: Record>(
@@ -46,9 +43,7 @@ impl GoalStack {
                     clause_storage,
                     start.start_clause,
                 );
-                if !start.clause.is_empty() {
-                    self.stack.push(start);
-                }
+                self.stack.push(start);
             }
             Rule::Reduction(reduction) => {
                 let literal = clause_storage[reduction.literal];
@@ -62,7 +57,6 @@ impl GoalStack {
                     constraint_list,
                     literal,
                 );
-                self.close_branches();
             }
             Rule::Lemma(lemma) => {
                 let literal = clause_storage[lemma.literal];
@@ -78,7 +72,6 @@ impl GoalStack {
                     constraint_list,
                     literal,
                 );
-                self.close_branches();
             }
             Rule::EqualityReduction => {
                 let goal = self
@@ -92,7 +85,6 @@ impl GoalStack {
                     clause_storage,
                     constraint_list,
                 );
-                self.close_branches();
             }
             Rule::Extension(extension) => {
                 let goal =
@@ -106,7 +98,6 @@ impl GoalStack {
                     extension.position,
                 );
                 self.stack.push(new_goal);
-                self.close_branches();
                 self.add_regularity_constraints(
                     constraint_list,
                     term_graph,
@@ -114,6 +105,7 @@ impl GoalStack {
                 );
             }
         }
+        self.close_branches();
     }
 
     fn close_branches(&mut self) {
@@ -123,7 +115,7 @@ impl GoalStack {
         }
         self.stack.pop();
         while let Some(goal) = self.stack.last_mut() {
-            goal.discard_literal();
+            goal.close_literal();
             if !goal.is_empty() {
                 return;
             }
@@ -149,7 +141,7 @@ impl GoalStack {
         });
         let regularity_literals = path_literals.chain(lemmata);
         for regularity_literal in regularity_literals {
-            for literal in goal.clause.open() {
+            for literal in goal.open_literals() {
                 let literal = clause_storage[literal];
                 if regularity_literal.polarity != literal.polarity {
                     continue;
@@ -210,7 +202,7 @@ impl GoalStack {
         clause_storage: &ClauseStorage,
         goal: &Goal,
     ) {
-        let literal = goal.current_literal(clause_storage);
+        let literal = clause_storage[goal.current_literal()];
         if literal.atom.is_predicate() {
             self.possible_predicate_rules(
                 possible,
@@ -314,7 +306,7 @@ impl GoalStack {
     fn available_lemmata(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
         self.stack
             .into_iter()
-            .flat_map(move |id| self.stack[id].clause.closed())
+            .flat_map(move |id| self.stack[id].closed_literals())
     }
 
     fn path_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
@@ -322,6 +314,6 @@ impl GoalStack {
             .into_iter()
             .rev()
             .skip(1)
-            .map(move |id| self.stack[id].clause.current_literal())
+            .map(move |id| self.stack[id].current_literal())
     }
 }
