@@ -140,12 +140,12 @@ impl Goal {
         let p = literal.atom.get_predicate();
         let q = matching.atom.offset(offset).get_predicate();
         let clause = clause_storage.create_clause_with(
+            Literal::new(false, Atom::Equality(p, q)),
             problem_clause
                 .literals
                 .into_iter()
                 .filter(|id| *id != position.literal)
                 .map(|id| problem_clause.literals[id].offset(offset)),
-            Literal::new(false, Atom::Equality(p, q)),
         );
         term_graph.extend_from(&problem_clause.term_graph);
         for original_literal_id in self.clause.open() {

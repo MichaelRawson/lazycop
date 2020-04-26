@@ -8,4 +8,5 @@ edition = "2018"
 tptp = "0.20"
 
 [profile.release]
+debug = true
 panic = "abort"

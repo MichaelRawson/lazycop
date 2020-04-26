@@ -92,7 +92,7 @@ impl ProblemBuilder {
         let term = self.saved_terms.pop().expect("predicate without a term");
         let atom = Atom::Predicate(term);
         let symbol = match self.term_graph.view(term) {
-            TermView::Function(symbol, _) => symbol,
+            (_, TermView::Function(symbol, _)) => symbol,
             _ => unreachable!(),
         };
 

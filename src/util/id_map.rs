@@ -34,13 +34,15 @@ impl<K, V> Index<Id<K>> for IdMap<K, V> {
     type Output = V;
 
     fn index(&self, id: Id<K>) -> &Self::Output {
-        &self.map[id.as_usize()]
+        unsafe { self.map.get_unchecked(id.as_usize()) }
+        //&self.map[id.as_usize()]
     }
 }
 
 impl<K, V> IndexMut<Id<K>> for IdMap<K, V> {
     fn index_mut(&mut self, id: Id<K>) -> &mut Self::Output {
-        &mut self.map[id.as_usize()]
+        unsafe { self.map.get_unchecked_mut(id.as_usize()) }
+        //&mut self.map[id.as_usize()]
     }
 }
 

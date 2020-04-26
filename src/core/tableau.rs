@@ -10,7 +10,7 @@ pub(crate) struct Tableau<'problem> {
     constraint_list: ConstraintList,
     solver: Solver,
     goals: GoalStack,
-    previous: GoalStack,
+    save_goals: GoalStack,
 }
 
 impl<'problem> Tableau<'problem> {
@@ -20,7 +20,7 @@ impl<'problem> Tableau<'problem> {
         let constraint_list = ConstraintList::default();
         let solver = Solver::default();
         let goals = GoalStack::default();
-        let previous = GoalStack::default();
+        let save_goals = GoalStack::default();
         Self {
             problem,
             term_graph,
@@ -28,7 +28,7 @@ impl<'problem> Tableau<'problem> {
             constraint_list,
             solver,
             goals,
-            previous,
+            save_goals,
         }
     }
 
@@ -45,21 +45,20 @@ impl<'problem> Tableau<'problem> {
         self.clause_storage.clear();
         self.constraint_list.clear();
         self.goals.clear();
-        self.previous.clear();
     }
 
     pub(crate) fn mark(&mut self) {
         self.term_graph.mark();
         self.clause_storage.mark();
         self.constraint_list.mark();
-        self.previous.reset_to(&self.goals);
+        self.save_goals.reset_to(&self.goals);
     }
 
     pub(crate) fn undo(&mut self) {
         self.term_graph.undo_to_mark();
         self.clause_storage.undo_to_mark();
         self.constraint_list.undo_to_mark();
-        self.goals.reset_to(&self.previous);
+        self.goals.reset_to(&self.save_goals);
     }
 
     pub(crate) fn apply_rule<R: Record>(

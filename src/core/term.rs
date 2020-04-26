@@ -63,8 +63,12 @@ impl TermGraph {
         id
     }
 
-    pub(crate) fn view(&self, id: Id<Term>) -> TermView {
+    pub(crate) fn view(&self, id: Id<Term>) -> (Id<Term>, TermView) {
         let id = self.resolve_reference(id);
+        (id, self.view_no_ref(id))
+    }
+
+    pub(crate) fn view_no_ref(&self, id: Id<Term>) -> TermView {
         match self.arena[id] {
             Term::Symbol(symbol, arity) => {
                 let args = IdRange::new_after(id, arity);

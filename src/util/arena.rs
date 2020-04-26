@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::{Add, Index, IndexMut, Sub};
 
-const DEFAULT_CAPACITY: usize = 0x1000;
+const DEFAULT_CAPACITY: usize = 0x100;
 
 pub(crate) struct Arena<T> {
     items: Vec<T>,
@@ -74,7 +74,8 @@ impl<T> Index<Id<T>> for Arena<T> {
     type Output = T;
 
     fn index(&self, id: Id<T>) -> &Self::Output {
-        &self.items[id.id as usize]
+        unsafe { self.items.get_unchecked(id.id as usize) }
+        //&self.items[id.id as usize]
     }
 }
 

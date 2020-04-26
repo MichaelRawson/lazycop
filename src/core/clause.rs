@@ -64,8 +64,8 @@ impl ClauseStorage {
 
     pub(crate) fn create_clause_with<T: IntoIterator<Item = Literal>>(
         &mut self,
-        literals: T,
         with: Literal,
+        literals: T,
     ) -> Clause {
         let start = self.literals.len();
         self.literals.push(with);

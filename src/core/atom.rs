@@ -35,7 +35,7 @@ impl Atom {
         term_graph: &TermGraph,
     ) -> Id<Symbol> {
         match term_graph.view(self.get_predicate()) {
-            TermView::Function(p, _) => p,
+            (_, TermView::Function(p, _)) => p,
             _ => unreachable!("non-function predicate symbol"),
         }
     }

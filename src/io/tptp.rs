@@ -2,8 +2,8 @@ use crate::io::exit;
 use crate::io::record::Record;
 use crate::io::szs;
 use crate::prelude::*;
+use crate::util::fresh::Fresh;
 use crate::util::id_map::IdMap;
-use crate::util::variable_map::VariableMap;
 use std::fmt;
 use std::io::Read;
 use tptp::parsers::TPTPIterator;
@@ -144,7 +144,7 @@ fn print_symbol(symbol_table: &SymbolTable, symbol: Id<Symbol>) {
 }
 
 fn print_term(
-    variable_map: &mut VariableMap,
+    variable_map: &mut Fresh,
     symbol_table: &SymbolTable,
     term_graph: &TermGraph,
     term: Id<Term>,
@@ -154,10 +154,10 @@ fn print_term(
         if let Some(next_arg) = args.pop() {
             let mut needs_comma = !args.is_empty();
             match term_graph.view(next_arg) {
-                TermView::Variable(x) => {
+                (_, TermView::Variable(x)) => {
                     print!("X{}", variable_map.get(x));
                 }
-                TermView::Function(symbol, new_args) => {
+                (_, TermView::Function(symbol, new_args)) => {
                     print_symbol(symbol_table, symbol);
                     let mut new_args: Vec<_> = new_args.collect();
                     if !new_args.is_empty() {
@@ -184,7 +184,7 @@ fn print_term(
 }
 
 fn print_literal(
-    variable_map: &mut VariableMap,
+    variable_map: &mut Fresh,
     symbol_table: &SymbolTable,
     term_graph: &TermGraph,
     literal: Literal,
@@ -211,7 +211,7 @@ fn print_literal(
 }
 
 fn print_literals<T: Iterator<Item = Id<Literal>>>(
-    variable_map: &mut VariableMap,
+    variable_map: &mut Fresh,
     symbol_table: &SymbolTable,
     term_graph: &TermGraph,
     clause_storage: &ClauseStorage,
@@ -234,7 +234,7 @@ fn print_literals<T: Iterator<Item = Id<Literal>>>(
 
 #[derive(Default)]
 pub(crate) struct TPTPProof {
-    variable_map: VariableMap,
+    variable_map: Fresh,
     clause_stack: Vec<usize>,
     assumptions_list: Vec<usize>,
     clause_number: usize,

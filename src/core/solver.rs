@@ -20,19 +20,24 @@ impl Solver {
     ) -> bool {
         self.bindings.ensure_capacity(term_graph.len().transmute());
         self.bindings.wipe();
-        self.pairs.clear();
-        self.pairs.extend_from_slice(equalities);
-        if !self.solve_equalities(term_graph) {
-            return false;
-        }
-        if !self.solve_disequalities(term_graph, disequalities) {
+
+        if !self.solve_equalities(term_graph, equalities)
+            || !self.solve_disequalities(term_graph, disequalities)
+        {
+            self.pairs.clear();
+            self.terms.clear();
             return false;
         }
         record.unification(symbol_table, term_graph, &self.bindings);
         true
     }
 
-    fn solve_equalities(&mut self, term_graph: &TermGraph) -> bool {
+    fn solve_equalities(
+        &mut self,
+        term_graph: &TermGraph,
+        equalities: &[(Id<Term>, Id<Term>)],
+    ) -> bool {
+        self.pairs.extend_from_slice(equalities);
         while let Some((left, right)) = self.pairs.pop() {
             let (left, lview) = self.view(term_graph, left);
             let (right, rview) = self.view(term_graph, right);
@@ -44,14 +49,17 @@ impl Solver {
                 (TermView::Variable(x), TermView::Variable(_)) => {
                     self.bindings[x] = Some(right);
                 }
-                (_, TermView::Variable(_)) => {
-                    self.pairs.push((right, left));
-                }
                 (TermView::Variable(x), _) => {
                     if self.occurs(term_graph, x, right) {
                         return false;
                     }
                     self.bindings[x] = Some(right);
+                }
+                (_, TermView::Variable(x)) => {
+                    if self.occurs(term_graph, x, left) {
+                        return false;
+                    }
+                    self.bindings[x] = Some(left);
                 }
                 (TermView::Function(f, ts), TermView::Function(g, ss))
                     if f == g =>
@@ -102,7 +110,6 @@ impl Solver {
         left: Id<Term>,
         right: Id<Term>,
     ) -> bool {
-        self.pairs.clear();
         self.pairs.push((left, right));
         while let Some((left, right)) = self.pairs.pop() {
             let (left, lview) = self.view(term_graph, left);
@@ -110,6 +117,7 @@ impl Solver {
             if left == right {
                 continue;
             }
+
             if let (TermView::Function(f, ts), TermView::Function(g, ss)) =
                 (lview, rview)
             {
@@ -118,6 +126,7 @@ impl Solver {
                     continue;
                 }
             }
+            self.pairs.clear();
             return true;
         }
         false
@@ -129,7 +138,6 @@ impl Solver {
         x: Id<Variable>,
         term: Id<Term>,
     ) -> bool {
-        self.terms.clear();
         self.terms.push(term);
         while let Some(term) = self.terms.pop() {
             let (_, view) = self.view(term_graph, term);
@@ -152,18 +160,14 @@ impl Solver {
         mut term: Id<Term>,
     ) -> (Id<Term>, TermView) {
         loop {
-            match term_graph.view(term) {
-                TermView::Variable(x) => {
-                    if let Some(next) = self.bindings[x] {
-                        term = next;
-                    } else {
-                        return (x.transmute(), TermView::Variable(x));
-                    }
-                }
-                view => {
-                    return (term, view);
+            let (id, view) = term_graph.view(term);
+            if let TermView::Variable(x) = view {
+                if let Some(next) = self.bindings[x] {
+                    term = next;
+                    continue;
                 }
             }
+            return (id, view);
         }
     }
 }

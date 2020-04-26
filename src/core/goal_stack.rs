@@ -22,7 +22,11 @@ impl GoalStack {
     }
 
     pub(crate) fn open_branches(&self) -> u32 {
-        self.stack.into_iter().map(|id| self.stack[id].len()).sum::<u32>() + 1
+        self.stack
+            .into_iter()
+            .map(|id| self.stack[id].len())
+            .sum::<u32>()
+            + 1
     }
 
     pub(crate) fn apply_rule<R: Record>(
