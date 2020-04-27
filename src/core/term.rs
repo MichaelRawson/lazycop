@@ -25,12 +25,12 @@ impl TermGraph {
         self.arena.clear();
     }
 
-    pub(crate) fn len(&self) -> Id<Term> {
+    pub(crate) fn len(&self) -> usize {
         self.arena.len()
     }
 
     pub(crate) fn current_offset(&self) -> Offset<Term> {
-        self.arena.len().as_offset()
+        self.arena.limit().as_offset()
     }
 
     pub(crate) fn extend_from(&mut self, other: &Self) {
@@ -38,7 +38,7 @@ impl TermGraph {
     }
 
     pub(crate) fn mark(&mut self) {
-        self.mark = self.arena.len();
+        self.mark = self.arena.limit();
     }
 
     pub(crate) fn undo_to_mark(&mut self) {
@@ -46,7 +46,7 @@ impl TermGraph {
     }
 
     pub(crate) fn add_variable(&mut self) -> Id<Term> {
-        let id = self.arena.len();
+        let id = self.arena.limit();
         self.add_reference(id)
     }
 
@@ -55,7 +55,7 @@ impl TermGraph {
         symbol: Id<Symbol>,
         args: &[Id<Term>],
     ) -> Id<Term> {
-        let id = self.arena.len();
+        let id = self.arena.limit();
         self.arena.push(Term::Symbol(symbol, args.len() as u32));
         for arg in args {
             self.add_reference(*arg);
@@ -79,7 +79,7 @@ impl TermGraph {
     }
 
     fn add_reference(&mut self, referred: Id<Term>) -> Id<Term> {
-        let id = self.arena.len();
+        let id = self.arena.limit();
         let offset = referred - id;
         self.arena.push(Term::Reference(offset));
         id

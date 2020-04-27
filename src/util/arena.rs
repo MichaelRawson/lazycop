@@ -3,14 +3,16 @@ use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::{Add, Index, IndexMut, Sub};
 
-const DEFAULT_CAPACITY: usize = 0x100;
-
 pub(crate) struct Arena<T> {
     items: Vec<T>,
 }
 
 impl<T> Arena<T> {
-    pub(crate) fn len(&self) -> Id<T> {
+    pub(crate) fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub(crate) fn limit(&self) -> Id<T> {
         let id = self.items.len() as u32;
         let _phantom = PhantomData;
         Id { id, _phantom }
@@ -30,13 +32,13 @@ impl<T> Arena<T> {
 
     pub(crate) fn extend_from(&mut self, other: &Arena<T>)
     where
-        T: Copy,
+        T: Clone,
     {
         self.items.extend_from_slice(&other.items);
     }
 
     pub(crate) fn push(&mut self, item: T) -> Id<T> {
-        let id = self.len();
+        let id = self.limit();
         self.items.push(item);
         id
     }
@@ -56,7 +58,7 @@ impl<T> Arena<T> {
 
 impl<T> Default for Arena<T> {
     fn default() -> Self {
-        let items = Vec::with_capacity(DEFAULT_CAPACITY);
+        let items = vec![];
         Self { items }
     }
 }
@@ -91,7 +93,7 @@ impl<'a, T> IntoIterator for &'a Arena<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         let start = Id::default();
-        let stop = self.len();
+        let stop = self.limit();
         IdRange::new(start, stop)
     }
 }

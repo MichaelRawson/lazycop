@@ -47,15 +47,9 @@ impl Atom {
         }
     }
 
-    pub(crate) fn possibly_equal(
-        left: &Self,
-        right: &Self,
-        term_graph: &TermGraph,
-    ) -> bool {
+    pub(crate) fn same_type(left: &Self, right: &Self) -> bool {
         if left.is_predicate() {
             right.is_predicate()
-                && left.get_predicate_symbol(term_graph)
-                    == right.get_predicate_symbol(term_graph)
         } else {
             !right.is_predicate()
         }

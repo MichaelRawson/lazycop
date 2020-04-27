@@ -28,10 +28,11 @@ pub(crate) fn astar(
 
         possible.clear();
         tableau.possible_rules(&mut possible);
+        tableau.simplify_constraints();
         tableau.mark();
         for rule in &possible {
             tableau.apply_rule(&mut record, *rule);
-            if tableau.solve_constraints(&mut record) {
+            if tableau.solve_constraints() {
                 if tableau.is_closed() {
                     script.push_back(*rule);
                     return Some(script);
@@ -39,7 +40,7 @@ pub(crate) fn astar(
                 let estimate = tableau.open_branches() + (script.len() as u32);
                 queue.enqueue(rule_stack.push(*rule), estimate);
             }
-            tableau.undo();
+            tableau.undo_to_mark();
         }
     }
     None

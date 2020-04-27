@@ -62,13 +62,13 @@ impl Goal {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        constraint_list: &mut ConstraintList,
+        solver: &mut Solver,
         matching: Literal,
     ) {
         let literal = clause_storage[self.close_literal()];
         let p = literal.atom.get_predicate();
         let q = matching.atom.get_predicate();
-        constraint_list.add_equality(p, q);
+        solver.equal(p, q);
         record.reduction(
             &symbol_table,
             &term_graph,
@@ -85,13 +85,13 @@ impl Goal {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        constraint_list: &mut ConstraintList,
+        solver: &mut Solver,
         lemma: Literal,
     ) {
         let literal = clause_storage[self.close_literal()];
         let p = literal.atom.get_predicate();
         let q = lemma.atom.get_predicate();
-        constraint_list.add_equality(p, q);
+        solver.equal(p, q);
         record.lemma(
             &symbol_table,
             &term_graph,
@@ -108,11 +108,11 @@ impl Goal {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        constraint_list: &mut ConstraintList,
+        solver: &mut Solver,
     ) {
         let literal = clause_storage[self.close_literal()];
         let (left, right) = literal.atom.get_equality();
-        constraint_list.add_equality(left, right);
+        solver.equal(left, right);
         record.equality_reduction(
             &symbol_table,
             &term_graph,
@@ -129,7 +129,7 @@ impl Goal {
         problem: &Problem,
         term_graph: &mut TermGraph,
         clause_storage: &mut ClauseStorage,
-        constraint_list: &mut ConstraintList,
+        solver: &mut Solver,
         position: Id<Position>,
     ) -> Self {
         let offset = term_graph.current_offset();
@@ -155,15 +155,8 @@ impl Goal {
                 if original_literal.polarity == new_literal.polarity {
                     continue;
                 }
-                if Atom::possibly_equal(
-                    &original_literal.atom,
-                    &new_literal.atom,
-                    term_graph,
-                ) {
-                    constraint_list.add_disequality(
-                        original_literal.atom,
-                        new_literal.atom,
-                    );
+                if Atom::same_type(&original_literal.atom, &new_literal.atom) {
+                    solver.unequal(original_literal.atom, new_literal.atom);
                 }
             }
         }

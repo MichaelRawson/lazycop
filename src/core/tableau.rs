@@ -7,7 +7,6 @@ pub(crate) struct Tableau<'problem> {
     problem: &'problem Problem,
     term_graph: TermGraph,
     clause_storage: ClauseStorage,
-    constraint_list: ConstraintList,
     solver: Solver,
     goals: GoalStack,
     save_goals: GoalStack,
@@ -17,7 +16,6 @@ impl<'problem> Tableau<'problem> {
     pub(crate) fn new(problem: &'problem Problem) -> Self {
         let term_graph = TermGraph::default();
         let clause_storage = ClauseStorage::default();
-        let constraint_list = ConstraintList::default();
         let solver = Solver::default();
         let goals = GoalStack::default();
         let save_goals = GoalStack::default();
@@ -25,7 +23,6 @@ impl<'problem> Tableau<'problem> {
             problem,
             term_graph,
             clause_storage,
-            constraint_list,
             solver,
             goals,
             save_goals,
@@ -43,21 +40,21 @@ impl<'problem> Tableau<'problem> {
     pub(crate) fn clear(&mut self) {
         self.term_graph.clear();
         self.clause_storage.clear();
-        self.constraint_list.clear();
+        self.solver.clear();
         self.goals.clear();
     }
 
     pub(crate) fn mark(&mut self) {
         self.term_graph.mark();
         self.clause_storage.mark();
-        self.constraint_list.mark();
+        self.solver.mark();
         self.save_goals.reset_to(&self.goals);
     }
 
-    pub(crate) fn undo(&mut self) {
+    pub(crate) fn undo_to_mark(&mut self) {
         self.term_graph.undo_to_mark();
         self.clause_storage.undo_to_mark();
-        self.constraint_list.undo_to_mark();
+        self.solver.undo_to_mark();
         self.goals.reset_to(&self.save_goals);
     }
 
@@ -71,7 +68,7 @@ impl<'problem> Tableau<'problem> {
             &self.problem,
             &mut self.term_graph,
             &mut self.clause_storage,
-            &mut self.constraint_list,
+            &mut self.solver,
             rule,
         );
     }
@@ -85,16 +82,19 @@ impl<'problem> Tableau<'problem> {
         );
     }
 
-    pub(crate) fn solve_constraints<R: Record>(
-        &mut self,
-        record: &mut R,
-    ) -> bool {
-        self.solver.solve(
-            record,
+    pub(crate) fn simplify_constraints(&mut self) {
+        self.solver.simplify(&self.term_graph)
+    }
+
+    pub(crate) fn solve_constraints(&mut self) -> bool {
+        self.solver.solve(&self.term_graph)
+    }
+
+    pub(crate) fn record_unification<R: Record>(&mut self, record: &mut R) {
+        record.unification(
             &self.problem.symbol_table,
             &self.term_graph,
-            &self.constraint_list.equalities,
-            &self.constraint_list.disequalities,
-        )
+            &self.solver.bindings,
+        );
     }
 }

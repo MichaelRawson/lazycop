@@ -51,9 +51,9 @@ impl ClauseStorage {
         &mut self,
         literals: T,
     ) -> Clause {
-        let start = self.literals.len();
+        let start = self.literals.limit();
         self.literals.extend(literals);
-        let end = self.literals.len();
+        let end = self.literals.limit();
         let current = start;
         Clause {
             start,
@@ -67,10 +67,10 @@ impl ClauseStorage {
         with: Literal,
         literals: T,
     ) -> Clause {
-        let start = self.literals.len();
+        let start = self.literals.limit();
         self.literals.push(with);
         self.literals.extend(literals);
-        let end = self.literals.len();
+        let end = self.literals.limit();
         let current = start;
         Clause {
             start,
@@ -80,7 +80,7 @@ impl ClauseStorage {
     }
 
     pub(crate) fn mark(&mut self) {
-        self.mark = self.literals.len();
+        self.mark = self.literals.limit();
     }
 
     pub(crate) fn undo_to_mark(&mut self) {

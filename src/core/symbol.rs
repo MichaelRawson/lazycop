@@ -14,7 +14,7 @@ impl SymbolTable {
         self.names.push(Symbol { name }).transmute()
     }
 
-    pub(crate) fn len(&self) -> Id<Symbol> {
+    pub(crate) fn len(&self) -> usize {
         self.names.len()
     }
 

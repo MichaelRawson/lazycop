@@ -96,8 +96,8 @@ impl ProblemBuilder {
             _ => unreachable!(),
         };
 
-        let clause = self.problem.clauses.len();
-        let literal = self.saved_literals.len();
+        let clause = self.problem.clauses.limit();
+        let literal = self.saved_literals.limit();
         let position = Position { clause, literal };
         let position = self.problem.positions.push(position);
         self.problem.predicate_occurrences[polarity as usize][symbol]

@@ -35,7 +35,7 @@ impl GoalStack {
         problem: &Problem,
         term_graph: &mut TermGraph,
         clause_storage: &mut ClauseStorage,
-        constraint_list: &mut ConstraintList,
+        solver: &mut Solver,
         rule: Rule,
     ) {
         match rule {
@@ -58,7 +58,7 @@ impl GoalStack {
                     &problem.symbol_table,
                     term_graph,
                     clause_storage,
-                    constraint_list,
+                    solver,
                     literal,
                 );
             }
@@ -73,7 +73,7 @@ impl GoalStack {
                     &problem.symbol_table,
                     term_graph,
                     clause_storage,
-                    constraint_list,
+                    solver,
                     literal,
                 );
             }
@@ -87,7 +87,7 @@ impl GoalStack {
                     &problem.symbol_table,
                     term_graph,
                     clause_storage,
-                    constraint_list,
+                    solver,
                 );
             }
             Rule::Extension(extension) => {
@@ -98,15 +98,11 @@ impl GoalStack {
                     problem,
                     term_graph,
                     clause_storage,
-                    constraint_list,
+                    solver,
                     extension.position,
                 );
                 self.stack.push(new_goal);
-                self.add_regularity_constraints(
-                    constraint_list,
-                    term_graph,
-                    clause_storage,
-                );
+                self.add_regularity_constraints(solver, clause_storage);
             }
         }
         self.close_branches();
@@ -129,8 +125,7 @@ impl GoalStack {
 
     fn add_regularity_constraints(
         &mut self,
-        constraint_list: &mut ConstraintList,
-        term_graph: &TermGraph,
+        solver: &mut Solver,
         clause_storage: &ClauseStorage,
     ) {
         let goal = self
@@ -150,15 +145,10 @@ impl GoalStack {
                 if regularity_literal.polarity != literal.polarity {
                     continue;
                 }
-                if !Atom::possibly_equal(
-                    &regularity_literal.atom,
-                    &literal.atom,
-                    term_graph,
-                ) {
+                if !Atom::same_type(&regularity_literal.atom, &literal.atom) {
                     continue;
                 }
-                constraint_list
-                    .add_disequality(regularity_literal.atom, literal.atom);
+                solver.unequal(regularity_literal.atom, literal.atom);
             }
         }
     }

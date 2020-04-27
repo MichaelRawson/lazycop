@@ -14,11 +14,17 @@ impl<K, V: Default> IdMap<K, V> {
         }
     }
 
-    pub(crate) fn ensure_capacity(&mut self, enough: Id<K>) {
-        let required = enough.as_usize();
+    pub(crate) fn ensure_capacity(&mut self, required: usize) {
         if required >= self.map.len() {
-            self.map.resize_with(required + 1, Default::default);
+            self.map.resize_with(required, Default::default);
         }
+    }
+}
+
+impl<K, V: Clone> IdMap<K, V> {
+    pub(crate) fn copy_from(&mut self, other: &Self) {
+        self.map.clear();
+        self.map.extend_from_slice(&other.map);
     }
 }
 

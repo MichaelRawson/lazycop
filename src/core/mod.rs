@@ -1,6 +1,5 @@
 pub(crate) mod atom;
 pub(crate) mod clause;
-pub(crate) mod constraint;
 pub(crate) mod goal;
 pub(crate) mod goal_stack;
 pub(crate) mod literal;
