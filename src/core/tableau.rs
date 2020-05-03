@@ -82,12 +82,12 @@ impl<'problem> Tableau<'problem> {
         );
     }
 
-    pub(crate) fn simplify_constraints(&mut self) {
-        self.solver.simplify(&self.term_graph)
+    pub(crate) fn solve_constraints(&mut self) {
+        self.solver.solve(&self.term_graph)
     }
 
-    pub(crate) fn solve_constraints(&mut self) -> bool {
-        self.solver.solve(&self.term_graph)
+    pub(crate) fn check_constraints(&mut self) -> bool {
+        self.solver.check(&self.term_graph)
     }
 
     pub(crate) fn record_unification<R: Record>(&mut self, record: &mut R) {

@@ -1,59 +1,96 @@
 use crate::prelude::*;
 use crate::util::id_map::IdMap;
 
+#[derive(Clone, Copy)]
+struct Equation {
+    left: Id<Term>,
+    right: Id<Term>,
+}
+
+#[derive(Clone, Copy)]
+struct Disequation {
+    left: Id<Term>,
+    right: Id<Term>,
+}
+
+#[derive(Clone, Copy)]
+struct AtomicDisequation {
+    variable: Id<Variable>,
+    term: Id<Term>,
+}
+
+#[derive(Clone, Copy)]
+struct SolvedDisequation(IdRange<AtomicDisequation>);
+
+#[derive(Clone, Copy)]
+struct OccursCheckItem(Id<Term>);
+
 #[derive(Default)]
 pub(crate) struct Solver {
     pub bindings: IdMap<Variable, Option<Id<Term>>>,
     save_bindings: IdMap<Variable, Option<Id<Term>>>,
-    equalities: Vec<(Id<Term>, Id<Term>)>,
-    disequalities: Vec<(Atom, Atom)>,
-    postponed_disequalities: Vec<(Atom, Atom)>,
-    buf: Vec<Id<Term>>,
+    equations: Arena<Equation>,
+    disequations: Arena<Disequation>,
+    solved_disequations: Arena<SolvedDisequation>,
+    atomic_disequations: Arena<AtomicDisequation>,
+    occurs_buf: Arena<OccursCheckItem>,
 }
 
 impl Solver {
-    pub(crate) fn equal(&mut self, left: Id<Term>, right: Id<Term>) {
-        self.equalities.push((left, right));
+    pub(crate) fn assert_equal(&mut self, left: Id<Term>, right: Id<Term>) {
+        self.equations.push(Equation { left, right });
     }
 
-    pub(crate) fn unequal(&mut self, left: Atom, right: Atom) {
-        self.disequalities.push((left, right));
+    pub(crate) fn assert_not_equal(
+        &mut self,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) {
+        self.disequations.push(Disequation { left, right });
     }
 
     pub(crate) fn clear(&mut self) {
         self.bindings.wipe();
         self.save_bindings.wipe();
-        self.equalities.clear();
-        self.disequalities.clear();
-        self.postponed_disequalities.clear();
+        self.equations.clear();
+        self.disequations.clear();
+        self.solved_disequations.clear();
+        self.atomic_disequations.clear();
     }
 
     pub(crate) fn mark(&mut self) {
         self.save_bindings.copy_from(&self.bindings);
+        self.solved_disequations.mark();
+        self.atomic_disequations.mark();
     }
 
     pub(crate) fn undo_to_mark(&mut self) {
         self.bindings.copy_from(&self.save_bindings);
-        self.equalities.clear();
-        self.disequalities.clear();
+        self.equations.clear();
+        self.disequations.clear();
+        self.solved_disequations.undo_to_mark();
+        self.atomic_disequations.undo_to_mark();
     }
 
-    pub(crate) fn simplify(&mut self, term_graph: &TermGraph) {
-        self.bindings.ensure_capacity(term_graph.len());
-        self.solve_equalities(term_graph);
-        self.simplify_disequalities(term_graph);
+    pub(crate) fn solve(&mut self, term_graph: &TermGraph) {
+        self.bindings
+            .ensure_capacity(term_graph.limit().transmute());
+        self.solve_equations(term_graph);
+        self.solve_disequations(term_graph);
     }
 
-    pub(crate) fn solve(&mut self, term_graph: &TermGraph) -> bool {
-        self.bindings.ensure_capacity(term_graph.len());
-        self.solve_equalities(term_graph)
-            && self.solve_disequalities(term_graph)
+    pub(crate) fn check(&mut self, term_graph: &TermGraph) -> bool {
+        self.bindings
+            .ensure_capacity(term_graph.limit().transmute());
+        self.check_equations(term_graph)
+            && self.solve_disequations(term_graph)
+            && self.check_solved_disequations(term_graph)
     }
 
-    fn solve_equalities(&mut self, term_graph: &TermGraph) -> bool {
-        while let Some((left, right)) = self.equalities.pop() {
-            let (left, lview) = self.view(term_graph, left);
-            let (right, rview) = self.view(term_graph, right);
+    fn check_equations(&mut self, term_graph: &TermGraph) -> bool {
+        while let Some(equation) = self.equations.pop() {
+            let (left, lview) = self.view(term_graph, equation.left);
+            let (right, rview) = self.view(term_graph, equation.right);
             if left == right {
                 continue;
             }
@@ -77,7 +114,10 @@ impl Solver {
                 (TermView::Function(f, ts), TermView::Function(g, ss))
                     if f == g =>
                 {
-                    self.equalities.extend(ts.zip(ss));
+                    self.equations.extend(
+                        ts.zip(ss)
+                            .map(|(left, right)| Equation { left, right }),
+                    );
                 }
                 _ => {
                     return false;
@@ -87,105 +127,147 @@ impl Solver {
         true
     }
 
-    fn solve_disequalities(&mut self, term_graph: &TermGraph) -> bool {
-        self.disequalities
-            .extend_from_slice(&self.postponed_disequalities);
-        while let Some((left, right)) = self.disequalities.pop() {
-            match (left, right) {
-                (Atom::Predicate(p), Atom::Predicate(q)) => {
-                    if self.solve_disequality(term_graph, p, q) {
-                        continue;
-                    }
-                }
-                (Atom::Equality(l1, r1), Atom::Equality(l2, r2)) => {
-                    if self.solve_disequality(term_graph, l1, l2)
-                        || self.solve_disequality(term_graph, r1, r2)
-                    {
-                        continue;
-                    }
-                }
-                _ => unreachable!("bad disequation"),
+    fn solve_equations(&mut self, term_graph: &TermGraph) {
+        while let Some(equation) = self.equations.pop() {
+            let (left, lview) = self.view(term_graph, equation.left);
+            let (right, rview) = self.view(term_graph, equation.right);
+            if left == right {
+                continue;
             }
-            return false;
+
+            match (lview, rview) {
+                (TermView::Variable(x), _) => {
+                    self.bindings[x] = Some(right);
+                }
+                (_, TermView::Variable(x)) => {
+                    self.bindings[x] = Some(left);
+                }
+                (TermView::Function(_, ts), TermView::Function(_, ss)) => {
+                    self.equations.extend(
+                        ts.zip(ss)
+                            .map(|(left, right)| Equation { left, right }),
+                    );
+                }
+            }
+        }
+    }
+
+    fn solve_disequations(&mut self, term_graph: &TermGraph) -> bool {
+        while let Some(disequation) = self.disequations.pop() {
+            if let Some(range) =
+                self.solve_disequation(term_graph, disequation)
+            {
+                if range.is_empty() {
+                    return false;
+                } else {
+                    self.solved_disequations.push(SolvedDisequation(range));
+                }
+            }
         }
         true
     }
 
-    fn solve_disequality(
+    fn solve_disequation(
         &mut self,
         term_graph: &TermGraph,
-        left: Id<Term>,
-        right: Id<Term>,
-    ) -> bool {
-        self.equalities.clear();
-        self.equalities.push((left, right));
-        while let Some((left, right)) = self.equalities.pop() {
-            let (left, lview) = self.view(term_graph, left);
-            let (right, rview) = self.view(term_graph, right);
+        disequation: Disequation,
+    ) -> Option<IdRange<AtomicDisequation>> {
+        let start = self.atomic_disequations.limit();
+        let left = disequation.left;
+        let right = disequation.right;
+        self.equations.push(Equation { left, right });
+        while let Some(equation) = self.equations.pop() {
+            let (left, lview) = self.view(term_graph, equation.left);
+            let (right, rview) = self.view(term_graph, equation.right);
             if left == right {
                 continue;
             }
 
-            if let (TermView::Function(f, ts), TermView::Function(g, ss)) =
-                (lview, rview)
-            {
-                if f == g {
-                    self.equalities.extend(ts.zip(ss));
-                    continue;
+            match (lview, rview) {
+                (TermView::Variable(variable), _) => {
+                    let term = right;
+                    let atomic = AtomicDisequation { variable, term };
+                    self.atomic_disequations.push(atomic);
+                }
+                (_, TermView::Variable(variable)) => {
+                    let term = left;
+                    let atomic = AtomicDisequation { variable, term };
+                    self.atomic_disequations.push(atomic);
+                }
+                (TermView::Function(f, ts), TermView::Function(g, ss))
+                    if f == g =>
+                {
+                    self.equations.extend(
+                        ts.zip(ss)
+                            .map(|(left, right)| Equation { left, right }),
+                    );
+                }
+                _ => {
+                    self.equations.clear();
+                    return None;
                 }
             }
-            return true;
         }
-        false
+        let stop = self.atomic_disequations.limit();
+        Some(IdRange::new(start, stop))
     }
 
-    fn simplify_disequalities(&mut self, term_graph: &TermGraph) {
-        while let Some((left, right)) = self.disequalities.pop() {
-            match (left, right) {
-                (Atom::Predicate(p), Atom::Predicate(q)) => {
-                    if self.is_disequality_trivial(term_graph, p, q) {
-                        continue;
-                    }
-                }
-                (Atom::Equality(l1, r1), Atom::Equality(l2, r2)) => {
-                    if self.is_disequality_trivial(term_graph, l1, l2)
-                        || self.is_disequality_trivial(term_graph, r1, r2)
-                    {
-                        continue;
-                    }
-                }
-                _ => unreachable!("bad disequation"),
-            }
-            self.postponed_disequalities.push((left, right));
-        }
+    fn check_solved_disequations(&mut self, term_graph: &TermGraph) -> bool {
+        self.solved_disequations.into_iter().all(|solved_id| {
+            !self.check_solved_disequation(
+                term_graph,
+                self.solved_disequations[solved_id],
+            )
+        })
     }
 
-    fn is_disequality_trivial(
+    fn check_solved_disequation(
         &mut self,
         term_graph: &TermGraph,
-        left: Id<Term>,
-        right: Id<Term>,
+        mut solved: SolvedDisequation,
     ) -> bool {
-        self.equalities.push((left, right));
-        while let Some((left, right)) = self.equalities.pop() {
-            let (left, lview) = self.view(term_graph, left);
-            let (right, rview) = self.view(term_graph, right);
+        solved.0.all(|atomic_id| {
+            self.check_atomic_disequation(
+                term_graph,
+                self.atomic_disequations[atomic_id],
+            )
+        })
+    }
+
+    fn check_atomic_disequation(
+        &mut self,
+        term_graph: &TermGraph,
+        atomic: AtomicDisequation,
+    ) -> bool {
+        if let Some(left) = self.bindings[atomic.variable] {
+            let right = atomic.term;
+            self.equations.push(Equation { left, right });
+        } else {
+            return false;
+        }
+        while let Some(equation) = self.equations.pop() {
+            let (left, lview) = self.view(term_graph, equation.left);
+            let (right, rview) = self.view(term_graph, equation.right);
             if left == right {
                 continue;
             }
 
-            if let (TermView::Function(f, ts), TermView::Function(g, ss)) =
-                (lview, rview)
-            {
-                if f == g {
-                    self.equalities.extend(ts.zip(ss))
-                } else {
-                    self.equalities.clear();
-                    return true;
+            match (lview, rview) {
+                (TermView::Function(f, ts), TermView::Function(g, ss))
+                    if f == g =>
+                {
+                    self.equations.extend(
+                        ts.zip(ss)
+                            .map(|(left, right)| Equation { left, right }),
+                    );
+                }
+                _ => {
+                    self.equations.clear();
+                    return false;
                 }
             }
         }
-        false
+        true
     }
 
     fn occurs(
@@ -194,17 +276,17 @@ impl Solver {
         x: Id<Variable>,
         term: Id<Term>,
     ) -> bool {
-        self.buf.clear();
-        self.buf.push(term);
-        while let Some(term) = self.buf.pop() {
+        self.occurs_buf.push(OccursCheckItem(term));
+        while let Some(OccursCheckItem(term)) = self.occurs_buf.pop() {
             let (_, view) = self.view(term_graph, term);
             match view {
                 TermView::Variable(y) if x == y => {
+                    self.occurs_buf.clear();
                     return true;
                 }
                 TermView::Variable(_) => {}
                 TermView::Function(_, ts) => {
-                    self.buf.extend(ts);
+                    self.occurs_buf.extend(ts.map(OccursCheckItem));
                 }
             }
         }

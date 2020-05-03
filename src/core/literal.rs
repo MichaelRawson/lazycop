@@ -16,4 +16,10 @@ impl Literal {
         let atom = self.atom.offset(offset);
         Self { polarity, atom }
     }
+
+    pub(crate) fn inverted(&self) -> Self {
+        let polarity = !self.polarity;
+        let atom = self.atom;
+        Self { polarity, atom }
+    }
 }

@@ -14,7 +14,8 @@ impl<K, V: Default> IdMap<K, V> {
         }
     }
 
-    pub(crate) fn ensure_capacity(&mut self, required: usize) {
+    pub(crate) fn ensure_capacity(&mut self, required: Id<K>) {
+        let required = required.as_usize();
         if required >= self.map.len() {
             self.map.resize_with(required, Default::default);
         }

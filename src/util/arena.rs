@@ -5,13 +5,10 @@ use std::ops::{Add, Index, IndexMut, Sub};
 
 pub(crate) struct Arena<T> {
     items: Vec<T>,
+    mark: usize,
 }
 
 impl<T> Arena<T> {
-    pub(crate) fn len(&self) -> usize {
-        self.items.len()
-    }
-
     pub(crate) fn limit(&self) -> Id<T> {
         let id = self.items.len() as u32;
         let _phantom = PhantomData;
@@ -24,10 +21,6 @@ impl<T> Arena<T> {
 
     pub(crate) fn clear(&mut self) {
         self.items.clear();
-    }
-
-    pub(crate) fn truncate(&mut self, len: Id<T>) {
-        self.items.truncate(len.id as usize);
     }
 
     pub(crate) fn extend_from(&mut self, other: &Arena<T>)
@@ -54,12 +47,21 @@ impl<T> Arena<T> {
     pub(crate) fn last_mut(&mut self) -> Option<&mut T> {
         self.items.last_mut()
     }
+
+    pub(crate) fn mark(&mut self) {
+        self.mark = self.items.len();
+    }
+
+    pub(crate) fn undo_to_mark(&mut self) {
+        self.items.truncate(self.mark);
+    }
 }
 
 impl<T> Default for Arena<T> {
     fn default() -> Self {
         let items = vec![];
-        Self { items }
+        let mark = 0;
+        Self { items, mark }
     }
 }
 
@@ -109,8 +111,9 @@ impl<T> Id<T> {
         Self { id, _phantom }
     }
 
-    pub(crate) fn increment(&mut self) {
-        self.id += 1;
+    pub(crate) fn increment(self) -> Self {
+        let id = self.id + 1;
+        Self::new(id)
     }
 
     pub(crate) fn as_usize(self) -> usize {
@@ -230,6 +233,10 @@ impl<T> IdRange<T> {
 
     pub(crate) fn len(self) -> u32 {
         self.stop.id - self.start.id
+    }
+
+    pub(crate) fn is_empty(self) -> bool {
+        self.start.id == self.stop.id
     }
 }
 

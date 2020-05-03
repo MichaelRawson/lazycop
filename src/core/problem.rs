@@ -9,18 +9,14 @@ pub(crate) struct ProblemClause {
     pub(crate) term_graph: TermGraph,
 }
 
-pub(crate) struct Position {
-    pub(crate) clause: Id<ProblemClause>,
-    pub(crate) literal: Id<Literal>,
-}
-
+type Position = (Id<ProblemClause>, Id<Literal>);
 #[derive(Default)]
 pub(crate) struct Problem {
     clauses: Arena<ProblemClause>,
-    positions: Arena<Position>,
     pub(crate) start_clauses: Vec<Id<ProblemClause>>,
-    pub(crate) predicate_occurrences: [IdMap<Symbol, Vec<Id<Position>>>; 2],
+    pub(crate) predicate_occurrences: [IdMap<Symbol, Vec<Position>>; 2],
     pub(crate) symbol_table: SymbolTable,
+    pub(crate) equality: bool,
 }
 
 impl Index<Id<ProblemClause>> for Problem {
@@ -31,16 +27,7 @@ impl Index<Id<ProblemClause>> for Problem {
     }
 }
 
-impl Index<Id<Position>> for Problem {
-    type Output = Position;
-
-    fn index(&self, id: Id<Position>) -> &Self::Output {
-        &self.positions[id]
-    }
-}
-
 type FunctionKey = (Id<Symbol>, Vec<Id<Term>>);
-
 #[derive(Default)]
 pub(crate) struct ProblemBuilder {
     problem: Problem,
@@ -73,9 +60,9 @@ impl ProblemBuilder {
             .entry((symbol.clone(), arity))
             .or_insert_with(|| symbol_table.append(symbol));
         self.problem.predicate_occurrences[0]
-            .ensure_capacity(symbol_table.len());
+            .ensure_capacity(symbol_table.limit());
         self.problem.predicate_occurrences[1]
-            .ensure_capacity(symbol_table.len());
+            .ensure_capacity(symbol_table.limit());
 
         let args = self
             .saved_terms
@@ -98,14 +85,13 @@ impl ProblemBuilder {
 
         let clause = self.problem.clauses.limit();
         let literal = self.saved_literals.limit();
-        let position = Position { clause, literal };
-        let position = self.problem.positions.push(position);
         self.problem.predicate_occurrences[polarity as usize][symbol]
-            .push(position);
+            .push((clause, literal));
         self.saved_literals.push(Literal::new(polarity, atom));
     }
 
     pub(crate) fn equality(&mut self, polarity: bool) {
+        self.problem.equality = true;
         let right = self.saved_terms.pop().expect("equality without term");
         let left = self.saved_terms.pop().expect("equality without term");
         let atom = Atom::Equality(left, right);

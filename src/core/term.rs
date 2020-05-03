@@ -17,7 +17,6 @@ pub(crate) enum Term {
 #[derive(Default)]
 pub(crate) struct TermGraph {
     arena: Arena<Term>,
-    mark: Id<Term>,
 }
 
 impl TermGraph {
@@ -25,12 +24,12 @@ impl TermGraph {
         self.arena.clear();
     }
 
-    pub(crate) fn len(&self) -> usize {
-        self.arena.len()
+    pub(crate) fn limit(&self) -> Id<Term> {
+        self.arena.limit()
     }
 
     pub(crate) fn current_offset(&self) -> Offset<Term> {
-        self.arena.limit().as_offset()
+        self.limit().as_offset()
     }
 
     pub(crate) fn extend_from(&mut self, other: &Self) {
@@ -38,11 +37,11 @@ impl TermGraph {
     }
 
     pub(crate) fn mark(&mut self) {
-        self.mark = self.arena.limit();
+        self.arena.mark();
     }
 
     pub(crate) fn undo_to_mark(&mut self) {
-        self.arena.truncate(self.mark);
+        self.arena.undo_to_mark();
     }
 
     pub(crate) fn add_variable(&mut self) -> Id<Term> {

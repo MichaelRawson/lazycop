@@ -3,43 +3,44 @@ use std::ops::Index;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Clause {
-    start: Id<Literal>,
-    current: Id<Literal>,
-    end: Id<Literal>,
+    literals: IdRange<Literal>,
 }
 
 impl Clause {
-    pub(crate) fn is_empty(&self) -> bool {
-        self.current == self.end
+    pub(crate) fn is_empty(self) -> bool {
+        self.literals.is_empty()
     }
 
-    pub(crate) fn len(&self) -> u32 {
-        IdRange::new(self.current, self.end).len()
+    pub(crate) fn len(self) -> u32 {
+        self.literals.len()
     }
 
-    pub(crate) fn closed(&self) -> impl Iterator<Item = Id<Literal>> {
-        IdRange::new(self.start, self.current)
+    pub(crate) fn open(self) -> IdRange<Literal> {
+        self.literals
     }
 
-    pub(crate) fn open(&self) -> impl Iterator<Item = Id<Literal>> {
-        IdRange::new(self.current, self.end)
+    pub(crate) fn pending(self) -> IdRange<Literal> {
+        let mut literals = self.literals;
+        literals.next();
+        literals
     }
 
-    pub(crate) fn current_literal(&self) -> Id<Literal> {
-        self.current
+    pub(crate) fn current_literal(mut self) -> Id<Literal> {
+        self.literals
+            .next()
+            .expect("current literal of empty clause")
     }
 
-    pub(crate) fn close_literal(&mut self) -> Option<Id<Literal>> {
-        let result = self.open().next();
-        self.current.increment();
-        result
+    pub(crate) fn close_literal(&mut self) -> Id<Literal> {
+        self.literals
+            .next()
+            .expect("closing literal of empty clause")
     }
 }
 
 #[derive(Default)]
 pub(crate) struct ClauseStorage {
     literals: Arena<Literal>,
-    mark: Id<Literal>,
 }
 
 impl ClauseStorage {
@@ -54,12 +55,8 @@ impl ClauseStorage {
         let start = self.literals.limit();
         self.literals.extend(literals);
         let end = self.literals.limit();
-        let current = start;
-        Clause {
-            start,
-            current,
-            end,
-        }
+        let literals = IdRange::new(start, end);
+        Clause { literals }
     }
 
     pub(crate) fn create_clause_with<T: IntoIterator<Item = Literal>>(
@@ -71,20 +68,16 @@ impl ClauseStorage {
         self.literals.push(with);
         self.literals.extend(literals);
         let end = self.literals.limit();
-        let current = start;
-        Clause {
-            start,
-            current,
-            end,
-        }
+        let literals = IdRange::new(start, end);
+        Clause { literals }
     }
 
     pub(crate) fn mark(&mut self) {
-        self.mark = self.literals.limit();
+        self.literals.mark();
     }
 
     pub(crate) fn undo_to_mark(&mut self) {
-        self.literals.truncate(self.mark);
+        self.literals.undo_to_mark();
     }
 }
 

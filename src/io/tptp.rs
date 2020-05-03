@@ -210,26 +210,25 @@ fn print_literal(
     }
 }
 
-fn print_literals<T: Iterator<Item = Id<Literal>>>(
+fn print_literals(
     variable_map: &mut Fresh,
     symbol_table: &SymbolTable,
     term_graph: &TermGraph,
     clause_storage: &ClauseStorage,
-    mut literals: T,
-) -> bool {
+    mut literals: IdRange<Literal>,
+) {
     if let Some(literal) = literals.next() {
         let literal = clause_storage[literal];
         print_literal(variable_map, symbol_table, term_graph, literal);
     } else {
         print!("$false");
-        return false;
+        return;
     }
     for literal in literals {
         let literal = clause_storage[literal];
         print!(" | ");
         print_literal(variable_map, symbol_table, term_graph, literal);
     }
-    true
 }
 
 #[derive(Default)]
@@ -241,14 +240,14 @@ pub(crate) struct TPTPProof {
 }
 
 impl Record for TPTPProof {
-    fn start<T: Iterator<Item = Id<Literal>>>(
+    fn start(
         &mut self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        literals: T,
+        literals: IdRange<Literal>,
     ) {
-        print!("cnf({}, negated_conjecture, ", self.clause_number);
+        print!("cnf({}, axiom, ", self.clause_number);
         print_literals(
             &mut self.variable_map,
             symbol_table,
@@ -261,12 +260,12 @@ impl Record for TPTPProof {
         self.clause_number += 1;
     }
 
-    fn reduction<T: Iterator<Item = Id<Literal>>>(
+    fn reduction(
         &mut self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        literals: T,
+        literals: IdRange<Literal>,
         left: Id<Term>,
         right: Id<Term>,
     ) {
@@ -282,13 +281,14 @@ impl Record for TPTPProof {
         self.assumptions_list.push(self.clause_number);
         self.clause_number += 1;
         print!("cnf({}, plain, ", self.clause_number);
-        if print_literals(
+        print_literals(
             &mut self.variable_map,
             symbol_table,
             term_graph,
             clause_storage,
             literals,
-        ) {
+        );
+        if !literals.is_empty() {
             self.clause_stack.push(self.clause_number);
         }
         println!(
@@ -299,12 +299,61 @@ impl Record for TPTPProof {
         self.clause_number += 1;
     }
 
-    fn lemma<T: Iterator<Item = Id<Literal>>>(
+    fn extension(
         &mut self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        literals: T,
+        literals: IdRange<Literal>,
+        extension_literals: IdRange<Literal>,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) {
+        let parent = self
+            .clause_stack
+            .pop()
+            .expect("printing extension on empty stack");
+        print!("cnf({}, assumption, ", self.clause_number);
+        print_term(&mut self.variable_map, symbol_table, term_graph, left);
+        print!(" = ");
+        print_term(&mut self.variable_map, symbol_table, term_graph, right);
+        println!(").");
+        self.assumptions_list.push(self.clause_number);
+        self.clause_number += 1;
+
+        print!("cnf({}, plain, ", self.clause_number);
+        print_literals(
+            &mut self.variable_map,
+            symbol_table,
+            term_graph,
+            clause_storage,
+            literals,
+        );
+        if !literals.is_empty() {
+            self.clause_stack.push(self.clause_number);
+        }
+        println!(", inference(extension, [], [{}])).", parent);
+        self.clause_number += 1;
+
+        print!("cnf({}, plain, ", self.clause_number);
+        print_literals(
+            &mut self.variable_map,
+            symbol_table,
+            term_graph,
+            clause_storage,
+            extension_literals,
+        );
+        println!(", inference(extension, [], [{}])).", parent);
+        self.clause_stack.push(self.clause_number);
+        self.clause_number += 1;
+    }
+
+    fn lemma(
+        &mut self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+        literals: IdRange<Literal>,
         left: Id<Term>,
         right: Id<Term>,
     ) {
@@ -320,13 +369,14 @@ impl Record for TPTPProof {
         self.assumptions_list.push(self.clause_number);
         self.clause_number += 1;
         print!("cnf({}, plain, ", self.clause_number);
-        if print_literals(
+        print_literals(
             &mut self.variable_map,
             symbol_table,
             term_graph,
             clause_storage,
             literals,
-        ) {
+        );
+        if !literals.is_empty() {
             self.clause_stack.push(self.clause_number);
         }
         println!(
@@ -337,12 +387,51 @@ impl Record for TPTPProof {
         self.clause_number += 1;
     }
 
-    fn equality_reduction<T: Iterator<Item = Id<Literal>>>(
+    fn lazy_extension(
         &mut self,
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        literals: T,
+        literals: IdRange<Literal>,
+        extension_literals: IdRange<Literal>,
+    ) {
+        let parent = self
+            .clause_stack
+            .pop()
+            .expect("printing lazy extension on empty stack");
+        print!("cnf({}, plain, ", self.clause_number);
+        print_literals(
+            &mut self.variable_map,
+            symbol_table,
+            term_graph,
+            clause_storage,
+            literals,
+        );
+        if !literals.is_empty() {
+            self.clause_stack.push(self.clause_number);
+        }
+        println!(", inference(lazy_extension, [], [{}])).", parent);
+        self.clause_number += 1;
+
+        print!("cnf({}, plain, ", self.clause_number);
+        print_literals(
+            &mut self.variable_map,
+            symbol_table,
+            term_graph,
+            clause_storage,
+            extension_literals,
+        );
+        println!(", inference(lazy_extension, [], [{}])).", parent);
+        self.clause_stack.push(self.clause_number);
+        self.clause_number += 1;
+    }
+
+    fn reflexivity(
+        &mut self,
+        symbol_table: &SymbolTable,
+        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+        literals: IdRange<Literal>,
         left: Id<Term>,
         right: Id<Term>,
     ) {
@@ -359,61 +448,21 @@ impl Record for TPTPProof {
         self.clause_number += 1;
 
         print!("cnf({}, plain, ", self.clause_number);
-        if print_literals(
-            &mut self.variable_map,
-            symbol_table,
-            term_graph,
-            clause_storage,
-            literals,
-        ) {
-            self.clause_stack.push(self.clause_number);
-        }
-        println!(
-            ", inference(equality_reduction, [assumptions([{}])], [{}])).",
-            self.clause_number - 1,
-            parent
-        );
-        self.clause_number += 1;
-    }
-
-    fn extension<
-        T: Iterator<Item = Id<Literal>>,
-        S: Iterator<Item = Id<Literal>>,
-    >(
-        &mut self,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
-        clause_storage: &ClauseStorage,
-        literals: T,
-        extension_literals: S,
-    ) {
-        let parent = self
-            .clause_stack
-            .pop()
-            .expect("printing extension on empty stack");
-        print!("cnf({}, plain, ", self.clause_number);
-        if print_literals(
-            &mut self.variable_map,
-            symbol_table,
-            term_graph,
-            clause_storage,
-            literals,
-        ) {
-            self.clause_stack.push(self.clause_number);
-        }
-        println!(", inference(extension, [], [{}])).", parent);
-        self.clause_number += 1;
-
-        print!("cnf({}, plain, ", self.clause_number);
         print_literals(
             &mut self.variable_map,
             symbol_table,
             term_graph,
             clause_storage,
-            extension_literals,
+            literals,
         );
-        println!(", inference(extension, [], [{}])).", parent);
-        self.clause_stack.push(self.clause_number);
+        if !literals.is_empty() {
+            self.clause_stack.push(self.clause_number);
+        }
+        println!(
+            ", inference(reflexivity, [assumptions([{}])], [{}])).",
+            self.clause_number - 1,
+            parent
+        );
         self.clause_number += 1;
     }
 

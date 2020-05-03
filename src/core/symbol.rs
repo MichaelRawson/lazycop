@@ -14,11 +14,11 @@ impl SymbolTable {
         self.names.push(Symbol { name }).transmute()
     }
 
-    pub(crate) fn len(&self) -> usize {
-        self.names.len()
-    }
-
     pub(crate) fn name(&self, id: Id<Symbol>) -> &str {
         &self.names[id].name
+    }
+
+    pub(crate) fn limit(&self) -> Id<Symbol> {
+        self.names.limit()
     }
 }

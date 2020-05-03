@@ -2,58 +2,67 @@ use crate::prelude::*;
 use crate::util::id_map::IdMap;
 
 pub(crate) trait Record {
-    fn start<T: Iterator<Item = Id<Literal>>>(
+    fn start(
         &mut self,
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _literals: T,
+        _literals: IdRange<Literal>,
     ) {
     }
 
-    fn reduction<T: Iterator<Item = Id<Literal>>>(
+    fn reduction(
         &mut self,
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _literals: T,
+        _literals: IdRange<Literal>,
         _left: Id<Term>,
         _right: Id<Term>,
     ) {
     }
 
-    fn lemma<T: Iterator<Item = Id<Literal>>>(
+    fn extension(
         &mut self,
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _literals: T,
+        _literals: IdRange<Literal>,
+        _extension_literals: IdRange<Literal>,
         _left: Id<Term>,
         _right: Id<Term>,
     ) {
     }
 
-    fn equality_reduction<T: Iterator<Item = Id<Literal>>>(
+    fn lemma(
         &mut self,
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _literals: T,
+        _literals: IdRange<Literal>,
         _left: Id<Term>,
         _right: Id<Term>,
     ) {
     }
 
-    fn extension<
-        T: Iterator<Item = Id<Literal>>,
-        S: Iterator<Item = Id<Literal>>,
-    >(
+    fn lazy_extension(
         &mut self,
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _literals: T,
-        _extension_literals: S,
+        _literals: IdRange<Literal>,
+        _extension_literals: IdRange<Literal>,
+    ) {
+    }
+
+    fn reflexivity(
+        &mut self,
+        _symbol_table: &SymbolTable,
+        _term_graph: &TermGraph,
+        _clause_storage: &ClauseStorage,
+        _literals: IdRange<Literal>,
+        _left: Id<Term>,
+        _right: Id<Term>,
     ) {
     }
 

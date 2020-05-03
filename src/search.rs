@@ -28,11 +28,11 @@ pub(crate) fn astar(
 
         possible.clear();
         tableau.possible_rules(&mut possible);
-        tableau.simplify_constraints();
+        tableau.solve_constraints();
         tableau.mark();
         for rule in &possible {
             tableau.apply_rule(&mut record, *rule);
-            if tableau.solve_constraints() {
+            if tableau.check_constraints() {
                 if tableau.is_closed() {
                     script.push_back(*rule);
                     return Some(script);

@@ -1,3 +1,4 @@
+use crate::core::goal::Goal;
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -7,24 +8,27 @@ pub(crate) struct StartRule {
 
 #[derive(Clone, Copy)]
 pub(crate) struct ReductionRule {
+    pub(crate) parent: Id<Goal>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct ExtensionRule {
+    pub(crate) clause: Id<ProblemClause>,
     pub(crate) literal: Id<Literal>,
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct LemmaRule {
+    pub(crate) valid_from: Id<Goal>,
     pub(crate) literal: Id<Literal>,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct ExtensionRule {
-    pub(crate) position: Id<Position>,
 }
 
 #[derive(Clone, Copy)]
 pub(crate) enum Rule {
     Start(StartRule),
     Reduction(ReductionRule),
-    Lemma(LemmaRule),
-    EqualityReduction,
     Extension(ExtensionRule),
+    Lemma(LemmaRule),
+    LazyExtension(ExtensionRule),
+    Reflexivity,
 }

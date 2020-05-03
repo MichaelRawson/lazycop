@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 mod core;
 mod io;
 mod prelude;
@@ -15,7 +17,7 @@ fn main() {
         for rule in proof {
             tableau.apply_rule(&mut record, rule);
         }
-        assert!(tableau.solve_constraints());
+        assert!(tableau.check_constraints());
         tableau.record_unification(&mut record);
         io::szs::end_refutation();
         io::exit::success()

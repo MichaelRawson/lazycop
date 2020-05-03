@@ -47,6 +47,7 @@ impl Atom {
         }
     }
 
+    /*
     pub(crate) fn same_type(left: &Self, right: &Self) -> bool {
         if left.is_predicate() {
             right.is_predicate()
@@ -54,4 +55,5 @@ impl Atom {
             !right.is_predicate()
         }
     }
+    */
 }

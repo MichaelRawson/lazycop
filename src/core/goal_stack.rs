@@ -50,7 +50,9 @@ impl GoalStack {
                 self.stack.push(start);
             }
             Rule::Reduction(reduction) => {
-                let literal = clause_storage[reduction.literal];
+                let literal_id =
+                    self.stack[reduction.parent].current_literal();
+                let literal = clause_storage[literal_id];
                 let goal =
                     self.stack.last_mut().expect("reduction on empty tableau");
                 goal.reduction(
@@ -61,34 +63,10 @@ impl GoalStack {
                     solver,
                     literal,
                 );
-            }
-            Rule::Lemma(lemma) => {
-                let literal = clause_storage[lemma.literal];
-                let goal = self
-                    .stack
-                    .last_mut()
-                    .expect("lemma applied on empty tableau");
-                goal.lemma(
-                    record,
-                    &problem.symbol_table,
-                    term_graph,
-                    clause_storage,
-                    solver,
-                    literal,
-                );
-            }
-            Rule::EqualityReduction => {
-                let goal = self
-                    .stack
-                    .last_mut()
-                    .expect("equality reduction on empty tableau");
-                goal.equality_reduction(
-                    record,
-                    &problem.symbol_table,
-                    term_graph,
-                    clause_storage,
-                    solver,
-                );
+                let valid_from = reduction.parent.increment();
+                for parent_id in IdRange::new(valid_from, self.stack.limit()) {
+                    self.stack[parent_id].set_validity(valid_from);
+                }
             }
             Rule::Extension(extension) => {
                 let goal =
@@ -99,10 +77,59 @@ impl GoalStack {
                     term_graph,
                     clause_storage,
                     solver,
-                    extension.position,
+                    extension.clause,
+                    extension.literal,
                 );
                 self.stack.push(new_goal);
                 self.add_regularity_constraints(solver, clause_storage);
+            }
+            Rule::Lemma(lemma) => {
+                let goal = self
+                    .stack
+                    .last_mut()
+                    .expect("lemma applied on empty tableau");
+                goal.lemma(
+                    record,
+                    &problem.symbol_table,
+                    term_graph,
+                    clause_storage,
+                    solver,
+                    lemma.literal,
+                );
+                for parent_id in IdRange::new(
+                    lemma.valid_from.increment(),
+                    self.stack.limit(),
+                ) {
+                    self.stack[parent_id].set_validity(lemma.valid_from);
+                }
+            }
+            Rule::LazyExtension(extension) => {
+                let goal =
+                    self.stack.last_mut().expect("extension on empty tableau");
+                let new_goal = goal.lazy_extension(
+                    record,
+                    problem,
+                    term_graph,
+                    clause_storage,
+                    solver,
+                    extension.clause,
+                    extension.literal,
+                );
+                self.stack.push(new_goal);
+                self.add_regularity_constraints(solver, clause_storage);
+            }
+            Rule::Reflexivity => {
+                let goal = self
+                    .stack
+                    .last_mut()
+                    .expect("reflexivity on empty tableau");
+                goal.reflexivity(
+                    record,
+                    &problem.symbol_table,
+                    term_graph,
+                    clause_storage,
+                    solver,
+                );
             }
         }
         self.close_branches();
@@ -115,10 +142,11 @@ impl GoalStack {
         }
         self.stack.pop();
         while let Some(goal) = self.stack.last_mut() {
-            goal.close_literal();
+            let (valid_from, literal) = goal.close_literal();
             if !goal.is_empty() {
                 return;
             }
+            self.stack[valid_from].add_lemmatum(literal);
             self.stack.pop();
         }
     }
@@ -133,22 +161,22 @@ impl GoalStack {
             .last()
             .expect("adding constraints to empty stack");
         let path_literals = self.path_literals().map(|id| clause_storage[id]);
-        let lemmata = self.available_lemmata().map(|id| {
-            let mut lemma = clause_storage[id];
-            lemma.polarity = !lemma.polarity;
-            lemma
-        });
+        let lemmata = self
+            .available_lemmata()
+            .map(|(_, id)| clause_storage[id].inverted());
         let regularity_literals = path_literals.chain(lemmata);
         for regularity_literal in regularity_literals {
             for literal in goal.open_literals() {
                 let literal = clause_storage[literal];
-                if regularity_literal.polarity != literal.polarity {
-                    continue;
+                if regularity_literal.polarity == literal.polarity
+                    && regularity_literal.atom.is_predicate()
+                    && literal.atom.is_predicate()
+                {
+                    solver.assert_not_equal(
+                        regularity_literal.atom.get_predicate(),
+                        literal.atom.get_predicate(),
+                    );
                 }
-                if !Atom::same_type(&regularity_literal.atom, &literal.atom) {
-                    continue;
-                }
-                solver.unequal(regularity_literal.atom, literal.atom);
             }
         }
     }
@@ -207,7 +235,7 @@ impl GoalStack {
                 literal.atom.get_predicate_symbol(term_graph),
             );
         } else if !literal.polarity {
-            possible.push(Rule::EqualityReduction);
+            possible.push(Rule::Reflexivity);
         }
     }
 
@@ -245,15 +273,15 @@ impl GoalStack {
         polarity: bool,
         f: Id<Symbol>,
     ) {
-        for literal_id in self.path_literals() {
+        for parent in self.stack.into_iter().rev().skip(1) {
+            let literal_id = self.stack[parent].current_literal();
             let literal = clause_storage[literal_id];
             if literal.polarity == polarity || !literal.atom.is_predicate() {
                 continue;
             }
             let g = literal.atom.get_predicate_symbol(term_graph);
             if f == g {
-                let literal = literal_id;
-                possible.push(Rule::Reduction(ReductionRule { literal }));
+                possible.push(Rule::Reduction(ReductionRule { parent }));
             }
         }
     }
@@ -266,7 +294,7 @@ impl GoalStack {
         polarity: bool,
         f: Id<Symbol>,
     ) {
-        for literal_id in self.available_lemmata() {
+        for (goal_id, literal_id) in self.available_lemmata() {
             let literal = clause_storage[literal_id];
             if literal.polarity != polarity || !literal.atom.is_predicate() {
                 continue;
@@ -274,7 +302,11 @@ impl GoalStack {
             let g = literal.atom.get_predicate_symbol(term_graph);
             if f == g {
                 let literal = literal_id;
-                possible.push(Rule::Lemma(LemmaRule { literal }));
+                let valid_from = goal_id;
+                possible.push(Rule::Lemma(LemmaRule {
+                    literal,
+                    valid_from,
+                }));
             }
         }
     }
@@ -288,19 +320,28 @@ impl GoalStack {
     ) {
         let opposite = !polarity as usize;
         let positions = &problem.predicate_occurrences[opposite][f];
+        let rule_type = if problem.equality {
+            Rule::LazyExtension
+        } else {
+            Rule::Extension
+        };
         possible.extend(
             positions
                 .iter()
                 .copied()
-                .map(|position| ExtensionRule { position })
-                .map(Rule::Extension),
+                .map(|(clause, literal)| ExtensionRule { clause, literal })
+                .map(rule_type),
         );
     }
 
-    fn available_lemmata(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
-        self.stack
-            .into_iter()
-            .flat_map(move |id| self.stack[id].closed_literals())
+    fn available_lemmata(
+        &self,
+    ) -> impl Iterator<Item = (Id<Goal>, Id<Literal>)> + '_ {
+        self.stack.into_iter().flat_map(move |goal_id| {
+            self.stack[goal_id]
+                .available_lemmata()
+                .map(move |lemma_id| (goal_id, lemma_id))
+        })
     }
 
     fn path_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
