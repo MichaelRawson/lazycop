@@ -1,20 +1,17 @@
 use crate::io::record::Record;
 use crate::prelude::*;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub(crate) struct Goal {
     clause: Clause,
-    lemmata: Vec<Id<Literal>>,
     valid_from: Id<Goal>,
 }
 
 impl Goal {
     pub(crate) fn new(clause: Clause) -> Self {
         let valid_from = Id::default();
-        let lemmata = vec![];
         Self {
             clause,
-            lemmata,
             valid_from,
         }
     }
@@ -33,16 +30,6 @@ impl Goal {
 
     pub(crate) fn current_literal(&self) -> Id<Literal> {
         self.clause.current_literal()
-    }
-
-    pub(crate) fn available_lemmata(
-        &self,
-    ) -> impl Iterator<Item = Id<Literal>> + '_ {
-        self.lemmata.iter().copied()
-    }
-
-    pub(crate) fn add_lemmatum(&mut self, lemmatum: Id<Literal>) {
-        self.lemmata.push(lemmatum);
     }
 
     pub(crate) fn close_literal(&mut self) -> (Id<Goal>, Id<Literal>) {
@@ -87,9 +74,10 @@ impl Goal {
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
         solver: &mut Solver,
-        matching: Literal,
+        matching: Id<Literal>,
     ) {
         let literal = clause_storage[self.clause.close_literal()];
+        let matching = clause_storage[matching];
         let p = literal.atom.get_predicate();
         let q = matching.atom.get_predicate();
         solver.assert_equal(p, q);
@@ -151,22 +139,8 @@ impl Goal {
                 .map(|id| problem_clause.literals[id].offset(offset)),
         );
         term_graph.extend_from(&problem_clause.term_graph);
-
         solver.assert_equal(p, q);
-        for original_literal_id in self.clause.open() {
-            for new_literal_id in clause.open() {
-                let original_literal = clause_storage[original_literal_id];
-                let new_literal = clause_storage[new_literal_id];
-                if original_literal.polarity == new_literal.polarity {
-                    continue;
-                }
-                /*
-                if Atom::same_type(&original_literal.atom, &new_literal.atom) {
-                    solver.unequal(original_literal.atom, new_literal.atom);
-                }
-                */
-            }
-        }
+        self.add_extension_constraints(solver, clause_storage, clause);
 
         record.extension(
             &problem.symbol_table,
@@ -205,6 +179,24 @@ impl Goal {
                 .map(|id| problem_clause.literals[id].offset(offset)),
         );
         term_graph.extend_from(&problem_clause.term_graph);
+        self.add_extension_constraints(solver, clause_storage, clause);
+
+        record.lazy_extension(
+            &problem.symbol_table,
+            &term_graph,
+            &clause_storage,
+            self.clause.pending(),
+            clause.open(),
+        );
+        Self::new(clause)
+    }
+
+    fn add_extension_constraints(
+        &self,
+        solver: &mut Solver,
+        clause_storage: &ClauseStorage,
+        clause: Clause,
+    ) {
         for original_literal_id in self.clause.open() {
             for new_literal_id in clause.open().skip(1) {
                 let original_literal = clause_storage[original_literal_id];
@@ -222,15 +214,6 @@ impl Goal {
                 }
             }
         }
-
-        record.lazy_extension(
-            &problem.symbol_table,
-            &term_graph,
-            &clause_storage,
-            self.clause.pending(),
-            clause.open(),
-        );
-        Self::new(clause)
     }
 
     pub(crate) fn reflexivity<R: Record>(

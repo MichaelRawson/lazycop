@@ -17,6 +17,7 @@ fn main() {
         for rule in proof {
             tableau.apply_rule(&mut record, rule);
         }
+        assert!(tableau.is_closed());
         assert!(tableau.check_constraints());
         tableau.record_unification(&mut record);
         io::szs::end_refutation();

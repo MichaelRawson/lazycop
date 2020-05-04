@@ -9,18 +9,18 @@ pub(crate) struct Arena<T> {
 }
 
 impl<T> Arena<T> {
-    pub(crate) fn limit(&self) -> Id<T> {
-        let id = self.items.len() as u32;
-        let _phantom = PhantomData;
-        Id { id, _phantom }
-    }
-
     pub(crate) fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
     pub(crate) fn clear(&mut self) {
         self.items.clear();
+    }
+
+    pub(crate) fn limit(&self) -> Id<T> {
+        let id = self.items.len() as u32;
+        let _phantom = PhantomData;
+        Id { id, _phantom }
     }
 
     pub(crate) fn extend_from(&mut self, other: &Arena<T>)
@@ -57,6 +57,12 @@ impl<T> Arena<T> {
     }
 }
 
+impl<T: Default> Arena<T> {
+    pub(crate) fn resize_default(&mut self, limit: Id<T>) {
+        self.items.resize_with(limit.as_usize(), Default::default);
+    }
+}
+
 impl<T> Default for Arena<T> {
     fn default() -> Self {
         let items = vec![];
@@ -78,14 +84,15 @@ impl<T> Index<Id<T>> for Arena<T> {
     type Output = T;
 
     fn index(&self, id: Id<T>) -> &Self::Output {
-        unsafe { self.items.get_unchecked(id.id as usize) }
         //&self.items[id.id as usize]
+        unsafe { self.items.get_unchecked(id.id as usize) }
     }
 }
 
 impl<T> IndexMut<Id<T>> for Arena<T> {
     fn index_mut(&mut self, id: Id<T>) -> &mut Self::Output {
-        &mut self.items[id.id as usize]
+        unsafe { self.items.get_unchecked_mut(id.id as usize) }
+        //&mut self.items[id.id as usize]
     }
 }
 
@@ -216,12 +223,6 @@ pub(crate) struct IdRange<T> {
 
 impl<T> IdRange<T> {
     pub(crate) fn new(start: Id<T>, stop: Id<T>) -> Self {
-        Self { start, stop }
-    }
-
-    pub(crate) fn new_including(from: Id<T>, len: u32) -> Self {
-        let start = Id::new(from.id);
-        let stop = Id::new(start.id + len);
         Self { start, stop }
     }
 

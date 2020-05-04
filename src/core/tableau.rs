@@ -9,7 +9,6 @@ pub(crate) struct Tableau<'problem> {
     clause_storage: ClauseStorage,
     solver: Solver,
     goals: GoalStack,
-    save_goals: GoalStack,
 }
 
 impl<'problem> Tableau<'problem> {
@@ -18,14 +17,12 @@ impl<'problem> Tableau<'problem> {
         let clause_storage = ClauseStorage::default();
         let solver = Solver::default();
         let goals = GoalStack::default();
-        let save_goals = GoalStack::default();
         Self {
             problem,
             term_graph,
             clause_storage,
             solver,
             goals,
-            save_goals,
         }
     }
 
@@ -47,15 +44,15 @@ impl<'problem> Tableau<'problem> {
     pub(crate) fn mark(&mut self) {
         self.term_graph.mark();
         self.clause_storage.mark();
+        self.goals.mark();
         self.solver.mark();
-        self.save_goals.reset_to(&self.goals);
     }
 
     pub(crate) fn undo_to_mark(&mut self) {
         self.term_graph.undo_to_mark();
         self.clause_storage.undo_to_mark();
+        self.goals.undo_to_mark();
         self.solver.undo_to_mark();
-        self.goals.reset_to(&self.save_goals);
     }
 
     pub(crate) fn apply_rule<R: Record>(

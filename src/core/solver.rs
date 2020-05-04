@@ -50,8 +50,8 @@ impl Solver {
     }
 
     pub(crate) fn clear(&mut self) {
-        self.bindings.wipe();
-        self.save_bindings.wipe();
+        self.bindings.reset();
+        self.save_bindings.reset();
         self.equations.clear();
         self.disequations.clear();
         self.solved_disequations.clear();
