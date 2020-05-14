@@ -5,7 +5,7 @@ pub(crate) struct Variable;
 #[derive(Clone, Copy)]
 pub(crate) enum TermView {
     Variable(Id<Variable>),
-    Function(Id<Symbol>, IdRange<Term>),
+    Function(Id<Symbol>, Range<Term>),
 }
 
 #[derive(Clone, Copy)]
@@ -16,7 +16,8 @@ pub(crate) enum Term {
 
 #[derive(Default)]
 pub(crate) struct TermGraph {
-    arena: Arena<Term>,
+    arena: Block<Term>,
+    mark: Id<Term>,
 }
 
 impl TermGraph {
@@ -24,28 +25,28 @@ impl TermGraph {
         self.arena.clear();
     }
 
-    pub(crate) fn limit(&self) -> Id<Term> {
-        self.arena.limit()
+    pub(crate) fn len(&self) -> Id<Term> {
+        self.arena.len()
     }
 
     pub(crate) fn current_offset(&self) -> Offset<Term> {
-        self.limit().as_offset()
+        self.len() - Id::default()
     }
 
     pub(crate) fn extend_from(&mut self, other: &Self) {
-        self.arena.extend_from(&other.arena);
+        self.arena.extend_from_slice(other.arena.as_ref());
     }
 
     pub(crate) fn mark(&mut self) {
-        self.arena.mark();
+        self.mark = self.arena.len();
     }
 
     pub(crate) fn undo_to_mark(&mut self) {
-        self.arena.undo_to_mark();
+        self.arena.truncate(self.mark);
     }
 
     pub(crate) fn add_variable(&mut self) -> Id<Term> {
-        let id = self.arena.limit();
+        let id = self.arena.len();
         self.add_reference(id)
     }
 
@@ -54,7 +55,7 @@ impl TermGraph {
         symbol: Id<Symbol>,
         args: &[Id<Term>],
     ) -> Id<Term> {
-        let id = self.arena.limit();
+        let id = self.arena.len();
         self.arena.push(Term::Symbol(symbol, args.len() as u32));
         for arg in args {
             self.add_reference(*arg);
@@ -70,7 +71,7 @@ impl TermGraph {
     pub(crate) fn view_no_ref(&self, id: Id<Term>) -> TermView {
         match self.arena[id] {
             Term::Symbol(symbol, arity) => {
-                let args = IdRange::new_after(id, arity);
+                let args = Range::new_with_len(id, arity);
                 TermView::Function(symbol, args)
             }
             Term::Reference(_) => TermView::Variable(id.transmute()),
@@ -78,7 +79,7 @@ impl TermGraph {
     }
 
     fn add_reference(&mut self, referred: Id<Term>) -> Id<Term> {
-        let id = self.arena.limit();
+        let id = self.arena.len();
         let offset = referred - id;
         self.arena.push(Term::Reference(offset));
         id

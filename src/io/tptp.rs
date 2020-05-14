@@ -215,7 +215,7 @@ fn print_literals(
     symbol_table: &SymbolTable,
     term_graph: &TermGraph,
     clause_storage: &ClauseStorage,
-    mut literals: IdRange<Literal>,
+    mut literals: Range<Literal>,
 ) {
     if let Some(literal) = literals.next() {
         let literal = clause_storage[literal];
@@ -245,7 +245,7 @@ impl Record for TPTPProof {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        literals: IdRange<Literal>,
+        literals: Range<Literal>,
     ) {
         print!("cnf({}, axiom, ", self.clause_number);
         print_literals(
@@ -265,7 +265,7 @@ impl Record for TPTPProof {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        literals: IdRange<Literal>,
+        literals: Range<Literal>,
         left: Id<Term>,
         right: Id<Term>,
     ) {
@@ -304,8 +304,8 @@ impl Record for TPTPProof {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        literals: IdRange<Literal>,
-        extension_literals: IdRange<Literal>,
+        literals: Range<Literal>,
+        extension_literals: Range<Literal>,
         left: Id<Term>,
         right: Id<Term>,
     ) {
@@ -353,7 +353,7 @@ impl Record for TPTPProof {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        literals: IdRange<Literal>,
+        literals: Range<Literal>,
         left: Id<Term>,
         right: Id<Term>,
     ) {
@@ -392,8 +392,8 @@ impl Record for TPTPProof {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        literals: IdRange<Literal>,
-        extension_literals: IdRange<Literal>,
+        literals: Range<Literal>,
+        extension_literals: Range<Literal>,
     ) {
         let parent = self
             .clause_stack
@@ -431,7 +431,7 @@ impl Record for TPTPProof {
         symbol_table: &SymbolTable,
         term_graph: &TermGraph,
         clause_storage: &ClauseStorage,
-        literals: IdRange<Literal>,
+        literals: Range<Literal>,
         left: Id<Term>,
         right: Id<Term>,
     ) {

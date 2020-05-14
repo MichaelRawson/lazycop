@@ -7,7 +7,7 @@ pub(crate) trait Record {
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _literals: IdRange<Literal>,
+        _literals: Range<Literal>,
     ) {
     }
 
@@ -16,7 +16,7 @@ pub(crate) trait Record {
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _literals: IdRange<Literal>,
+        _literals: Range<Literal>,
         _left: Id<Term>,
         _right: Id<Term>,
     ) {
@@ -27,8 +27,8 @@ pub(crate) trait Record {
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _literals: IdRange<Literal>,
-        _extension_literals: IdRange<Literal>,
+        _literals: Range<Literal>,
+        _extension_literals: Range<Literal>,
         _left: Id<Term>,
         _right: Id<Term>,
     ) {
@@ -39,7 +39,7 @@ pub(crate) trait Record {
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _literals: IdRange<Literal>,
+        _literals: Range<Literal>,
         _left: Id<Term>,
         _right: Id<Term>,
     ) {
@@ -50,8 +50,8 @@ pub(crate) trait Record {
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _literals: IdRange<Literal>,
-        _extension_literals: IdRange<Literal>,
+        _literals: Range<Literal>,
+        _extension_literals: Range<Literal>,
     ) {
     }
 
@@ -60,7 +60,7 @@ pub(crate) trait Record {
         _symbol_table: &SymbolTable,
         _term_graph: &TermGraph,
         _clause_storage: &ClauseStorage,
-        _literals: IdRange<Literal>,
+        _literals: Range<Literal>,
         _left: Id<Term>,
         _right: Id<Term>,
     ) {

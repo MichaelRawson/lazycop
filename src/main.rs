@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
+mod alloc;
 mod core;
 mod io;
 mod prelude;

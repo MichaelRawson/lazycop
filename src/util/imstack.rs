@@ -7,18 +7,18 @@ enum Link<T> {
 }
 
 #[derive(Clone)]
-pub(crate) struct RcStack<T> {
+pub(crate) struct ImStack<T> {
     link: Rc<Link<T>>,
 }
 
-impl<T> Default for RcStack<T> {
+impl<T> Default for ImStack<T> {
     fn default() -> Self {
         let link = Rc::new(Link::Empty);
         Self { link }
     }
 }
 
-impl<T> RcStack<T> {
+impl<T> ImStack<T> {
     #[must_use]
     pub(crate) fn push(&self, item: T) -> Self {
         let link = Rc::new(Link::Cons(item, self.link.clone()));

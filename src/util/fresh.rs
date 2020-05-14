@@ -9,7 +9,7 @@ pub(crate) struct Fresh {
 
 impl Fresh {
     pub(crate) fn get(&mut self, variable: Id<Variable>) -> usize {
-        self.map.ensure_capacity(variable.increment());
+        self.map.ensure_capacity(variable + Offset::new(1));
         if let Some(count) = self.map[variable] {
             return count;
         }

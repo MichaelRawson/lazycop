@@ -5,14 +5,14 @@ use std::mem;
 use std::ops::Index;
 
 pub(crate) struct ProblemClause {
-    pub(crate) literals: Arena<Literal>,
+    pub(crate) literals: Block<Literal>,
     pub(crate) term_graph: TermGraph,
 }
 
 type Position = (Id<ProblemClause>, Id<Literal>);
 #[derive(Default)]
 pub(crate) struct Problem {
-    clauses: Arena<ProblemClause>,
+    clauses: Block<ProblemClause>,
     pub(crate) start_clauses: Vec<Id<ProblemClause>>,
     pub(crate) predicate_occurrences: [IdMap<Symbol, Vec<Position>>; 2],
     pub(crate) symbol_table: SymbolTable,
@@ -35,7 +35,7 @@ pub(crate) struct ProblemBuilder {
     variable_map: HashMap<String, Id<Term>>,
     function_map: HashMap<FunctionKey, Id<Term>>,
     saved_terms: Vec<Id<Term>>,
-    saved_literals: Arena<Literal>,
+    saved_literals: Block<Literal>,
     term_graph: TermGraph,
 }
 
@@ -60,9 +60,9 @@ impl ProblemBuilder {
             .entry((symbol.clone(), arity))
             .or_insert_with(|| symbol_table.append(symbol));
         self.problem.predicate_occurrences[0]
-            .ensure_capacity(symbol_table.limit());
+            .ensure_capacity(symbol_table.len());
         self.problem.predicate_occurrences[1]
-            .ensure_capacity(symbol_table.limit());
+            .ensure_capacity(symbol_table.len());
 
         let args = self
             .saved_terms
@@ -83,8 +83,8 @@ impl ProblemBuilder {
             _ => unreachable!(),
         };
 
-        let clause = self.problem.clauses.limit();
-        let literal = self.saved_literals.limit();
+        let clause = self.problem.clauses.len();
+        let literal = self.saved_literals.len();
         self.problem.predicate_occurrences[polarity as usize][symbol]
             .push((clause, literal));
         self.saved_literals.push(Literal::new(polarity, atom));

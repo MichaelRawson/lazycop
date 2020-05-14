@@ -6,7 +6,7 @@ pub(crate) struct Symbol {
 
 #[derive(Default)]
 pub(crate) struct SymbolTable {
-    names: Arena<Symbol>,
+    names: Block<Symbol>,
 }
 
 impl SymbolTable {
@@ -18,7 +18,7 @@ impl SymbolTable {
         &self.names[id].name
     }
 
-    pub(crate) fn limit(&self) -> Id<Symbol> {
-        self.names.limit()
+    pub(crate) fn len(&self) -> Id<Symbol> {
+        self.names.len()
     }
 }

@@ -1,16 +1,16 @@
 use crate::core::tableau::Tableau;
 use crate::io::record::Silent;
 use crate::prelude::*;
+use crate::util::imstack::ImStack;
 use crate::util::queue::Queue;
-use crate::util::rc_stack::RcStack;
 use std::collections::VecDeque;
 
 pub(crate) fn astar(
-    queue: &mut Queue<RcStack<Rule>>,
+    queue: &mut Queue<ImStack<Rule>>,
     problem: &Problem,
 ) -> Option<VecDeque<Rule>> {
     queue.clear();
-    queue.enqueue(RcStack::default(), 0);
+    queue.enqueue(ImStack::default(), 0);
 
     let mut tableau = Tableau::new(problem);
     let mut script = VecDeque::new();
@@ -37,7 +37,8 @@ pub(crate) fn astar(
                     script.push_back(*rule);
                     return Some(script);
                 }
-                let estimate = tableau.open_branches() + (script.len() as u32);
+                let estimate =
+                    tableau.num_open_branches() + (script.len() as u32);
                 queue.enqueue(rule_stack.push(*rule), estimate);
             }
             tableau.undo_to_mark();

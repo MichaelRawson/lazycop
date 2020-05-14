@@ -1,18 +1,21 @@
 use crate::io::record::Record;
 use crate::prelude::*;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) struct Goal {
     clause: Clause,
     valid_from: Id<Goal>,
+    lemmata: Vec<Id<Literal>>,
 }
 
 impl Goal {
     pub(crate) fn new(clause: Clause) -> Self {
         let valid_from = Id::default();
+        let lemmata = vec![];
         Self {
             clause,
             valid_from,
+            lemmata,
         }
     }
 
@@ -42,11 +45,22 @@ impl Goal {
         self.valid_from = std::cmp::max(self.valid_from, valid_from);
     }
 
+    pub(crate) fn add_lemmatum(&mut self, literal: Id<Literal>) {
+        self.lemmata.push(literal);
+    }
+
+    pub(crate) fn available_lemmata(
+        &self,
+    ) -> impl Iterator<Item = Id<Literal>> + '_ {
+        self.lemmata.iter().copied()
+    }
+
     pub(crate) fn start<R: Record>(
         record: &mut R,
         problem: &Problem,
         term_graph: &mut TermGraph,
         clause_storage: &mut ClauseStorage,
+        solver: &mut Solver,
         start_clause: Id<ProblemClause>,
     ) -> Self {
         let offset = term_graph.current_offset();
@@ -54,10 +68,17 @@ impl Goal {
         let clause = clause_storage.create_clause(
             problem_clause
                 .literals
-                .into_iter()
-                .map(|id| problem_clause.literals[id].offset(offset)),
+                .as_ref()
+                .iter()
+                .map(|literal| literal.offset(offset)),
         );
         term_graph.extend_from(&problem_clause.term_graph);
+        Self::add_tautology_constraints(
+            solver,
+            term_graph,
+            clause_storage,
+            clause,
+        );
         record.start(
             &problem.symbol_table,
             &term_graph,
@@ -123,24 +144,18 @@ impl Goal {
         clause_storage: &mut ClauseStorage,
         solver: &mut Solver,
         clause_id: Id<ProblemClause>,
-        literal_id: Id<Literal>,
+        matching_id: Id<Literal>,
     ) -> Self {
-        let offset = term_graph.current_offset();
-        let literal = clause_storage[self.current_literal()];
-        let problem_clause = &problem[clause_id];
-        let matching = problem_clause.literals[literal_id];
-        let p = literal.atom.get_predicate();
-        let q = matching.atom.offset(offset).get_predicate();
-        let clause = clause_storage.create_clause(
-            problem_clause
-                .literals
-                .into_iter()
-                .filter(|id| *id != literal_id)
-                .map(|id| problem_clause.literals[id].offset(offset)),
+        let (p, q, mut clause) = self.extension_common(
+            problem,
+            term_graph,
+            clause_storage,
+            solver,
+            clause_id,
+            matching_id,
         );
-        term_graph.extend_from(&problem_clause.term_graph);
         solver.assert_equal(p, q);
-        self.add_extension_constraints(solver, clause_storage, clause);
+        clause.close_literal();
 
         record.extension(
             &problem.symbol_table,
@@ -162,24 +177,19 @@ impl Goal {
         clause_storage: &mut ClauseStorage,
         solver: &mut Solver,
         clause_id: Id<ProblemClause>,
-        literal_id: Id<Literal>,
+        matching_id: Id<Literal>,
     ) -> Self {
-        let offset = term_graph.current_offset();
-        let literal = clause_storage[self.current_literal()];
-        let problem_clause = &problem[clause_id];
-        let matching = problem_clause.literals[literal_id];
-        let p = literal.atom.get_predicate();
-        let q = matching.atom.offset(offset).get_predicate();
-        let clause = clause_storage.create_clause_with(
-            Literal::new(false, Atom::Equality(p, q)),
-            problem_clause
-                .literals
-                .into_iter()
-                .filter(|id| *id != literal_id)
-                .map(|id| problem_clause.literals[id].offset(offset)),
+        let lazy_index = clause_storage.len();
+        let (p, q, clause) = self.extension_common(
+            problem,
+            term_graph,
+            clause_storage,
+            solver,
+            clause_id,
+            matching_id,
         );
-        term_graph.extend_from(&problem_clause.term_graph);
-        self.add_extension_constraints(solver, clause_storage, clause);
+        let lazy_unification = Literal::new(false, Atom::Equality(p, q));
+        clause_storage[lazy_index] = lazy_unification;
 
         record.lazy_extension(
             &problem.symbol_table,
@@ -191,29 +201,44 @@ impl Goal {
         Self::new(clause)
     }
 
-    fn add_extension_constraints(
-        &self,
+    fn extension_common(
+        &mut self,
+        problem: &Problem,
+        term_graph: &mut TermGraph,
+        clause_storage: &mut ClauseStorage,
         solver: &mut Solver,
-        clause_storage: &ClauseStorage,
-        clause: Clause,
-    ) {
-        for original_literal_id in self.clause.open() {
-            for new_literal_id in clause.open().skip(1) {
-                let original_literal = clause_storage[original_literal_id];
-                let new_literal = clause_storage[new_literal_id];
-                if original_literal.polarity == new_literal.polarity {
-                    continue;
-                }
-                if original_literal.atom.is_predicate()
-                    && new_literal.atom.is_predicate()
-                {
-                    solver.assert_not_equal(
-                        original_literal.atom.get_predicate(),
-                        new_literal.atom.get_predicate(),
-                    );
-                }
-            }
-        }
+        clause_id: Id<ProblemClause>,
+        matching_id: Id<Literal>,
+    ) -> (Id<Term>, Id<Term>, Clause) {
+        let offset = term_graph.current_offset();
+        let literal = clause_storage[self.current_literal()];
+        let problem_clause = &problem[clause_id];
+        let matching = problem_clause.literals[matching_id].offset(offset);
+        let p = literal.atom.get_predicate();
+        let q = matching.atom.get_predicate();
+        let clause = clause_storage.create_clause_with(
+            matching,
+            problem_clause
+                .literals
+                .range()
+                .filter(|id| *id != matching_id)
+                .map(|id| problem_clause.literals[id].offset(offset)),
+        );
+        term_graph.extend_from(&problem_clause.term_graph);
+        Self::add_tautology_constraints(
+            solver,
+            term_graph,
+            clause_storage,
+            clause,
+        );
+        self.add_strong_connection_constraints(
+            solver,
+            term_graph,
+            clause_storage,
+            clause,
+        );
+
+        (p, q, clause)
     }
 
     pub(crate) fn reflexivity<R: Record>(
@@ -235,5 +260,50 @@ impl Goal {
             left,
             right,
         );
+    }
+
+    fn add_strong_connection_constraints(
+        &self,
+        solver: &mut Solver,
+        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+        clause: Clause,
+    ) {
+        for original in self.clause.open().map(|id| &clause_storage[id]) {
+            for new in clause.open().skip(1).map(|id| &clause_storage[id]) {
+                if original.polarity != new.polarity {
+                    original.atom.add_disequation_constraints(
+                        solver, term_graph, &new.atom,
+                    );
+                }
+            }
+        }
+    }
+
+    fn add_tautology_constraints(
+        solver: &mut Solver,
+        term_graph: &TermGraph,
+        clause_storage: &ClauseStorage,
+        clause: Clause,
+    ) {
+        let literals = clause.open();
+        for literal_id in literals {
+            let literal = clause_storage[literal_id];
+            if literal.polarity {
+                literal.atom.add_positive_constraints(solver)
+            }
+
+            let mut others = literals;
+            others.next();
+            for other in others.map(|id| &clause_storage[id]) {
+                if literal.polarity != other.polarity {
+                    literal.atom.add_disequation_constraints(
+                        solver,
+                        term_graph,
+                        &other.atom,
+                    );
+                }
+            }
+        }
     }
 }

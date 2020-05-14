@@ -14,13 +14,19 @@ struct Disequation {
 }
 
 #[derive(Clone, Copy)]
+struct SymmetricDisequation {
+    left: (Id<Term>, Id<Term>),
+    right: (Id<Term>, Id<Term>),
+}
+
+#[derive(Clone, Copy)]
 struct AtomicDisequation {
     variable: Id<Variable>,
     term: Id<Term>,
 }
 
 #[derive(Clone, Copy)]
-struct SolvedDisequation(IdRange<AtomicDisequation>);
+struct SolvedDisequation(Range<AtomicDisequation>);
 
 #[derive(Clone, Copy)]
 struct OccursCheckItem(Id<Term>);
@@ -29,11 +35,14 @@ struct OccursCheckItem(Id<Term>);
 pub(crate) struct Solver {
     pub bindings: IdMap<Variable, Option<Id<Term>>>,
     save_bindings: IdMap<Variable, Option<Id<Term>>>,
-    equations: Arena<Equation>,
-    disequations: Arena<Disequation>,
-    solved_disequations: Arena<SolvedDisequation>,
-    atomic_disequations: Arena<AtomicDisequation>,
-    occurs_buf: Arena<OccursCheckItem>,
+    equations: Block<Equation>,
+    disequations: Block<Disequation>,
+    symmetric_disequations: Block<SymmetricDisequation>,
+    solved_disequations: Block<SolvedDisequation>,
+    solved_disequations_mark: Id<SolvedDisequation>,
+    atomic_disequations: Block<AtomicDisequation>,
+    atomic_disequations_mark: Id<AtomicDisequation>,
+    occurs_buf: Block<OccursCheckItem>,
 }
 
 impl Solver {
@@ -49,41 +58,54 @@ impl Solver {
         self.disequations.push(Disequation { left, right });
     }
 
+    pub(crate) fn assert_not_equal_symmetric(
+        &mut self,
+        left: (Id<Term>, Id<Term>),
+        right: (Id<Term>, Id<Term>),
+    ) {
+        self.symmetric_disequations
+            .push(SymmetricDisequation { left, right });
+    }
+
     pub(crate) fn clear(&mut self) {
         self.bindings.reset();
         self.save_bindings.reset();
         self.equations.clear();
         self.disequations.clear();
+        self.symmetric_disequations.clear();
         self.solved_disequations.clear();
         self.atomic_disequations.clear();
     }
 
     pub(crate) fn mark(&mut self) {
         self.save_bindings.copy_from(&self.bindings);
-        self.solved_disequations.mark();
-        self.atomic_disequations.mark();
+        self.solved_disequations_mark = self.solved_disequations.len();
+        self.atomic_disequations_mark = self.atomic_disequations.len();
     }
 
     pub(crate) fn undo_to_mark(&mut self) {
         self.bindings.copy_from(&self.save_bindings);
         self.equations.clear();
         self.disequations.clear();
-        self.solved_disequations.undo_to_mark();
-        self.atomic_disequations.undo_to_mark();
+        self.symmetric_disequations.clear();
+        self.solved_disequations
+            .truncate(self.solved_disequations_mark);
+        self.atomic_disequations
+            .truncate(self.atomic_disequations_mark);
     }
 
     pub(crate) fn solve(&mut self, term_graph: &TermGraph) {
-        self.bindings
-            .ensure_capacity(term_graph.limit().transmute());
+        self.bindings.ensure_capacity(term_graph.len().transmute());
         self.solve_equations(term_graph);
         self.solve_disequations(term_graph);
+        self.solve_symmetric_disequations(term_graph);
     }
 
     pub(crate) fn check(&mut self, term_graph: &TermGraph) -> bool {
-        self.bindings
-            .ensure_capacity(term_graph.limit().transmute());
+        self.bindings.ensure_capacity(term_graph.len().transmute());
         self.check_equations(term_graph)
             && self.solve_disequations(term_graph)
+            && self.solve_symmetric_disequations(term_graph)
             && self.check_solved_disequations(term_graph)
     }
 
@@ -154,14 +176,67 @@ impl Solver {
 
     fn solve_disequations(&mut self, term_graph: &TermGraph) -> bool {
         while let Some(disequation) = self.disequations.pop() {
-            if let Some(range) =
-                self.solve_disequation(term_graph, disequation)
-            {
-                if range.is_empty() {
+            let start = self.atomic_disequations.len();
+            if self.solve_disequation(term_graph, disequation) {
+                let stop = self.atomic_disequations.len();
+                if start == stop {
                     return false;
                 } else {
+                    let range = Range::new(start, stop);
                     self.solved_disequations.push(SolvedDisequation(range));
                 }
+            }
+        }
+        true
+    }
+
+    fn solve_symmetric_disequations(
+        &mut self,
+        term_graph: &TermGraph,
+    ) -> bool {
+        while let Some(symmetric) = self.symmetric_disequations.pop() {
+            let diseq1 = Disequation {
+                left: symmetric.left.0,
+                right: symmetric.right.0,
+            };
+            let diseq2 = Disequation {
+                left: symmetric.left.1,
+                right: symmetric.right.1,
+            };
+            if !self.solve_symmetric_disequation(term_graph, diseq1, diseq2) {
+                return false;
+            }
+            let diseq1 = Disequation {
+                left: symmetric.left.0,
+                right: symmetric.right.1,
+            };
+            let diseq2 = Disequation {
+                left: symmetric.left.1,
+                right: symmetric.right.0,
+            };
+            if !self.solve_symmetric_disequation(term_graph, diseq1, diseq2) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn solve_symmetric_disequation(
+        &mut self,
+        term_graph: &TermGraph,
+        diseq1: Disequation,
+        diseq2: Disequation,
+    ) -> bool {
+        let start = self.atomic_disequations.len();
+        if self.solve_disequation(term_graph, diseq1)
+            && self.solve_disequation(term_graph, diseq2)
+        {
+            let stop = self.atomic_disequations.len();
+            if start == stop {
+                return false;
+            } else {
+                let range = Range::new(start, stop);
+                self.solved_disequations.push(SolvedDisequation(range));
             }
         }
         true
@@ -171,8 +246,8 @@ impl Solver {
         &mut self,
         term_graph: &TermGraph,
         disequation: Disequation,
-    ) -> Option<IdRange<AtomicDisequation>> {
-        let start = self.atomic_disequations.limit();
+    ) -> bool {
+        let start = self.atomic_disequations.len();
         let left = disequation.left;
         let right = disequation.right;
         self.equations.push(Equation { left, right });
@@ -203,17 +278,17 @@ impl Solver {
                     );
                 }
                 _ => {
+                    self.atomic_disequations.truncate(start);
                     self.equations.clear();
-                    return None;
+                    return false;
                 }
             }
         }
-        let stop = self.atomic_disequations.limit();
-        Some(IdRange::new(start, stop))
+        true
     }
 
     fn check_solved_disequations(&mut self, term_graph: &TermGraph) -> bool {
-        self.solved_disequations.into_iter().all(|solved_id| {
+        self.solved_disequations.range().all(|solved_id| {
             !self.check_solved_disequation(
                 term_graph,
                 self.solved_disequations[solved_id],

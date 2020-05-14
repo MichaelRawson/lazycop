@@ -30,8 +30,8 @@ impl<'problem> Tableau<'problem> {
         self.goals.is_empty()
     }
 
-    pub(crate) fn open_branches(&self) -> u32 {
-        self.goals.open_branches()
+    pub(crate) fn num_open_branches(&self) -> u32 {
+        self.goals.num_open_branches()
     }
 
     pub(crate) fn clear(&mut self) {

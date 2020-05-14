@@ -23,6 +23,13 @@ impl Atom {
         }
     }
 
+    pub(crate) fn is_equality(&self) -> bool {
+        match self {
+            Atom::Equality(_, _) => true,
+            _ => false,
+        }
+    }
+
     pub(crate) fn get_predicate(&self) -> Id<Term> {
         match self {
             Atom::Predicate(p) => *p,
@@ -47,13 +54,29 @@ impl Atom {
         }
     }
 
-    /*
-    pub(crate) fn same_type(left: &Self, right: &Self) -> bool {
-        if left.is_predicate() {
-            right.is_predicate()
-        } else {
-            !right.is_predicate()
+    pub(crate) fn add_positive_constraints(&self, solver: &mut Solver) {
+        if let Atom::Equality(left, right) = self {
+            solver.assert_not_equal(*left, *right);
         }
     }
-    */
+
+    pub(crate) fn add_disequation_constraints(
+        &self,
+        solver: &mut Solver,
+        term_graph: &TermGraph,
+        other: &Self,
+    ) {
+        if self.is_predicate()
+            && other.is_predicate()
+            && self.get_predicate_symbol(term_graph)
+                == other.get_predicate_symbol(term_graph)
+        {
+            solver
+                .assert_not_equal(self.get_predicate(), other.get_predicate());
+        } else if self.is_equality() && other.is_equality() {
+            let (l1, r1) = self.get_equality();
+            let (l2, r2) = other.get_equality();
+            solver.assert_not_equal_symmetric((l1, r1), (l2, r2));
+        }
+    }
 }

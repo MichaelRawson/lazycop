@@ -1,9 +1,9 @@
 use crate::prelude::*;
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 
 #[derive(Clone, Copy)]
 pub(crate) struct Clause {
-    literals: IdRange<Literal>,
+    literals: Range<Literal>,
 }
 
 impl Clause {
@@ -15,11 +15,11 @@ impl Clause {
         self.literals.len()
     }
 
-    pub(crate) fn open(self) -> IdRange<Literal> {
+    pub(crate) fn open(self) -> Range<Literal> {
         self.literals
     }
 
-    pub(crate) fn pending(self) -> IdRange<Literal> {
+    pub(crate) fn pending(self) -> Range<Literal> {
         let mut literals = self.literals;
         literals.next();
         literals
@@ -40,10 +40,15 @@ impl Clause {
 
 #[derive(Default)]
 pub(crate) struct ClauseStorage {
-    literals: Arena<Literal>,
+    literals: Block<Literal>,
+    mark: Id<Literal>,
 }
 
 impl ClauseStorage {
+    pub(crate) fn len(&self) -> Id<Literal> {
+        self.literals.len()
+    }
+
     pub(crate) fn clear(&mut self) {
         self.literals.clear();
     }
@@ -52,10 +57,10 @@ impl ClauseStorage {
         &mut self,
         literals: T,
     ) -> Clause {
-        let start = self.literals.limit();
+        let start = self.literals.len();
         self.literals.extend(literals);
-        let end = self.literals.limit();
-        let literals = IdRange::new(start, end);
+        let end = self.literals.len();
+        let literals = Range::new(start, end);
         Clause { literals }
     }
 
@@ -64,20 +69,20 @@ impl ClauseStorage {
         with: Literal,
         literals: T,
     ) -> Clause {
-        let start = self.literals.limit();
+        let start = self.literals.len();
         self.literals.push(with);
         self.literals.extend(literals);
-        let end = self.literals.limit();
-        let literals = IdRange::new(start, end);
+        let end = self.literals.len();
+        let literals = Range::new(start, end);
         Clause { literals }
     }
 
     pub(crate) fn mark(&mut self) {
-        self.literals.mark();
+        self.mark = self.literals.len();
     }
 
     pub(crate) fn undo_to_mark(&mut self) {
-        self.literals.undo_to_mark();
+        self.literals.truncate(self.mark);
     }
 }
 
@@ -89,11 +94,8 @@ impl Index<Id<Literal>> for ClauseStorage {
     }
 }
 
-impl Extend<Literal> for ClauseStorage {
-    fn extend<T>(&mut self, iter: T)
-    where
-        T: IntoIterator<Item = Literal>,
-    {
-        self.literals.extend(iter);
+impl IndexMut<Id<Literal>> for ClauseStorage {
+    fn index_mut(&mut self, id: Id<Literal>) -> &mut Self::Output {
+        &mut self.literals[id]
     }
 }

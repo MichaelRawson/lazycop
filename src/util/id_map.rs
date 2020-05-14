@@ -12,21 +12,21 @@ impl<T> Reset for Option<T> {
     }
 }
 
-impl<T> Reset for Arena<T> {
+impl<T> Reset for Block<T> {
     fn reset(&mut self) {
         self.clear();
     }
 }
 
 pub(crate) struct IdMap<K, V> {
-    items: Arena<V>,
+    items: Block<V>,
     _phantom: PhantomData<K>,
 }
 
 impl<K, V: Default> IdMap<K, V> {
     pub(crate) fn ensure_capacity(&mut self, required: Id<K>) {
         let required = required.transmute();
-        if required >= self.items.limit() {
+        if required >= self.items.len() {
             self.items.resize_default(required);
         }
     }
@@ -34,7 +34,7 @@ impl<K, V: Default> IdMap<K, V> {
 
 impl<K, V: Reset> IdMap<K, V> {
     pub(crate) fn reset(&mut self) {
-        for id in self.items.into_iter() {
+        for id in self.items.range() {
             self.items[id].reset();
         }
     }
@@ -43,13 +43,13 @@ impl<K, V: Reset> IdMap<K, V> {
 impl<K, V: Clone> IdMap<K, V> {
     pub(crate) fn copy_from(&mut self, other: &Self) {
         self.items.clear();
-        self.items.extend_from(&other.items);
+        self.items.extend_from_slice(&other.items.as_ref());
     }
 }
 
 impl<K, V> Default for IdMap<K, V> {
     fn default() -> Self {
-        let items = Arena::default();
+        let items = Block::default();
         let _phantom = PhantomData;
         Self { items, _phantom }
     }
@@ -71,9 +71,9 @@ impl<K, V> IndexMut<Id<K>> for IdMap<K, V> {
 
 impl<'a, K, V> IntoIterator for &'a IdMap<K, V> {
     type Item = Id<K>;
-    type IntoIter = IdRange<K>;
+    type IntoIter = Range<K>;
 
     fn into_iter(self) -> Self::IntoIter {
-        IdRange::new(Id::default(), self.items.limit().transmute())
+        Range::new(Id::default(), self.items.len().transmute())
     }
 }
