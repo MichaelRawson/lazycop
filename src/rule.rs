@@ -1,4 +1,4 @@
-use crate::core::goal::Goal;
+use crate::goal::Goal;
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]

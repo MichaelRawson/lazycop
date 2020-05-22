@@ -1,4 +1,4 @@
-use crate::core::tableau::Tableau;
+use crate::tableau::Tableau;
 use crate::io::record::Silent;
 use crate::prelude::*;
 use crate::util::imstack::ImStack;

@@ -1,7 +1,17 @@
 #![allow(clippy::too_many_arguments)]
 
+mod atom;
+mod clause;
+mod goal;
+mod goal_stack;
+mod literal;
+mod problem;
+mod rule;
+mod solver;
+mod symbol;
+mod tableau;
+mod term;
 mod alloc;
-mod core;
 mod io;
 mod prelude;
 mod search;
@@ -14,7 +24,7 @@ fn main() {
         io::szs::unsatisfiable();
         io::szs::begin_refutation();
         let mut record = io::tptp::TPTPProof::default();
-        let mut tableau = core::tableau::Tableau::new(&problem);
+        let mut tableau = tableau::Tableau::new(&problem);
         for rule in proof {
             tableau.apply_rule(&mut record, rule);
         }

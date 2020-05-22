@@ -1,5 +1,5 @@
-use crate::core::goal_stack::GoalStack;
-use crate::core::solver::Solver;
+use crate::goal_stack::GoalStack;
+use crate::solver::Solver;
 use crate::io::record::Record;
 use crate::prelude::*;
 

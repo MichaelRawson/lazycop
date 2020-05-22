@@ -30,18 +30,18 @@ impl TPTPProblemBuilder {
 }
 
 impl<'v> Visitor<'v> for TPTPProblemBuilder {
-    fn visit_variable(&mut self, variable: ast::Variable) {
+    fn visit_variable(&mut self, variable: &ast::Variable) {
         self.builder.variable(format!("{}", variable));
     }
 
-    fn visit_fof_plain_term(&mut self, fof_plain_term: ast::FofPlainTerm) {
+    fn visit_fof_plain_term(&mut self, fof_plain_term: &ast::FofPlainTerm) {
         match fof_plain_term {
             ast::FofPlainTerm::Constant(c) => {
                 self.builder.function(format!("{}", c), 0);
             }
             ast::FofPlainTerm::Function(f, args) => {
                 let arity = args.0.len() as u32;
-                for arg in args.0 {
+                for arg in &args.0 {
                     self.visit_fof_term(arg);
                 }
                 self.builder.function(format!("{}", f), arity);
@@ -51,59 +51,64 @@ impl<'v> Visitor<'v> for TPTPProblemBuilder {
 
     fn visit_fof_defined_term(
         &mut self,
-        fof_defined_term: ast::FofDefinedTerm,
+        fof_defined_term: &ast::FofDefinedTerm,
     ) {
         self.builder.function(format!("{}", fof_defined_term), 0);
     }
 
-    fn visit_literal(&mut self, literal: ast::Literal) {
+    fn visit_literal(&mut self, literal: &ast::Literal) {
         match literal {
             ast::Literal::Atomic(ast::FofAtomicFormula::Plain(p)) => {
                 self.visit_fof_plain_atomic_formula(p);
                 self.builder.predicate(true);
             }
-            ast::Literal::Atomic(ast::FofAtomicFormula::Defined(
-                ast::FofDefinedAtomicFormula::Infix(infix),
-            )) => {
-                self.visit_fof_term(infix.left);
-                self.visit_fof_term(infix.right);
-                self.builder.equality(true);
+            ast::Literal::Atomic(ast::FofAtomicFormula::Defined(defined)) => {
+                match &**defined {
+                    ast::FofDefinedAtomicFormula::Infix(infix) => {
+                        self.visit_fof_term(&infix.left);
+                        self.visit_fof_term(&infix.right);
+                        self.builder.equality(true);
+                    }
+                    defined if format!("{}", defined) == "$false" => {}
+                    _ => report_inappropriate(defined),
+                }
             }
             ast::Literal::NegatedAtomic(ast::FofAtomicFormula::Plain(p)) => {
                 self.visit_fof_plain_atomic_formula(p);
                 self.builder.predicate(false);
             }
             ast::Literal::NegatedAtomic(ast::FofAtomicFormula::Defined(
-                ast::FofDefinedAtomicFormula::Infix(infix),
-            )) => {
-                self.visit_fof_term(infix.left);
-                self.visit_fof_term(infix.right);
-                self.builder.equality(false);
-            }
-            ast::Literal::Infix(infix) => {
-                self.visit_fof_term(infix.left);
-                self.visit_fof_term(infix.right);
-                self.builder.equality(false);
-            }
-            ast::Literal::Atomic(atomic) => {
-                if format!("{}", &atomic) != "$false" {
-                    report_inappropriate(atomic)
+                defined,
+            )) => match &**defined {
+                ast::FofDefinedAtomicFormula::Infix(infix) => {
+                    self.visit_fof_term(&infix.left);
+                    self.visit_fof_term(&infix.right);
+                    self.builder.equality(false);
                 }
+                _ => report_inappropriate(defined),
+            },
+            ast::Literal::Infix(infix) => {
+                self.visit_fof_term(&infix.left);
+                self.visit_fof_term(&infix.right);
+                self.builder.equality(false);
             }
-            ast::Literal::NegatedAtomic(negated) => {
-                report_inappropriate(negated)
+            ast::Literal::Atomic(ast::FofAtomicFormula::System(system)) => {
+                report_inappropriate(system)
             }
+            ast::Literal::NegatedAtomic(ast::FofAtomicFormula::System(
+                system,
+            )) => report_inappropriate(system),
         }
     }
 
-    fn visit_cnf_annotated(&mut self, annotated: ast::CnfAnnotated) {
-        self.visit_cnf_formula(annotated.formula);
+    fn visit_cnf_annotated(&mut self, annotated: &ast::CnfAnnotated) {
+        self.visit_cnf_formula(&annotated.formula);
         let start_clause =
             annotated.role == ast::FormulaRole::NegatedConjecture;
         self.builder.clause(start_clause);
     }
 
-    fn visit_fof_annotated(&mut self, annotated: ast::FofAnnotated) {
+    fn visit_fof_annotated(&mut self, annotated: &ast::FofAnnotated) {
         report_inappropriate(annotated)
     }
 }
@@ -131,7 +136,7 @@ pub(crate) fn load_from_stdin() -> Problem {
                 szs::input_error();
                 exit::failure()
             });
-            builder.visit_tptp_input(input);
+            builder.visit_tptp_input(&input);
         }
         buf = parser.remaining.to_vec();
     }

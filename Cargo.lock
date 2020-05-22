@@ -67,9 +67,9 @@ checksum = "72ef4a56884ca558e5ddb05a1d1e7e1bfd9a68d9ed024c21704cc98872dae1bb"
 
 [[package]]
 name = "nom"
-version = "5.1.1"
+version = "6.0.0-alpha1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b471253da97532da4b61552249c521e01e736071f71c1a4f7ebbfbf0a06aad6"
+checksum = "25020779544bf717b917323b42f23c9dbef1bd2b97b576df6484a0c8709705c6"
 dependencies = [
  "lexical-core",
  "memchr",
@@ -143,9 +143,9 @@ dependencies = [
 
 [[package]]
 name = "tptp"
-version = "0.20.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9bebc549d1a50d803c11ee1ab27757c12dbd5b64a80aa04bb42621c543a44a18"
+checksum = "9ea503adba71b45a938672ff390f51e30eaaca55442424aa576ebf80a3f9b634"
 dependencies = [
  "derive_more",
  "nom",
