@@ -16,12 +16,8 @@ impl<T> Range<T> {
         Self { start, stop }
     }
 
-    pub(crate) fn len(self) -> u32 {
-        (self.stop - self.start).offset as u32
-    }
-
-    pub(crate) fn is_empty(self) -> bool {
-        self.start == self.stop
+    pub(crate) fn len(range: Self) -> u32 {
+        (range.stop - range.start).offset as u32
     }
 }
 

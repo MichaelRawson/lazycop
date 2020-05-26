@@ -15,18 +15,17 @@ pub(crate) enum Term {
 }
 
 #[derive(Default)]
-pub(crate) struct TermGraph {
-    arena: Block<Term>,
-    mark: Id<Term>,
+pub(crate) struct Terms {
+    terms: Block<Term>,
 }
 
-impl TermGraph {
+impl Terms {
     pub(crate) fn clear(&mut self) {
-        self.arena.clear();
+        self.terms.clear();
     }
 
     pub(crate) fn len(&self) -> Id<Term> {
-        self.arena.len()
+        self.terms.len()
     }
 
     pub(crate) fn current_offset(&self) -> Offset<Term> {
@@ -34,19 +33,11 @@ impl TermGraph {
     }
 
     pub(crate) fn extend_from(&mut self, other: &Self) {
-        self.arena.extend_from_slice(other.arena.as_ref());
-    }
-
-    pub(crate) fn mark(&mut self) {
-        self.mark = self.arena.len();
-    }
-
-    pub(crate) fn undo_to_mark(&mut self) {
-        self.arena.truncate(self.mark);
+        self.terms.extend(other.terms.as_ref().iter().copied());
     }
 
     pub(crate) fn add_variable(&mut self) -> Id<Term> {
-        let id = self.arena.len();
+        let id = self.terms.len();
         self.add_reference(id)
     }
 
@@ -55,8 +46,8 @@ impl TermGraph {
         symbol: Id<Symbol>,
         args: &[Id<Term>],
     ) -> Id<Term> {
-        let id = self.arena.len();
-        self.arena.push(Term::Symbol(symbol, args.len() as u32));
+        let id = self.terms.len();
+        self.terms.push(Term::Symbol(symbol, args.len() as u32));
         for arg in args {
             self.add_reference(*arg);
         }
@@ -68,8 +59,8 @@ impl TermGraph {
         (id, self.view_no_ref(id))
     }
 
-    pub(crate) fn view_no_ref(&self, id: Id<Term>) -> TermView {
-        match self.arena[id] {
+    fn view_no_ref(&self, id: Id<Term>) -> TermView {
+        match self.terms[id] {
             Term::Symbol(symbol, arity) => {
                 let args = Range::new_with_len(id, arity);
                 TermView::Function(symbol, args)
@@ -79,16 +70,26 @@ impl TermGraph {
     }
 
     fn add_reference(&mut self, referred: Id<Term>) -> Id<Term> {
-        let id = self.arena.len();
+        let id = self.terms.len();
         let offset = referred - id;
-        self.arena.push(Term::Reference(offset));
+        self.terms.push(Term::Reference(offset));
         id
     }
 
     fn resolve_reference(&self, id: Id<Term>) -> Id<Term> {
-        match self.arena[id] {
+        match self.terms[id] {
             Term::Reference(offset) => id + offset,
             _ => id,
         }
+    }
+}
+
+impl Clone for Terms {
+    fn clone(&self) -> Self {
+        unreachable!()
+    }
+
+    fn clone_from(&mut self, other: &Self) {
+        self.terms.clone_from(&other.terms);
     }
 }

@@ -11,9 +11,7 @@ impl Literal {
         Self { polarity, atom }
     }
 
-    pub(crate) fn offset(&self, offset: Offset<Term>) -> Self {
-        let polarity = self.polarity;
-        let atom = self.atom.offset(offset);
-        Self { polarity, atom }
+    pub(crate) fn offset(&mut self, offset: Offset<Term>) {
+        self.atom.offset(offset);
     }
 }

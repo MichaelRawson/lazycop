@@ -1,9 +1,8 @@
 use crate::io::exit;
-use crate::io::record::Record;
 use crate::io::szs;
 use crate::prelude::*;
+use crate::record::Record;
 use crate::util::fresh::Fresh;
-use crate::util::id_map::IdMap;
 use std::fmt;
 use std::io::Read;
 use tptp::parsers::TPTPIterator;
@@ -120,7 +119,7 @@ fn read_stdin_chunk(buf: &mut Vec<u8>) -> usize {
         szs::os_error();
         exit::failure()
     });
-    buf.extend_from_slice(&tmp[0..read]);
+    buf.extend(&tmp[0..read]);
     read
 }
 
@@ -144,26 +143,26 @@ pub(crate) fn load_from_stdin() -> Problem {
     builder.finish()
 }
 
-fn print_symbol(symbol_table: &SymbolTable, symbol: Id<Symbol>) {
-    print!("{}", symbol_table.name(symbol));
+fn print_symbol(symbols: &Symbols, symbol: Id<Symbol>) {
+    print!("{}", symbols.name(symbol));
 }
 
 fn print_term(
     variable_map: &mut Fresh,
-    symbol_table: &SymbolTable,
-    term_graph: &TermGraph,
+    symbols: &Symbols,
+    terms: &Terms,
     term: Id<Term>,
 ) {
     let mut arg_stack = vec![vec![term]];
     while let Some(args) = arg_stack.last_mut() {
         if let Some(next_arg) = args.pop() {
             let mut needs_comma = !args.is_empty();
-            match term_graph.view(next_arg) {
+            match terms.view(next_arg) {
                 (_, TermView::Variable(x)) => {
                     print!("X{}", variable_map.get(x));
                 }
                 (_, TermView::Function(symbol, new_args)) => {
-                    print_symbol(symbol_table, symbol);
+                    print_symbol(symbols, symbol);
                     let mut new_args: Vec<_> = new_args.collect();
                     if !new_args.is_empty() {
                         print!("(");
@@ -190,49 +189,49 @@ fn print_term(
 
 fn print_literal(
     variable_map: &mut Fresh,
-    symbol_table: &SymbolTable,
-    term_graph: &TermGraph,
+    symbols: &Symbols,
+    terms: &Terms,
     literal: Literal,
 ) {
     match (literal.polarity, literal.atom) {
         (true, Atom::Predicate(p)) => {
-            print_term(variable_map, symbol_table, term_graph, p);
+            print_term(variable_map, symbols, terms, p);
         }
         (false, Atom::Predicate(p)) => {
             print!("~");
-            print_term(variable_map, symbol_table, term_graph, p);
+            print_term(variable_map, symbols, terms, p);
         }
         (true, Atom::Equality(left, right)) => {
-            print_term(variable_map, symbol_table, term_graph, left);
+            print_term(variable_map, symbols, terms, left);
             print!(" = ");
-            print_term(variable_map, symbol_table, term_graph, right)
+            print_term(variable_map, symbols, terms, right)
         }
         (false, Atom::Equality(left, right)) => {
-            print_term(variable_map, symbol_table, term_graph, left);
+            print_term(variable_map, symbols, terms, left);
             print!(" != ");
-            print_term(variable_map, symbol_table, term_graph, right)
+            print_term(variable_map, symbols, terms, right)
         }
     }
 }
 
 fn print_literals(
     variable_map: &mut Fresh,
-    symbol_table: &SymbolTable,
-    term_graph: &TermGraph,
-    clause_storage: &ClauseStorage,
-    mut literals: Range<Literal>,
+    symbols: &Symbols,
+    terms: &Terms,
+    literals: &Block<Literal>,
+    mut range: Range<Literal>,
 ) {
-    if let Some(literal) = literals.next() {
-        let literal = clause_storage[literal];
-        print_literal(variable_map, symbol_table, term_graph, literal);
+    if let Some(id) = range.next() {
+        let literal = literals[id];
+        print_literal(variable_map, symbols, terms, literal);
     } else {
         print!("$false");
         return;
     }
-    for literal in literals {
-        let literal = clause_storage[literal];
+    for id in range {
+        let literal = literals[id];
         print!(" | ");
-        print_literal(variable_map, symbol_table, term_graph, literal);
+        print_literal(variable_map, symbols, terms, literal);
     }
 }
 
@@ -245,32 +244,32 @@ pub(crate) struct TPTPProof {
 }
 
 impl Record for TPTPProof {
-    fn start(
+    fn copy(
         &mut self,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
-        clause_storage: &ClauseStorage,
-        literals: Range<Literal>,
+        symbols: &Symbols,
+        terms: &Terms,
+        literals: &Block<Literal>,
+        clause: &Clause,
     ) {
-        print!("cnf({}, axiom, ", self.clause_number);
+        print!("cnf({}, plain, ", self.clause_number);
         print_literals(
             &mut self.variable_map,
-            symbol_table,
-            term_graph,
-            clause_storage,
+            symbols,
+            terms,
             literals,
+            clause.open(),
         );
         println!(").");
         self.clause_stack.push(self.clause_number);
         self.clause_number += 1;
     }
 
-    fn reduction(
+    fn predicate_reduction(
         &mut self,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
-        clause_storage: &ClauseStorage,
-        literals: Range<Literal>,
+        symbols: &Symbols,
+        terms: &Terms,
+        literals: &Block<Literal>,
+        clause: &Clause,
         left: Id<Term>,
         right: Id<Term>,
     ) {
@@ -279,21 +278,21 @@ impl Record for TPTPProof {
             .pop()
             .expect("reduction on empty clause stack");
         print!("cnf({}, assumption, ", self.clause_number);
-        print_term(&mut self.variable_map, symbol_table, term_graph, left);
+        print_term(&mut self.variable_map, symbols, terms, left);
         print!(" = ");
-        print_term(&mut self.variable_map, symbol_table, term_graph, right);
+        print_term(&mut self.variable_map, symbols, terms, right);
         println!(").");
         self.assumptions_list.push(self.clause_number);
         self.clause_number += 1;
         print!("cnf({}, plain, ", self.clause_number);
         print_literals(
             &mut self.variable_map,
-            symbol_table,
-            term_graph,
-            clause_storage,
+            symbols,
+            terms,
             literals,
+            clause.open(),
         );
-        if !literals.is_empty() {
+        if !clause.is_empty() {
             self.clause_stack.push(self.clause_number);
         }
         println!(
@@ -304,150 +303,63 @@ impl Record for TPTPProof {
         self.clause_number += 1;
     }
 
-    fn extension(
+    fn predicate_extension(
         &mut self,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
-        clause_storage: &ClauseStorage,
-        literals: Range<Literal>,
-        extension_literals: Range<Literal>,
-        left: Id<Term>,
-        right: Id<Term>,
+        symbols: &Symbols,
+        terms: &Terms,
+        literals: &Block<Literal>,
+        clause: &Clause,
+        new_clause: &Clause,
     ) {
-        let parent = self
-            .clause_stack
-            .pop()
-            .expect("printing extension on empty stack");
-        print!("cnf({}, assumption, ", self.clause_number);
-        print_term(&mut self.variable_map, symbol_table, term_graph, left);
-        print!(" = ");
-        print_term(&mut self.variable_map, symbol_table, term_graph, right);
-        println!(").");
-        self.assumptions_list.push(self.clause_number);
-        self.clause_number += 1;
-
+        let copy = self.clause_stack.pop().unwrap();
+        let parent = self.clause_stack.pop().unwrap();
         print!("cnf({}, plain, ", self.clause_number);
         print_literals(
             &mut self.variable_map,
-            symbol_table,
-            term_graph,
-            clause_storage,
+            symbols,
+            terms,
             literals,
+            clause.remaining(),
         );
-        if !literals.is_empty() {
-            self.clause_stack.push(self.clause_number);
-        }
-        println!(", inference(extension, [], [{}])).", parent);
-        self.clause_number += 1;
-
-        print!("cnf({}, plain, ", self.clause_number);
-        print_literals(
-            &mut self.variable_map,
-            symbol_table,
-            term_graph,
-            clause_storage,
-            extension_literals,
-        );
-        println!(", inference(extension, [], [{}])).", parent);
-        self.clause_stack.push(self.clause_number);
-        self.clause_number += 1;
-    }
-
-    fn lemma(
-        &mut self,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
-        clause_storage: &ClauseStorage,
-        literals: Range<Literal>,
-        left: Id<Term>,
-        right: Id<Term>,
-    ) {
-        let parent = self
-            .clause_stack
-            .pop()
-            .expect("printing lemma on empty clause stack");
-        print!("cnf({}, assumption, ", self.clause_number);
-        print_term(&mut self.variable_map, symbol_table, term_graph, left);
-        print!(" = ");
-        print_term(&mut self.variable_map, symbol_table, term_graph, right);
-        println!(").");
-        self.assumptions_list.push(self.clause_number);
-        self.clause_number += 1;
-        print!("cnf({}, plain, ", self.clause_number);
-        print_literals(
-            &mut self.variable_map,
-            symbol_table,
-            term_graph,
-            clause_storage,
-            literals,
-        );
-        if !literals.is_empty() {
+        if !clause.is_empty() {
             self.clause_stack.push(self.clause_number);
         }
         println!(
-            ", inference(lemma, [assumptions([{}])], [{}])).",
-            self.clause_number - 1,
-            parent
+            ", inference(predicate_extension, [], [{}, {}])).",
+            parent, copy
         );
         self.clause_number += 1;
-    }
 
-    fn lazy_extension(
-        &mut self,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
-        clause_storage: &ClauseStorage,
-        literals: Range<Literal>,
-        extension_literals: Range<Literal>,
-    ) {
-        let parent = self
-            .clause_stack
-            .pop()
-            .expect("printing lazy extension on empty stack");
         print!("cnf({}, plain, ", self.clause_number);
         print_literals(
             &mut self.variable_map,
-            symbol_table,
-            term_graph,
-            clause_storage,
+            symbols,
+            terms,
             literals,
+            new_clause.open(),
         );
-        if !literals.is_empty() {
-            self.clause_stack.push(self.clause_number);
-        }
-        println!(", inference(lazy_extension, [], [{}])).", parent);
-        self.clause_number += 1;
-
-        print!("cnf({}, plain, ", self.clause_number);
-        print_literals(
-            &mut self.variable_map,
-            symbol_table,
-            term_graph,
-            clause_storage,
-            extension_literals,
+        println!(
+            ", inference(predicate_extension, [], [{}, {}])).",
+            parent, copy
         );
-        println!(", inference(lazy_extension, [], [{}])).", parent);
         self.clause_stack.push(self.clause_number);
         self.clause_number += 1;
     }
 
     fn reflexivity(
         &mut self,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
-        clause_storage: &ClauseStorage,
-        literals: Range<Literal>,
+        symbols: &Symbols,
+        terms: &Terms,
+        literals: &Block<Literal>,
+        clause: &Clause,
         left: Id<Term>,
         right: Id<Term>,
     ) {
-        let parent = self
-            .clause_stack
-            .pop()
-            .expect("printing equality reduction on empty stack");
+        let parent = self.clause_stack.pop().unwrap();
         print!("cnf({}, assumption, ", self.clause_number);
-        print_term(&mut self.variable_map, symbol_table, term_graph, left);
+        print_term(&mut self.variable_map, symbols, terms, left);
         print!(" = ");
-        print_term(&mut self.variable_map, symbol_table, term_graph, right);
+        print_term(&mut self.variable_map, symbols, terms, right);
         println!(").");
         self.assumptions_list.push(self.clause_number);
         self.clause_number += 1;
@@ -455,10 +367,10 @@ impl Record for TPTPProof {
         print!("cnf({}, plain, ", self.clause_number);
         print_literals(
             &mut self.variable_map,
-            symbol_table,
-            term_graph,
-            clause_storage,
+            symbols,
+            terms,
             literals,
+            clause.open(),
         );
         if !literals.is_empty() {
             self.clause_stack.push(self.clause_number);
@@ -471,10 +383,11 @@ impl Record for TPTPProof {
         self.clause_number += 1;
     }
 
+    /*
     fn unification(
         &mut self,
-        symbol_table: &SymbolTable,
-        term_graph: &TermGraph,
+        symbols: &Symbols,
+        terms: &Terms,
         bindings: &IdMap<Variable, Option<Id<Term>>>,
     ) {
         print!(
@@ -490,8 +403,8 @@ impl Record for TPTPProof {
                 print!("bind(X{}, ", self.variable_map.get(id));
                 print_term(
                     &mut self.variable_map,
-                    symbol_table,
-                    term_graph,
+                    literals,
+                    terms,
                     bound,
                 );
                 print!(")");
@@ -502,4 +415,5 @@ impl Record for TPTPProof {
         self.clause_stack.clear();
         self.assumptions_list.clear();
     }
+    */
 }

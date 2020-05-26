@@ -20,37 +20,10 @@ impl<T> Block<T> {
         Id::new(index)
     }
 
-    pub(crate) fn extend_from_slice(&mut self, other: &[T])
-    where
-        T: Clone,
-    {
-        self.items.extend_from_slice(&other);
-    }
-
     pub(crate) fn push(&mut self, item: T) -> Id<T> {
         let id = self.len();
         self.items.push(item);
         id
-    }
-
-    pub(crate) fn pop(&mut self) -> Option<T> {
-        self.items.pop()
-    }
-
-    pub(crate) fn truncate(&mut self, len: Id<T>) {
-        self.items.truncate(len.as_usize());
-    }
-
-    pub(crate) fn range(&self) -> Range<T> {
-        let start = Id::default();
-        let stop = self.len();
-        Range::new(start, stop)
-    }
-}
-
-impl<T: Default> Block<T> {
-    pub(crate) fn resize_default(&mut self, limit: Id<T>) {
-        self.items.resize_with(limit.as_usize(), Default::default);
     }
 }
 
@@ -63,6 +36,16 @@ impl<T> AsRef<[T]> for Block<T> {
 impl<T> AsMut<[T]> for Block<T> {
     fn as_mut(&mut self) -> &mut [T] {
         self.items.as_mut()
+    }
+}
+
+impl<T: Clone> Clone for Block<T> {
+    fn clone(&self) -> Self {
+        unreachable!()
+    }
+
+    fn clone_from(&mut self, other: &Self) {
+        self.items.clone_from(&other.items);
     }
 }
 
@@ -87,15 +70,15 @@ impl<T> Index<Id<T>> for Block<T> {
 
     fn index(&self, id: Id<T>) -> &Self::Output {
         let index = id.as_usize();
-        unsafe { self.items.get_unchecked(index) }
-        //&self.items[index]
+        //unsafe { self.items.get_unchecked(index) }
+        &self.items[index]
     }
 }
 
 impl<T> IndexMut<Id<T>> for Block<T> {
     fn index_mut(&mut self, id: Id<T>) -> &mut Self::Output {
         let index = id.as_usize();
-        unsafe { self.items.get_unchecked_mut(index) }
-        //&mut self.items[index]
+        //unsafe { self.items.get_unchecked_mut(index) }
+        &mut self.items[index]
     }
 }

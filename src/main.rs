@@ -3,18 +3,17 @@
 mod atom;
 mod clause;
 mod goal;
-mod goal_stack;
+mod io;
 mod literal;
+mod prelude;
 mod problem;
+mod record;
 mod rule;
+mod search;
 mod solver;
 mod symbol;
 mod tableau;
 mod term;
-mod alloc;
-mod io;
-mod prelude;
-mod search;
 mod util;
 
 fn main() {

@@ -1,21 +1,22 @@
 use crate::prelude::*;
-use crate::util::id_map::IdMap;
-use std::collections::HashMap;
+use fnv::FnvHashMap;
 use std::mem;
 use std::ops::Index;
 
 pub(crate) struct ProblemClause {
     pub(crate) literals: Block<Literal>,
-    pub(crate) term_graph: TermGraph,
+    pub(crate) terms: Terms,
 }
 
 type Position = (Id<ProblemClause>, Id<Literal>);
+
 #[derive(Default)]
 pub(crate) struct Problem {
     clauses: Block<ProblemClause>,
     pub(crate) start_clauses: Vec<Id<ProblemClause>>,
-    pub(crate) predicate_occurrences: [IdMap<Symbol, Vec<Position>>; 2],
-    pub(crate) symbol_table: SymbolTable,
+    pub(crate) predicate_occurrences:
+        [FnvHashMap<Id<Symbol>, Vec<Position>>; 2],
+    pub(crate) symbols: Symbols,
     pub(crate) equality: bool,
 }
 
@@ -31,12 +32,12 @@ type FunctionKey = (Id<Symbol>, Vec<Id<Term>>);
 #[derive(Default)]
 pub(crate) struct ProblemBuilder {
     problem: Problem,
-    symbols: HashMap<(String, u32), Id<Symbol>>,
-    variable_map: HashMap<String, Id<Term>>,
-    function_map: HashMap<FunctionKey, Id<Term>>,
+    symbols: FnvHashMap<(String, u32), Id<Symbol>>,
+    variable_map: FnvHashMap<String, Id<Term>>,
+    function_map: FnvHashMap<FunctionKey, Id<Term>>,
     saved_terms: Vec<Id<Term>>,
     saved_literals: Block<Literal>,
-    term_graph: TermGraph,
+    terms: Terms,
 }
 
 impl ProblemBuilder {
@@ -45,47 +46,45 @@ impl ProblemBuilder {
     }
 
     pub(crate) fn variable(&mut self, variable: String) {
-        let term_graph = &mut self.term_graph;
+        let terms = &mut self.terms;
         let id = *self
             .variable_map
             .entry(variable)
-            .or_insert_with(|| term_graph.add_variable());
+            .or_insert_with(|| terms.add_variable());
         self.saved_terms.push(id);
     }
 
     pub(crate) fn function(&mut self, symbol: String, arity: u32) {
-        let symbol_table = &mut self.problem.symbol_table;
+        let symbols = &mut self.problem.symbols;
         let symbol = *self
             .symbols
             .entry((symbol.clone(), arity))
-            .or_insert_with(|| symbol_table.append(symbol));
-        self.problem.predicate_occurrences[0]
-            .ensure_capacity(symbol_table.len());
-        self.problem.predicate_occurrences[1]
-            .ensure_capacity(symbol_table.len());
+            .or_insert_with(|| symbols.append(symbol));
 
         let args = self
             .saved_terms
             .split_off(self.saved_terms.len() - (arity as usize));
-        let term_graph = &mut self.term_graph;
+        let terms = &mut self.terms;
         let id = *self
             .function_map
             .entry((symbol, args.clone()))
-            .or_insert_with(|| term_graph.add_function(symbol, &args));
+            .or_insert_with(|| terms.add_function(symbol, &args));
         self.saved_terms.push(id);
     }
 
     pub(crate) fn predicate(&mut self, polarity: bool) {
         let term = self.saved_terms.pop().expect("predicate without a term");
         let atom = Atom::Predicate(term);
-        let symbol = match self.term_graph.view(term) {
+        let symbol = match self.terms.view(term) {
             (_, TermView::Function(symbol, _)) => symbol,
             _ => unreachable!(),
         };
 
         let clause = self.problem.clauses.len();
         let literal = self.saved_literals.len();
-        self.problem.predicate_occurrences[polarity as usize][symbol]
+        self.problem.predicate_occurrences[polarity as usize]
+            .entry(symbol)
+            .or_default()
             .push((clause, literal));
         self.saved_literals.push(Literal::new(polarity, atom));
     }
@@ -99,14 +98,11 @@ impl ProblemBuilder {
     }
 
     pub(crate) fn clause(&mut self, start_clause: bool) {
-        let term_graph = mem::take(&mut self.term_graph);
+        let terms = mem::take(&mut self.terms);
         self.variable_map.clear();
         self.function_map.clear();
         let literals = mem::take(&mut self.saved_literals);
-        let problem_clause = ProblemClause {
-            literals,
-            term_graph,
-        };
+        let problem_clause = ProblemClause { literals, terms };
         let id = self.problem.clauses.push(problem_clause);
         if start_clause {
             self.problem.start_clauses.push(id);

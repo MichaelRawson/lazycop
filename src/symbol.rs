@@ -5,20 +5,16 @@ pub(crate) struct Symbol {
 }
 
 #[derive(Default)]
-pub(crate) struct SymbolTable {
+pub(crate) struct Symbols {
     names: Block<Symbol>,
 }
 
-impl SymbolTable {
+impl Symbols {
     pub(crate) fn append(&mut self, name: String) -> Id<Symbol> {
-        self.names.push(Symbol { name }).transmute()
+        self.names.push(Symbol { name })
     }
 
     pub(crate) fn name(&self, id: Id<Symbol>) -> &str {
         &self.names[id].name
-    }
-
-    pub(crate) fn len(&self) -> Id<Symbol> {
-        self.names.len()
     }
 }

@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::solver::Solver;
 
 #[derive(Clone, Copy)]
 pub(crate) enum Atom {
@@ -7,11 +8,14 @@ pub(crate) enum Atom {
 }
 
 impl Atom {
-    pub(crate) fn offset(&self, offset: Offset<Term>) -> Self {
+    pub(crate) fn offset(&mut self, offset: Offset<Term>) {
         match self {
-            Atom::Predicate(p) => Atom::Predicate(*p + offset),
+            Atom::Predicate(p) => {
+                *p = *p + offset;
+            }
             Atom::Equality(left, right) => {
-                Atom::Equality(*left + offset, *right + offset)
+                *left = *left + offset;
+                *right = *right + offset;
             }
         }
     }
@@ -23,13 +27,6 @@ impl Atom {
         }
     }
 
-    pub(crate) fn is_equality(&self) -> bool {
-        match self {
-            Atom::Equality(_, _) => true,
-            _ => false,
-        }
-    }
-
     pub(crate) fn get_predicate(&self) -> Id<Term> {
         match self {
             Atom::Predicate(p) => *p,
@@ -37,11 +34,8 @@ impl Atom {
         }
     }
 
-    pub(crate) fn get_predicate_symbol(
-        &self,
-        term_graph: &TermGraph,
-    ) -> Id<Symbol> {
-        match term_graph.view(self.get_predicate()) {
+    pub(crate) fn get_predicate_symbol(&self, terms: &Terms) -> Id<Symbol> {
+        match terms.view(self.get_predicate()) {
             (_, TermView::Function(p, _)) => p,
             _ => unreachable!("non-function predicate symbol"),
         }
@@ -63,20 +57,16 @@ impl Atom {
     pub(crate) fn add_disequation_constraints(
         &self,
         solver: &mut Solver,
-        term_graph: &TermGraph,
+        terms: &Terms,
         other: &Self,
     ) {
         if self.is_predicate()
             && other.is_predicate()
-            && self.get_predicate_symbol(term_graph)
-                == other.get_predicate_symbol(term_graph)
+            && self.get_predicate_symbol(terms)
+                == other.get_predicate_symbol(terms)
         {
             solver
                 .assert_not_equal(self.get_predicate(), other.get_predicate());
-        } else if self.is_equality() && other.is_equality() {
-            let (l1, r1) = self.get_equality();
-            let (l2, r2) = other.get_equality();
-            solver.assert_not_equal_symmetric((l1, r1), (l2, r2));
         }
     }
 }
