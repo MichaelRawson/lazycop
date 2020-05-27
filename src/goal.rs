@@ -92,11 +92,10 @@ impl Goal {
             return;
         }
         self.stack.pop();
-        while let Some(goal) = self.stack.last_mut() {
-            let literal_id = goal.close_literal();
-            self.literals[literal_id].polarity =
-                !self.literals[literal_id].polarity;
-            if goal.is_empty() {
+        while let Some(clause) = self.stack.last_mut() {
+            let id = clause.close_literal();
+            self.literals[id].invert();
+            if clause.is_empty() {
                 self.stack.pop();
             } else {
                 return;
@@ -110,78 +109,74 @@ impl Goal {
         terms: &Terms,
         literals: &Block<Literal>,
     ) {
-        let goal = self.stack.last().unwrap();
+        let clause = self.stack.last().unwrap();
         for path in self.path_literals().map(|id| &literals[id]) {
-            for open in goal.open().map(|id| &literals[id]) {
+            for open in clause.open().map(|id| &literals[id]) {
                 if path.polarity == open.polarity {
-                    path.atom.add_disequation_constraints(
-                        solver, terms, &open.atom,
-                    );
+                    path.add_disequation_constraints(solver, terms, &open);
                 }
             }
         }
     }
 
-    pub(crate) fn possible_rules(
+    pub(crate) fn possible_rules<E: Extend<Rule>>(
         &self,
-        possible: &mut Vec<Rule>,
+        possible: &mut E,
         problem: &Problem,
         terms: &Terms,
     ) {
-        if let Some(goal) = self.stack.last() {
+        if let Some(clause) = self.stack.last() {
             self.possible_nonstart_rules(
                 possible,
                 problem,
                 terms,
                 &self.literals,
-                goal,
+                clause,
             );
         } else {
             self.possible_start_rules(possible, problem);
         }
     }
 
-    fn possible_start_rules(
+    fn possible_start_rules<E: Extend<Rule>>(
         &self,
-        possible: &mut Vec<Rule>,
+        possible: &mut E,
         problem: &Problem,
     ) {
         possible.extend(
             problem
-                .start_clauses
-                .iter()
-                .copied()
+                .start_clauses()
                 .map(|start_clause| Start { start_clause })
                 .map(Rule::Start),
         );
     }
 
-    fn possible_nonstart_rules(
+    fn possible_nonstart_rules<E: Extend<Rule>>(
         &self,
-        possible: &mut Vec<Rule>,
+        possible: &mut E,
         problem: &Problem,
         terms: &Terms,
         literals: &Block<Literal>,
         clause: &Clause,
     ) {
         let literal = literals[clause.current_literal()];
-        if literal.atom.is_predicate() {
+        if literal.is_predicate() {
             self.possible_predicate_rules(
                 possible,
                 problem,
                 terms,
                 literals,
                 literal.polarity,
-                literal.atom.get_predicate_symbol(terms),
+                literal.get_predicate_symbol(terms),
             );
-        } else if !literal.polarity {
-            possible.push(Rule::Reflexivity);
+        } else if !literal.polarity && literal.is_equality() {
+            possible.extend(Some(Rule::Reflexivity));
         }
     }
 
-    fn possible_predicate_rules(
+    fn possible_predicate_rules<E: Extend<Rule>>(
         &self,
-        possible: &mut Vec<Rule>,
+        possible: &mut E,
         problem: &Problem,
         terms: &Terms,
         literals: &Block<Literal>,
@@ -196,42 +191,51 @@ impl Goal {
         );
     }
 
-    fn possible_reduction_rules(
+    fn possible_reduction_rules<E: Extend<Rule>>(
         &self,
-        possible: &mut Vec<Rule>,
+        possible: &mut E,
         terms: &Terms,
         literals: &Block<Literal>,
         polarity: bool,
-        f: Id<Symbol>,
+        symbol: Id<Symbol>,
     ) {
-        for literal_id in self.path_literals() {
-            let literal = literals[literal_id];
-            if literal.polarity == polarity || !literal.atom.is_predicate() {
-                continue;
-            }
-            let g = literal.atom.get_predicate_symbol(terms);
-            if f == g {
-                let literal = literal_id;
-                possible.push(Rule::Reduction(PredicateReduction { literal }));
-            }
-        }
+        possible.extend(
+            self.reduction_literals()
+                .map(|id| (id, &literals[id]))
+                .filter(|(_, literal)| literal.polarity != polarity)
+                .filter(|(_, literal)| literal.is_predicate())
+                .filter(|(_, literal)| {
+                    literal.get_predicate_symbol(terms) == symbol
+                })
+                .map(|(literal, _)| PredicateReduction { literal })
+                .map(Rule::Reduction),
+        );
     }
 
-    fn possible_predicate_extension_rules(
+    fn possible_predicate_extension_rules<E: Extend<Rule>>(
         &self,
-        possible: &mut Vec<Rule>,
+        possible: &mut E,
         problem: &Problem,
         polarity: bool,
-        f: Id<Symbol>,
+        symbol: Id<Symbol>,
     ) {
-        let opposite = !polarity as usize;
-        let empty = vec![];
-        let positions = problem.predicate_occurrences[opposite]
-            .get(&f)
-            .unwrap_or(&empty);
-        possible.extend(positions.iter().copied().map(|(clause, literal)| {
-            Rule::PredicateExtension(PredicateExtension { clause, literal })
-        }));
+        possible.extend(
+            problem
+                .query_predicates(!polarity, symbol)
+                .map(|(clause, literal)| PredicateExtension {
+                    clause,
+                    literal,
+                })
+                .map(Rule::PredicateExtension),
+        );
+    }
+
+    fn reduction_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
+        self.path_literals().chain(self.ancestor_literals())
+    }
+
+    fn ancestor_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
+        self.stack.iter().flat_map(|clause| clause.closed())
     }
 
     fn path_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
@@ -239,8 +243,7 @@ impl Goal {
             .iter()
             .rev()
             .skip(1)
-            .flat_map(|clause| clause.path())
-            .chain(self.stack.last().unwrap().closed())
+            .map(|clause| clause.current_literal())
     }
 }
 

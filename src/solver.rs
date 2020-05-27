@@ -1,19 +1,13 @@
 use crate::prelude::*;
 
-#[derive(Clone, Copy)]
-struct Equation {
-    left: Id<Term>,
-    right: Id<Term>,
-}
-
 #[derive(Default)]
 pub(crate) struct Solver {
-    equations: Block<Equation>,
+    equations: Vec<(Id<Term>, Id<Term>)>,
 }
 
 impl Solver {
     pub(crate) fn assert_equal(&mut self, left: Id<Term>, right: Id<Term>) {
-        self.equations.push(Equation { left, right });
+        self.equations.push((left, right));
     }
 
     pub(crate) fn assert_not_equal(
@@ -27,9 +21,11 @@ impl Solver {
         self.equations.clear();
     }
 
-    pub(crate) fn solve(&mut self, terms: &Terms) {}
+    pub(crate) fn solve_fast(&mut self, terms: &Terms) -> bool {
+        true
+    }
 
-    pub(crate) fn check(&mut self, terms: &Terms) -> bool {
+    pub(crate) fn solve_correct(&mut self, terms: &Terms) -> bool {
         true
     }
 

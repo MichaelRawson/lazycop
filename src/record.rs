@@ -1,9 +1,10 @@
+use crate::clause::Clause;
 use crate::prelude::*;
 
 pub(crate) trait Record {
     fn copy(
         &mut self,
-        _symbols: &Symbols,
+        _symbols: &Block<Symbol>,
         _terms: &Terms,
         _literals: &Block<Literal>,
         _clause: &Clause,
@@ -12,7 +13,7 @@ pub(crate) trait Record {
 
     fn predicate_reduction(
         &mut self,
-        _symbols: &Symbols,
+        _symbols: &Block<Symbol>,
         _terms: &Terms,
         _literals: &Block<Literal>,
         _clause: &Clause,
@@ -23,7 +24,7 @@ pub(crate) trait Record {
 
     fn predicate_extension(
         &mut self,
-        _symbols: &Symbols,
+        _symbols: &Block<Symbol>,
         _terms: &Terms,
         _literals: &Block<Literal>,
         _clause: &Clause,
@@ -33,7 +34,7 @@ pub(crate) trait Record {
 
     fn reflexivity(
         &mut self,
-        _symbols: &Symbols,
+        _symbols: &Block<Symbol>,
         _terms: &Terms,
         _literals: &Block<Literal>,
         _clause: &Clause,
@@ -45,7 +46,7 @@ pub(crate) trait Record {
     /*
     fn unification(
         &mut self,
-        _literals: &Symbols,
+        _literals: &Block<Symbol>,
         _terms: &Terms,
         _bindings: &IdMap<Variable, Option<Id<Term>>>,
     ) {

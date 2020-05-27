@@ -1,3 +1,4 @@
+use crate::atom::Atom;
 use crate::prelude::*;
 use crate::record::Record;
 use crate::solver::Solver;
@@ -31,10 +32,6 @@ impl Clause {
         Range::new(self.start, self.current)
     }
 
-    pub(crate) fn path(self) -> Range<Literal> {
-        Range::new(self.start, self.current + Offset::new(1))
-    }
-
     pub(crate) fn remaining(self) -> Range<Literal> {
         Range::new(self.current + Offset::new(1), self.end)
     }
@@ -63,7 +60,7 @@ impl Clause {
     pub(crate) fn predicate_reduction<R: Record>(
         &mut self,
         record: &mut R,
-        symbols: &Symbols,
+        symbols: &Block<Symbol>,
         terms: &Terms,
         literals: &Block<Literal>,
         solver: &mut Solver,
@@ -71,12 +68,13 @@ impl Clause {
     ) {
         let literal = literals[self.close_literal()];
         let matching = literals[matching];
-        let p = literal.atom.get_predicate();
-        let q = matching.atom.get_predicate();
+        let p = literal.get_predicate();
+        let q = matching.get_predicate();
         solver.assert_equal(p, q);
         record.predicate_reduction(symbols, terms, literals, &self, p, q);
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn predicate_extension<R: Record>(
         &mut self,
         record: &mut R,
@@ -84,23 +82,27 @@ impl Clause {
         terms: &mut Terms,
         literals: &mut Block<Literal>,
         solver: &mut Solver,
-        clause_id: Id<ProblemClause>,
-        matching_id: Id<Literal>,
+        problem_clause: Id<ProblemClause>,
+        problem_literal: Id<Literal>,
     ) -> Self {
-        let matching_id = matching_id + (literals.len() - Id::default());
-        let clause =
-            Self::copy(record, problem, terms, literals, solver, clause_id);
+        let literal_offset = literals.len() - Id::default();
+        let problem_literal = problem_literal + literal_offset;
+        let clause = Self::copy(
+            record,
+            problem,
+            terms,
+            literals,
+            solver,
+            problem_clause,
+        );
 
-        let p = literals[self.current].atom.get_predicate();
-        let q = literals[matching_id].atom.get_predicate();
-        let disequation = Literal {
-            polarity: false,
-            atom: Atom::Equality(p, q),
-        };
-        literals[matching_id] = disequation;
+        let p = literals[self.current].get_predicate();
+        let q = literals[problem_literal].get_predicate();
+        let disequation = Literal::new(false, Atom::Equality(p, q));
+        literals[problem_literal] = disequation;
 
         self.add_strong_connection_constraints(
-            solver, terms, literals, clause,
+            solver, terms, literals, &clause,
         );
         record.predicate_extension(
             &problem.symbols,
@@ -115,13 +117,13 @@ impl Clause {
     pub(crate) fn reflexivity<R: Record>(
         &mut self,
         record: &mut R,
-        symbols: &Symbols,
+        symbols: &Block<Symbol>,
         terms: &Terms,
         literals: &Block<Literal>,
         solver: &mut Solver,
     ) {
         let literal = literals[self.close_literal()];
-        let (left, right) = literal.atom.get_equality();
+        let (left, right) = literal.get_equality();
         solver.assert_equal(left, right);
         record.reflexivity(symbols, terms, literals, &self, left, right);
     }
@@ -132,14 +134,14 @@ impl Clause {
         terms: &mut Terms,
         literals: &mut Block<Literal>,
         solver: &mut Solver,
-        start_clause: Id<ProblemClause>,
+        clause: Id<ProblemClause>,
     ) -> Self {
         let offset = terms.current_offset();
-        let problem_clause = &problem[start_clause];
-        terms.extend_from(&problem_clause.terms);
+        let (clause_literals, clause_terms) = problem.get_clause(clause);
+        terms.extend_from(clause_terms);
 
         let start = literals.len();
-        literals.extend(problem_clause.literals.as_ref().iter().copied());
+        literals.extend(clause_literals.as_ref().iter().copied());
         let end = literals.len();
         for id in Range::new(start, end) {
             literals[id].offset(offset);
@@ -156,14 +158,12 @@ impl Clause {
         solver: &mut Solver,
         terms: &Terms,
         literals: &Block<Literal>,
-        clause: Clause,
+        new: &Self,
     ) {
         for original in self.open().map(|id| &literals[id]) {
-            for new in clause.open().map(|id| &literals[id]) {
+            for new in new.open().map(|id| &literals[id]) {
                 if original.polarity != new.polarity {
-                    original
-                        .atom
-                        .add_disequation_constraints(solver, terms, &new.atom);
+                    original.add_disequation_constraints(solver, terms, &new);
                 }
             }
         }
@@ -178,17 +178,10 @@ impl Clause {
         let open = self.open();
         for id in open {
             let literal = literals[id];
-            if literal.polarity {
-                literal.atom.add_positive_constraints(solver)
-            }
-
+            literal.add_unit_constraints(solver);
             for other in open.skip(1).map(|id| &literals[id]) {
                 if literal.polarity != other.polarity {
-                    literal.atom.add_disequation_constraints(
-                        solver,
-                        terms,
-                        &other.atom,
-                    );
+                    literal.add_disequation_constraints(solver, terms, &other);
                 }
             }
         }

@@ -27,6 +27,13 @@ impl Atom {
         }
     }
 
+    pub(crate) fn is_equality(&self) -> bool {
+        match self {
+            Atom::Equality(_, _) => true,
+            _ => false,
+        }
+    }
+
     pub(crate) fn get_predicate(&self) -> Id<Term> {
         match self {
             Atom::Predicate(p) => *p,
@@ -34,17 +41,17 @@ impl Atom {
         }
     }
 
-    pub(crate) fn get_predicate_symbol(&self, terms: &Terms) -> Id<Symbol> {
-        match terms.view(self.get_predicate()) {
-            (_, TermView::Function(p, _)) => p,
-            _ => unreachable!("non-function predicate symbol"),
-        }
-    }
-
     pub(crate) fn get_equality(&self) -> (Id<Term>, Id<Term>) {
         match self {
             Atom::Equality(left, right) => (*left, *right),
             _ => unreachable!("equality term of non-equality"),
+        }
+    }
+
+    pub(crate) fn get_predicate_symbol(&self, terms: &Terms) -> Id<Symbol> {
+        match terms.view(self.get_predicate()) {
+            (_, TermView::Function(p, _)) => p,
+            _ => unreachable!("non-function predicate symbol"),
         }
     }
 

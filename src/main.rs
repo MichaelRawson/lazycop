@@ -1,4 +1,4 @@
-#![allow(clippy::too_many_arguments)]
+#![type_length_limit="10000000"]
 
 mod atom;
 mod clause;
@@ -22,13 +22,13 @@ fn main() {
     if let Some(proof) = search::astar(&mut queue, &problem) {
         io::szs::unsatisfiable();
         io::szs::begin_refutation();
-        let mut record = io::tptp::TPTPProof::default();
+        let mut record = io::tstp::TSTP::default();
         let mut tableau = tableau::Tableau::new(&problem);
         for rule in proof {
             tableau.apply_rule(&mut record, rule);
         }
         assert!(tableau.is_closed());
-        assert!(tableau.check_constraints());
+        assert!(tableau.solve_constraints_correct());
         tableau.record_unification(&mut record);
         io::szs::end_refutation();
         io::exit::success()

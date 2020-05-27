@@ -7,10 +7,6 @@ pub(crate) struct Block<T> {
 }
 
 impl<T> Block<T> {
-    pub(crate) fn is_empty(&self) -> bool {
-        self.items.is_empty()
-    }
-
     pub(crate) fn clear(&mut self) {
         self.items.clear();
     }

@@ -23,12 +23,6 @@ impl<'problem> Tableau<'problem> {
         }
     }
 
-    pub(crate) fn clone_from(&mut self, other: &Self) {
-        self.terms.clone_from(&other.terms);
-        self.goal.clone_from(&other.goal);
-        self.solver.clone_from(&other.solver);
-    }
-
     pub(crate) fn is_closed(&self) -> bool {
         self.goal.is_empty()
     }
@@ -57,17 +51,17 @@ impl<'problem> Tableau<'problem> {
         );
     }
 
-    pub(crate) fn possible_rules(&self, possible: &mut Vec<Rule>) {
+    pub(crate) fn possible_rules<E: Extend<Rule>>(&self, possible: &mut E) {
         self.goal
             .possible_rules(possible, &self.problem, &self.terms);
     }
 
-    pub(crate) fn solve_constraints(&mut self) {
-        self.solver.solve(&self.terms)
+    pub(crate) fn solve_constraints_fast(&mut self) -> bool {
+        self.solver.solve_fast(&self.terms)
     }
 
-    pub(crate) fn check_constraints(&mut self) -> bool {
-        self.solver.check(&self.terms)
+    pub(crate) fn solve_constraints_correct(&mut self) -> bool {
+        self.solver.solve_correct(&self.terms)
     }
 
     pub(crate) fn record_unification<R: Record>(&mut self, record: &mut R) {
@@ -78,5 +72,17 @@ impl<'problem> Tableau<'problem> {
             &self.solver.bindings,
         );
         */
+    }
+}
+
+impl<'problem> Clone for Tableau<'problem> {
+    fn clone(&self) -> Self {
+        unreachable!()
+    }
+
+    fn clone_from(&mut self, other: &Self) {
+        self.terms.clone_from(&other.terms);
+        self.goal.clone_from(&other.goal);
+        self.solver.clone_from(&other.solver);
     }
 }

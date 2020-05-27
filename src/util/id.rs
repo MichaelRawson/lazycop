@@ -50,15 +50,6 @@ impl<T> Clone for Id<T> {
 
 impl<T> Copy for Id<T> {}
 
-/*
-use std::fmt;
-impl<T> fmt::Debug for Id<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "id:{}", self.id)
-    }
-}
-*/
-
 impl<T> Default for Id<T> {
     fn default() -> Self {
         let id = 0;

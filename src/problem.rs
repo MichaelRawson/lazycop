@@ -1,30 +1,59 @@
+use crate::atom::Atom;
 use crate::prelude::*;
 use fnv::FnvHashMap;
 use std::mem;
-use std::ops::Index;
 
 pub(crate) struct ProblemClause {
-    pub(crate) literals: Block<Literal>,
-    pub(crate) terms: Terms,
+    literals: Block<Literal>,
+    terms: Terms,
 }
 
-type Position = (Id<ProblemClause>, Id<Literal>);
+#[derive(PartialEq, Eq, Hash)]
+struct PredicateQuery {
+    polarity: bool,
+    symbol: Id<Symbol>,
+}
+
+struct Position {
+    problem_clause: Id<ProblemClause>,
+    literal: Id<Literal>,
+}
 
 #[derive(Default)]
 pub(crate) struct Problem {
+    pub(crate) symbols: Block<Symbol>,
     clauses: Block<ProblemClause>,
-    pub(crate) start_clauses: Vec<Id<ProblemClause>>,
-    pub(crate) predicate_occurrences:
-        [FnvHashMap<Id<Symbol>, Vec<Position>>; 2],
-    pub(crate) symbols: Symbols,
-    pub(crate) equality: bool,
+    start: Vec<Id<ProblemClause>>,
+    predicates: FnvHashMap<PredicateQuery, Vec<Position>>,
 }
 
-impl Index<Id<ProblemClause>> for Problem {
-    type Output = ProblemClause;
+impl Problem {
+    pub(crate) fn start_clauses(
+        &self,
+    ) -> impl Iterator<Item = Id<ProblemClause>> + '_ {
+        self.start.iter().copied()
+    }
 
-    fn index(&self, id: Id<ProblemClause>) -> &Self::Output {
-        &self.clauses[id]
+    pub(crate) fn get_clause(
+        &self,
+        id: Id<ProblemClause>,
+    ) -> (&Block<Literal>, &Terms) {
+        let clause = &self.clauses[id];
+        (&clause.literals, &clause.terms)
+    }
+
+    pub(crate) fn query_predicates(
+        &self,
+        polarity: bool,
+        symbol: Id<Symbol>,
+    ) -> impl Iterator<Item = (Id<ProblemClause>, Id<Literal>)> + '_ {
+        let key = PredicateQuery { polarity, symbol };
+        self.predicates
+            .get(&key)
+            .map(|x| x.as_slice())
+            .unwrap_or_default()
+            .iter()
+            .map(|position| (position.problem_clause, position.literal))
     }
 }
 
@@ -32,16 +61,18 @@ type FunctionKey = (Id<Symbol>, Vec<Id<Term>>);
 #[derive(Default)]
 pub(crate) struct ProblemBuilder {
     problem: Problem,
+    conjecture_clauses: Vec<Id<ProblemClause>>,
+    terms: Terms,
     symbols: FnvHashMap<(String, u32), Id<Symbol>>,
     variable_map: FnvHashMap<String, Id<Term>>,
     function_map: FnvHashMap<FunctionKey, Id<Term>>,
     saved_terms: Vec<Id<Term>>,
     saved_literals: Block<Literal>,
-    terms: Terms,
 }
 
 impl ProblemBuilder {
-    pub(crate) fn finish(self) -> Problem {
+    pub(crate) fn finish(mut self) -> Problem {
+        self.problem.start = self.conjecture_clauses;
         self.problem
     }
 
@@ -54,12 +85,12 @@ impl ProblemBuilder {
         self.saved_terms.push(id);
     }
 
-    pub(crate) fn function(&mut self, symbol: String, arity: u32) {
+    pub(crate) fn function(&mut self, name: String, arity: u32) {
         let symbols = &mut self.problem.symbols;
         let symbol = *self
             .symbols
-            .entry((symbol.clone(), arity))
-            .or_insert_with(|| symbols.append(symbol));
+            .entry((name.clone(), arity))
+            .or_insert_with(|| symbols.push(Symbol { name }));
 
         let args = self
             .saved_terms
@@ -73,39 +104,40 @@ impl ProblemBuilder {
     }
 
     pub(crate) fn predicate(&mut self, polarity: bool) {
-        let term = self.saved_terms.pop().expect("predicate without a term");
+        let term = self.pop_term();
         let atom = Atom::Predicate(term);
-        let symbol = match self.terms.view(term) {
-            (_, TermView::Function(symbol, _)) => symbol,
-            _ => unreachable!(),
-        };
+        let symbol = atom.get_predicate_symbol(&self.terms);
 
-        let clause = self.problem.clauses.len();
+        let problem_clause = self.problem.clauses.len();
         let literal = self.saved_literals.len();
-        self.problem.predicate_occurrences[polarity as usize]
-            .entry(symbol)
+        let position = Position { problem_clause, literal };
+        let key = PredicateQuery { polarity, symbol };
+        self.problem.predicates.entry(key)
             .or_default()
-            .push((clause, literal));
+            .push(position);
         self.saved_literals.push(Literal::new(polarity, atom));
     }
 
     pub(crate) fn equality(&mut self, polarity: bool) {
-        self.problem.equality = true;
-        let right = self.saved_terms.pop().expect("equality without term");
-        let left = self.saved_terms.pop().expect("equality without term");
+        let right = self.pop_term();
+        let left = self.pop_term();
         let atom = Atom::Equality(left, right);
         self.saved_literals.push(Literal::new(polarity, atom));
     }
 
-    pub(crate) fn clause(&mut self, start_clause: bool) {
+    pub(crate) fn clause(&mut self, conjecture: bool) {
         let terms = mem::take(&mut self.terms);
         self.variable_map.clear();
         self.function_map.clear();
         let literals = mem::take(&mut self.saved_literals);
         let problem_clause = ProblemClause { literals, terms };
-        let id = self.problem.clauses.push(problem_clause);
-        if start_clause {
-            self.problem.start_clauses.push(id);
+        let problem_clause = self.problem.clauses.push(problem_clause);
+        if conjecture {
+            self.conjecture_clauses.push(problem_clause);
         }
+    }
+
+    fn pop_term(&mut self) -> Id<Term> {
+        self.saved_terms.pop().expect("need a term")
     }
 }
