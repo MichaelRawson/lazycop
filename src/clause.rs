@@ -54,7 +54,10 @@ impl Clause {
         solver: &mut Solver,
         start_clause: Id<ProblemClause>,
     ) -> Self {
-        Self::copy(record, problem, terms, literals, solver, start_clause)
+        let start =
+            Self::copy(record, problem, terms, literals, solver, start_clause);
+        record.start();
+        start
     }
 
     pub(crate) fn predicate_reduction<R: Record>(
@@ -86,7 +89,7 @@ impl Clause {
         problem_literal: Id<Literal>,
     ) -> Self {
         let literal_offset = literals.len() - Id::default();
-        let problem_literal = problem_literal + literal_offset;
+        let matching_literal = problem_literal + literal_offset;
         let clause = Self::copy(
             record,
             problem,
@@ -97,9 +100,10 @@ impl Clause {
         );
 
         let p = literals[self.current].get_predicate();
-        let q = literals[problem_literal].get_predicate();
+        let q = literals[matching_literal].get_predicate();
         let disequation = Literal::new(false, Atom::Equality(p, q));
-        literals[problem_literal] = disequation;
+        literals[matching_literal] = disequation;
+        literals.swap(clause.current_literal(), matching_literal);
 
         self.add_strong_connection_constraints(
             solver, terms, literals, &clause,

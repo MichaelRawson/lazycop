@@ -10,8 +10,7 @@ impl<T> Range<T> {
         Self { start, stop }
     }
 
-    pub(crate) fn new_with_len(from: Id<T>, len: u32) -> Self {
-        let start = from + Offset::new(1);
+    pub(crate) fn new_with_len(start: Id<T>, len: u32) -> Self {
         let stop = start + Offset::new(len as i32);
         Self { start, stop }
     }

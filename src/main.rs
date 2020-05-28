@@ -1,10 +1,11 @@
-#![type_length_limit="10000000"]
+#![type_length_limit = "10000000"]
 
 mod atom;
 mod clause;
 mod goal;
 mod io;
 mod literal;
+mod occurs;
 mod prelude;
 mod problem;
 mod record;

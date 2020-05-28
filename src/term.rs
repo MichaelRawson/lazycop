@@ -1,17 +1,45 @@
 use crate::prelude::*;
 
+pub(crate) struct Argument;
 pub(crate) struct Variable;
 
 #[derive(Clone, Copy)]
 pub(crate) enum TermView {
     Variable(Id<Variable>),
-    Function(Id<Symbol>, Range<Term>),
+    Function(Id<Symbol>, Range<Argument>),
 }
 
 #[derive(Clone, Copy)]
 pub(crate) enum Term {
-    Symbol(Id<Symbol>, u32),
+    Symbol(Id<Symbol>),
+    Arity(u32),
     Reference(Offset<Term>),
+}
+
+impl Term {
+    fn as_symbol(self) -> Id<Symbol> {
+        if let Term::Symbol(symbol) = self {
+            symbol
+        } else {
+            unreachable()
+        }
+    }
+
+    fn as_arity(self) -> u32 {
+        if let Term::Arity(arity) = self {
+            arity
+        } else {
+            unreachable()
+        }
+    }
+
+    fn as_reference(self) -> Offset<Term> {
+        if let Term::Reference(offset) = self {
+            offset
+        } else {
+            unreachable()
+        }
+    }
 }
 
 #[derive(Default)]
@@ -24,12 +52,8 @@ impl Terms {
         self.terms.clear();
     }
 
-    pub(crate) fn len(&self) -> Id<Term> {
-        self.terms.len()
-    }
-
     pub(crate) fn current_offset(&self) -> Offset<Term> {
-        self.len() - Id::default()
+        self.terms.len() - Id::default()
     }
 
     pub(crate) fn extend_from(&mut self, other: &Self) {
@@ -47,26 +71,35 @@ impl Terms {
         args: &[Id<Term>],
     ) -> Id<Term> {
         let id = self.terms.len();
-        self.terms.push(Term::Symbol(symbol, args.len() as u32));
+        self.terms.push(Term::Symbol(symbol));
+        self.terms.push(Term::Arity(args.len() as u32));
         for arg in args {
             self.add_reference(*arg);
         }
         id
     }
 
-    pub(crate) fn view(&self, id: Id<Term>) -> (Id<Term>, TermView) {
-        let id = self.resolve_reference(id);
-        (id, self.view_no_ref(id))
+    pub(crate) fn resolve(&self, argument: Id<Argument>) -> Id<Term> {
+        let id = argument.transmute();
+        id + self.terms[id].as_reference()
     }
 
-    fn view_no_ref(&self, id: Id<Term>) -> TermView {
+    pub(crate) fn view(&self, mut id: Id<Term>) -> TermView {
         match self.terms[id] {
-            Term::Symbol(symbol, arity) => {
-                let args = Range::new_with_len(id, arity);
+            Term::Symbol(symbol) => {
+                id = id + Offset::new(1);
+                let arity = self.terms[id].as_arity();
+                id = id + Offset::new(1);
+                let args = Range::new_with_len(id.transmute(), arity);
                 TermView::Function(symbol, args)
             }
             Term::Reference(_) => TermView::Variable(id.transmute()),
+            _ => unreachable(),
         }
+    }
+
+    pub(crate) fn symbol(&self, id: Id<Term>) -> Id<Symbol> {
+        self.terms[id].as_symbol()
     }
 
     fn add_reference(&mut self, referred: Id<Term>) -> Id<Term> {
@@ -75,18 +108,11 @@ impl Terms {
         self.terms.push(Term::Reference(offset));
         id
     }
-
-    fn resolve_reference(&self, id: Id<Term>) -> Id<Term> {
-        match self.terms[id] {
-            Term::Reference(offset) => id + offset,
-            _ => id,
-        }
-    }
 }
 
 impl Clone for Terms {
     fn clone(&self) -> Self {
-        unreachable!()
+        unreachable()
     }
 
     fn clone_from(&mut self, other: &Self) {

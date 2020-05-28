@@ -37,22 +37,19 @@ impl Atom {
     pub(crate) fn get_predicate(&self) -> Id<Term> {
         match self {
             Atom::Predicate(p) => *p,
-            _ => unreachable!("predicate term of non-predicate"),
+            _ => unreachable(),
         }
     }
 
     pub(crate) fn get_equality(&self) -> (Id<Term>, Id<Term>) {
         match self {
             Atom::Equality(left, right) => (*left, *right),
-            _ => unreachable!("equality term of non-equality"),
+            _ => unreachable(),
         }
     }
 
     pub(crate) fn get_predicate_symbol(&self, terms: &Terms) -> Id<Symbol> {
-        match terms.view(self.get_predicate()) {
-            (_, TermView::Function(p, _)) => p,
-            _ => unreachable!("non-function predicate symbol"),
-        }
+        terms.symbol(self.get_predicate())
     }
 
     pub(crate) fn add_positive_constraints(&self, solver: &mut Solver) {

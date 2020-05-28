@@ -110,9 +110,14 @@ impl ProblemBuilder {
 
         let problem_clause = self.problem.clauses.len();
         let literal = self.saved_literals.len();
-        let position = Position { problem_clause, literal };
+        let position = Position {
+            problem_clause,
+            literal,
+        };
         let key = PredicateQuery { polarity, symbol };
-        self.problem.predicates.entry(key)
+        self.problem
+            .predicates
+            .entry(key)
             .or_default()
             .push(position);
         self.saved_literals.push(Literal::new(polarity, atom));

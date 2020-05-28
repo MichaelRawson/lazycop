@@ -7,6 +7,10 @@ fn print_symbol(symbols: &Block<Symbol>, symbol: Id<Symbol>) {
     print!("{}", &symbols[symbol].name);
 }
 
+fn print_variable(variable_map: &mut Fresh, x: Id<Variable>) {
+    print!("X{}", variable_map.get(x));
+}
+
 fn print_term(
     variable_map: &mut Fresh,
     symbols: &Block<Symbol>,
@@ -14,17 +18,17 @@ fn print_term(
     term: Id<Term>,
 ) {
     match terms.view(term) {
-        (_, TermView::Variable(x)) => {
-            print!("X{}", variable_map.get(x));
-        }
-        (_, TermView::Function(symbol, mut args)) => {
+        TermView::Variable(x) => print_variable(variable_map, x),
+        TermView::Function(symbol, mut args) => {
             print_symbol(symbols, symbol);
             if let Some(first) = args.next() {
                 print!("(");
+                let first = terms.resolve(first);
                 print_term(variable_map, symbols, terms, first);
                 for arg in args {
                     print!(",");
-                    print_term(variable_map, symbols, terms, arg);
+                    let term = terms.resolve(arg);
+                    print_term(variable_map, symbols, terms, term);
                 }
                 print!(")");
             }
@@ -86,15 +90,30 @@ pub(crate) struct TSTP {
 }
 
 impl TSTP {
-    fn assumption(&mut self) {
+    fn start_clause(&self, role: &'static str) {
+        print!("cnf(c{}, {},\n\t", self.clause_number, role);
+    }
+
+    fn assumption(
+        &mut self,
+        symbols: &Block<Symbol>,
+        terms: &Terms,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) {
+        print!("cnf(a{}, assumption, ", self.assumption_number);
+        print_term(&mut self.variable_map, symbols, terms, left);
+        print!(" = ");
+        print_term(&mut self.variable_map, symbols, terms, right);
+        println!(").");
         self.assumption_number += 1;
     }
 
     fn push(&mut self, clause: &Clause) {
         if !clause.is_empty() {
             self.clause_stack.push(self.clause_number);
-            self.clause_number += 1;
         }
+        self.clause_number += 1;
     }
 
     fn pop(&mut self) -> usize {
@@ -110,7 +129,7 @@ impl Record for TSTP {
         literals: &Block<Literal>,
         clause: &Clause,
     ) {
-        print!("cnf(c{}, axiom, ", self.clause_number);
+        self.start_clause("axiom");
         print_literals(
             &mut self.variable_map,
             symbols,
@@ -120,6 +139,10 @@ impl Record for TSTP {
         );
         println!(").");
         self.push(clause);
+    }
+
+    fn start(&mut self) {
+        println!();
     }
 
     fn predicate_reduction(
@@ -132,13 +155,8 @@ impl Record for TSTP {
         right: Id<Term>,
     ) {
         let parent = self.pop();
-        print!("cnf(a{}, assumption, ", self.assumption_number);
-        print_term(&mut self.variable_map, symbols, terms, left);
-        print!(" = ");
-        print_term(&mut self.variable_map, symbols, terms, right);
-        println!(").");
-        self.assumption();
-        print!("cnf(c{}, plain, ", self.clause_number);
+        self.assumption(symbols, terms, left, right);
+        self.start_clause("plain");
         print_literals(
             &mut self.variable_map,
             symbols,
@@ -148,7 +166,7 @@ impl Record for TSTP {
         );
         self.push(clause);
         println!(
-            ", inference(predicate_reduction, [assumptions([a{}])], [c{}])).",
+            ",\n\tinference(predicate_reduction, [assumptions([a{}])], [c{}])).\n",
             self.assumption_number - 1,
             parent
         );
@@ -164,7 +182,7 @@ impl Record for TSTP {
     ) {
         let copy = self.pop();
         let parent = self.pop();
-        print!("cnf(c{}, plain, ", self.clause_number);
+        self.start_clause("plain");
         print_literals(
             &mut self.variable_map,
             symbols,
@@ -182,7 +200,7 @@ impl Record for TSTP {
             parent, copy
         );
 
-        print!("cnf(c{}, plain, ", self.clause_number);
+        self.start_clause("plain");
         print_literals(
             &mut self.variable_map,
             symbols,
@@ -191,7 +209,7 @@ impl Record for TSTP {
             new_clause.open(),
         );
         println!(
-            ", inference(predicate_extension, [], [c{}, c{}])).",
+            ",\n\tinference(predicate_extension, [], [c{}, c{}])).\n",
             parent, copy
         );
         self.push(new_clause);
@@ -207,14 +225,8 @@ impl Record for TSTP {
         right: Id<Term>,
     ) {
         let parent = self.pop();
-        print!("cnf(a{}, assumption, ", self.assumption_number);
-        print_term(&mut self.variable_map, symbols, terms, left);
-        print!(" = ");
-        print_term(&mut self.variable_map, symbols, terms, right);
-        println!(").");
-        self.assumption();
-
-        print!("cnf(c{}, plain, ", self.clause_number);
+        self.assumption(symbols, terms, left, right);
+        self.start_clause("plain");
         print_literals(
             &mut self.variable_map,
             symbols,
@@ -224,9 +236,40 @@ impl Record for TSTP {
         );
         self.push(clause);
         println!(
-            ", inference(reflexivity, [assumptions([a{}])], [c{}])).",
+            ",\n\tinference(reflexivity, [assumptions([a{}])], [c{}])).\n",
             self.assumption_number - 1,
             parent
         );
+    }
+
+    fn unification<I: Iterator<Item = (Id<Variable>, Id<Term>)>>(
+        &mut self,
+        symbols: &Block<Symbol>,
+        terms: &Terms,
+        bindings: I,
+    ) {
+        self.start_clause("plain");
+        print!("$false,\n\tinference(constraint_solving, [\n\t\t");
+        let mut first_bind = true;
+        for (x, term) in bindings {
+            if !first_bind {
+                print!(",\n\t\t");
+            }
+            print!("bind(");
+            print_variable(&mut self.variable_map, x);
+            print!(", ");
+            print_term(&mut self.variable_map, symbols, terms, term);
+            print!(")");
+            first_bind = false;
+        }
+
+        print!("\n\t],\n\t[");
+        if self.assumption_number > 0 {
+            print!("a0");
+        }
+        for number in 1..self.assumption_number {
+            print!(", a{}", number);
+        }
+        println!("])).");
     }
 }

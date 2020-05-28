@@ -20,7 +20,7 @@ pub(crate) fn astar(
     }
 
     let mut script = VecDeque::new();
-    let mut record = Silent; //crate::io::tptp::TPTPProof::default();
+    let mut record = Silent; //crate::io::tstp::TSTP::default();
     while let Some(rule_list) = queue.dequeue() {
         script.clear();
         saved.clear();
@@ -32,9 +32,10 @@ pub(crate) fn astar(
             tableau.apply_rule(&mut record, *rule);
         }
 
-        saved.clone_from(&tableau);
-        tableau.possible_rules(&mut possible);
         assert!(tableau.solve_constraints_fast());
+        saved.clone_from(&tableau);
+
+        tableau.possible_rules(&mut possible);
         for rule in possible.drain() {
             tableau.apply_rule(&mut record, rule);
             if tableau.solve_constraints_correct() {

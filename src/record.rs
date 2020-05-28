@@ -11,6 +11,8 @@ pub(crate) trait Record {
     ) {
     }
 
+    fn start(&mut self) {}
+
     fn predicate_reduction(
         &mut self,
         _symbols: &Block<Symbol>,
@@ -43,15 +45,13 @@ pub(crate) trait Record {
     ) {
     }
 
-    /*
-    fn unification(
+    fn unification<I: Iterator<Item = (Id<Variable>, Id<Term>)>>(
         &mut self,
-        _literals: &Block<Symbol>,
+        _symbols: &Block<Symbol>,
         _terms: &Terms,
-        _bindings: &IdMap<Variable, Option<Id<Term>>>,
+        _bindings: I,
     ) {
     }
-    */
 }
 
 pub(crate) struct Silent;

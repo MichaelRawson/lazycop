@@ -65,19 +65,17 @@ impl<'problem> Tableau<'problem> {
     }
 
     pub(crate) fn record_unification<R: Record>(&mut self, record: &mut R) {
-        /*
         record.unification(
             &self.problem.symbols,
             &self.terms,
-            &self.solver.bindings,
+            self.solver.bindings(),
         );
-        */
     }
 }
 
 impl<'problem> Clone for Tableau<'problem> {
     fn clone(&self) -> Self {
-        unreachable!()
+        unreachable()
     }
 
     fn clone_from(&mut self, other: &Self) {

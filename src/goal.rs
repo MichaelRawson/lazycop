@@ -109,12 +109,16 @@ impl Goal {
         terms: &Terms,
         literals: &Block<Literal>,
     ) {
-        let clause = self.stack.last().unwrap();
-        for path in self.path_literals().map(|id| &literals[id]) {
-            for open in clause.open().map(|id| &literals[id]) {
-                if path.polarity == open.polarity {
-                    path.add_disequation_constraints(solver, terms, &open);
-                }
+        let mut path = self.path_literals().map(|id| &literals[id]);
+        let first = path.next().unwrap();
+        for other in path {
+            if first.polarity == other.polarity {
+                first.add_disequation_constraints(solver, terms, &other);
+            }
+        }
+        for other in self.ancestor_literals().map(|id| &literals[id]) {
+            if first.polarity != other.polarity {
+                first.add_disequation_constraints(solver, terms, &other);
             }
         }
     }
@@ -249,7 +253,7 @@ impl Goal {
 
 impl Clone for Goal {
     fn clone(&self) -> Self {
-        unreachable!()
+        unreachable()
     }
 
     fn clone_from(&mut self, other: &Self) {
