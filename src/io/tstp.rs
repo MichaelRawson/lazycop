@@ -188,15 +188,15 @@ impl Record for TSTP {
             symbols,
             terms,
             literals,
-            clause.remaining(),
+            clause.open(),
         );
-        if !Range::is_empty(clause.remaining()) {
+        if !Range::is_empty(clause.open()) {
             self.push(clause);
         } else {
             self.clause_number += 1;
         }
         println!(
-            ", inference(predicate_extension, [], [c{}, c{}])).",
+            ",\n\tinference(predicate_extension, [], [c{}, c{}])).",
             parent, copy
         );
 

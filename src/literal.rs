@@ -17,10 +17,6 @@ impl Literal {
         self.atom.offset(offset);
     }
 
-    pub(crate) fn invert(&mut self) {
-        self.polarity = !self.polarity;
-    }
-
     pub(crate) fn is_predicate(&self) -> bool {
         self.atom.is_predicate()
     }

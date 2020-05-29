@@ -2,15 +2,14 @@ use crate::occurs;
 use crate::occurs::Occurs;
 use crate::prelude::*;
 use crate::util::disjoint_set::{Disjoint, Set};
-use fnv::FnvHashMap;
 
 #[derive(Default)]
 pub(crate) struct Solver {
     equations: Vec<(Id<Term>, Id<Term>)>,
     disequations: Vec<(Id<Term>, Id<Term>)>,
     aliases: Disjoint,
-    to_alias: FnvHashMap<Id<Variable>, Id<Set>>,
-    from_alias: FnvHashMap<Id<Set>, Id<Term>>,
+    to_alias: Block<Option<Id<Set>>>,
+    from_alias: Block<Id<Term>>,
 }
 
 impl Solver {
@@ -41,33 +40,38 @@ impl Solver {
         let from_alias = &self.from_alias;
         let aliases = &mut self.aliases;
         to_alias
-            .iter()
+            .into_iter()
+            .filter_map(move |id| {
+                to_alias[id].map(|alias| (id.transmute(), alias))
+            })
             .map(move |(x, alias)| {
-                let alias = aliases.find(*alias);
-                let term = from_alias[&alias];
-                (*x, term)
+                let alias = aliases.find(alias);
+                let term = from_alias[alias.transmute()];
+                (x, term)
             })
             .filter(|(x, term)| x.transmute() != *term)
     }
 
     pub(crate) fn solve_fast(&mut self, terms: &Terms) -> bool {
-        self.solve::<occurs::SkipCheck>(terms)
-    }
-
-    pub(crate) fn solve_correct(&mut self, terms: &Terms) -> bool {
-        self.solve::<occurs::Check>(terms)
-    }
-
-    fn solve<O: Occurs>(&mut self, terms: &Terms) -> bool {
-        for index in 0..self.equations.len() {
-            let (left, right) = self.equations[index];
-            if !self.solve_equation::<O>(terms, left, right) {
+        self.to_alias
+            .resize(terms.as_ref().len().transmute() + Offset::new(1));
+        while let Some((left, right)) = self.equations.pop() {
+            if !self.solve_equation::<occurs::SkipCheck>(terms, left, right) {
                 return false;
             }
         }
+        true
+    }
 
-        for index in 0..self.disequations.len() {
-            let (left, right) = self.disequations[index];
+    pub(crate) fn solve_correct(&mut self, terms: &Terms) -> bool {
+        self.to_alias
+            .resize(terms.as_ref().len().transmute() + Offset::new(1));
+        while let Some((left, right)) = self.equations.pop() {
+            if !self.solve_equation::<occurs::Check>(terms, left, right) {
+                return false;
+            }
+        }
+        while let Some((left, right)) = self.disequations.pop() {
             if self.check_disequation(terms, left, right) {
                 return false;
             }
@@ -118,6 +122,32 @@ impl Solver {
         }
     }
 
+    pub(crate) fn check_equation(
+        &mut self,
+        terms: &Terms,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) -> bool {
+        let (left, lview) = self.lookup(terms, left);
+        let (right, rview) = self.lookup(terms, right);
+        if left == right {
+            return true;
+        }
+        match (lview, rview) {
+            (TermView::Variable(_), TermView::Variable(_)) => true,
+            (TermView::Variable(x), _) => !self.occurs(terms, x, right),
+            (_, TermView::Variable(x)) => !self.occurs(terms, x, left),
+            (TermView::Function(f, ts), TermView::Function(g, ss))
+                if f == g =>
+            {
+                ts.zip(ss)
+                    .map(|(t, s)| (terms.resolve(t), terms.resolve(s)))
+                    .all(|(t, s)| self.check_equation(terms, t, s))
+            }
+            (TermView::Function(_, _), TermView::Function(_, _)) => false,
+        }
+    }
+
     fn check_disequation(
         &mut self,
         terms: &Terms,
@@ -163,15 +193,16 @@ impl Solver {
     ) -> (Id<Term>, TermView) {
         match terms.view(term) {
             TermView::Variable(x) => {
-                if let Some(alias) = self.to_alias.get(&x) {
-                    let alias = self.aliases.find(*alias);
-                    let term = self.from_alias[&alias];
+                if let Some(alias) = self.to_alias[x.transmute()] {
+                    let alias = self.aliases.find(alias);
+                    let term = self.from_alias[alias.transmute()];
                     (term, terms.view(term))
                 } else {
                     let alias = self.aliases.singleton();
-                    self.to_alias.insert(x, alias);
+                    self.to_alias[x.transmute()] = Some(alias);
                     let term = x.transmute();
-                    self.from_alias.insert(alias, term);
+                    self.from_alias.resize(alias.transmute() + Offset::new(1));
+                    self.from_alias[alias.transmute()] = term;
                     (term, TermView::Variable(x))
                 }
             }
@@ -180,14 +211,14 @@ impl Solver {
     }
 
     fn alias(&mut self, x: Id<Variable>, y: Id<Variable>) {
-        let x_alias = self.to_alias[&x];
-        let y_alias = self.to_alias[&y];
+        let x_alias = self.to_alias[x.transmute()].unwrap();
+        let y_alias = self.to_alias[y.transmute()].unwrap();
         self.aliases.merge(x_alias, y_alias);
     }
 
     fn bind(&mut self, x: Id<Variable>, term: Id<Term>) {
-        let alias = self.to_alias[&x];
-        self.from_alias.insert(alias, term);
+        let alias = self.to_alias[x.transmute()].unwrap();
+        self.from_alias[alias.transmute()] = term;
     }
 }
 

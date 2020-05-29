@@ -3,7 +3,6 @@ use crate::record::Silent;
 use crate::tableau::Tableau;
 use crate::util::list::List;
 use crate::util::queue::Queue;
-use fnv::FnvHashSet;
 use std::collections::VecDeque;
 
 pub(crate) fn astar(
@@ -13,9 +12,9 @@ pub(crate) fn astar(
     let mut saved = Tableau::new(problem);
     let mut tableau = Tableau::new(problem);
 
-    let mut possible = FnvHashSet::default();
+    let mut possible = vec![];
     tableau.possible_rules(&mut possible);
-    for rule in possible.drain() {
+    for rule in possible.drain(..) {
         queue.enqueue(List::new(rule), 0);
     }
 
@@ -36,7 +35,9 @@ pub(crate) fn astar(
         saved.clone_from(&tableau);
 
         tableau.possible_rules(&mut possible);
-        for rule in possible.drain() {
+        possible.sort();
+        possible.dedup();
+        for rule in possible.drain(..) {
             tableau.apply_rule(&mut record, rule);
             if tableau.solve_constraints_correct() {
                 if tableau.is_closed() {

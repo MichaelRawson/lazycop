@@ -48,10 +48,6 @@ pub(crate) struct Terms {
 }
 
 impl Terms {
-    pub(crate) fn clear(&mut self) {
-        self.terms.clear();
-    }
-
     pub(crate) fn current_offset(&self) -> Offset<Term> {
         self.terms.len() - Id::default()
     }
@@ -117,5 +113,17 @@ impl Clone for Terms {
 
     fn clone_from(&mut self, other: &Self) {
         self.terms.clone_from(&other.terms);
+    }
+}
+
+impl AsRef<Block<Term>> for Terms {
+    fn as_ref(&self) -> &Block<Term> {
+        &self.terms
+    }
+}
+
+impl AsMut<Block<Term>> for Terms {
+    fn as_mut(&mut self) -> &mut Block<Term> {
+        &mut self.terms
     }
 }

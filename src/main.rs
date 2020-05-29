@@ -1,4 +1,5 @@
 #![type_length_limit = "10000000"]
+#![allow(clippy::too_many_arguments)]
 
 mod atom;
 mod clause;

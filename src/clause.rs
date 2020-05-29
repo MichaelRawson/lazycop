@@ -32,10 +32,6 @@ impl Clause {
         Range::new(self.start, self.current)
     }
 
-    pub(crate) fn remaining(self) -> Range<Literal> {
-        Range::new(self.current + Offset::new(1), self.end)
-    }
-
     pub(crate) fn current_literal(self) -> Id<Literal> {
         self.current
     }
@@ -77,7 +73,6 @@ impl Clause {
         record.predicate_reduction(symbols, terms, literals, &self, p, q);
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn predicate_extension<R: Record>(
         &mut self,
         record: &mut R,
@@ -99,7 +94,7 @@ impl Clause {
             problem_clause,
         );
 
-        let p = literals[self.current].get_predicate();
+        let p = literals[self.close_literal()].get_predicate();
         let q = literals[matching_literal].get_predicate();
         let disequation = Literal::new(false, Atom::Equality(p, q));
         literals[matching_literal] = disequation;

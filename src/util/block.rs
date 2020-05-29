@@ -27,6 +27,12 @@ impl<T> Block<T> {
     }
 }
 
+impl<T: Default> Block<T> {
+    pub(crate) fn resize(&mut self, len: Id<T>) {
+        self.items.resize_with(len.as_usize(), Default::default);
+    }
+}
+
 impl<T> AsRef<[T]> for Block<T> {
     fn as_ref(&self) -> &[T] {
         self.items.as_ref()
@@ -70,15 +76,24 @@ impl<T> Index<Id<T>> for Block<T> {
 
     fn index(&self, id: Id<T>) -> &Self::Output {
         let index = id.as_usize();
+        debug_assert!(index < self.items.len(), "out of range");
         unsafe { self.items.get_unchecked(index) }
-        //&self.items[index]
     }
 }
 
 impl<T> IndexMut<Id<T>> for Block<T> {
     fn index_mut(&mut self, id: Id<T>) -> &mut Self::Output {
         let index = id.as_usize();
+        debug_assert!(index < self.items.len(), "out of range");
         unsafe { self.items.get_unchecked_mut(index) }
-        //&mut self.items[index]
+    }
+}
+
+impl<T> IntoIterator for &Block<T> {
+    type Item = Id<T>;
+    type IntoIter = Range<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Range::new(Id::default(), self.len())
     }
 }

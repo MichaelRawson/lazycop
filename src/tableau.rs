@@ -32,7 +32,7 @@ impl<'problem> Tableau<'problem> {
     }
 
     pub(crate) fn clear(&mut self) {
-        self.terms.clear();
+        self.terms.as_mut().clear();
         self.goal.clear();
         self.solver.clear();
     }
@@ -51,9 +51,16 @@ impl<'problem> Tableau<'problem> {
         );
     }
 
-    pub(crate) fn possible_rules<E: Extend<Rule>>(&self, possible: &mut E) {
-        self.goal
-            .possible_rules(possible, &self.problem, &self.terms);
+    pub(crate) fn possible_rules<E: Extend<Rule>>(
+        &mut self,
+        possible: &mut E,
+    ) {
+        self.goal.possible_rules(
+            possible,
+            &self.problem,
+            &mut self.solver,
+            &self.terms,
+        );
     }
 
     pub(crate) fn solve_constraints_fast(&mut self) -> bool {
