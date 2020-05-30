@@ -53,8 +53,7 @@ impl Solver {
     }
 
     pub(crate) fn solve_fast(&mut self, terms: &Terms) -> bool {
-        self.to_alias
-            .resize(terms.as_ref().len().transmute() + Offset::new(1));
+        self.to_alias.resize(terms.as_ref().len().transmute());
         while let Some((left, right)) = self.equations.pop() {
             if !self.solve_equation::<occurs::SkipCheck>(terms, left, right) {
                 return false;
@@ -64,8 +63,7 @@ impl Solver {
     }
 
     pub(crate) fn solve_correct(&mut self, terms: &Terms) -> bool {
-        self.to_alias
-            .resize(terms.as_ref().len().transmute() + Offset::new(1));
+        self.to_alias.resize(terms.as_ref().len().transmute());
         while let Some((left, right)) = self.equations.pop() {
             if !self.solve_equation::<occurs::Check>(terms, left, right) {
                 return false;
@@ -201,7 +199,8 @@ impl Solver {
                     let alias = self.aliases.singleton();
                     self.to_alias[x.transmute()] = Some(alias);
                     let term = x.transmute();
-                    self.from_alias.resize(alias.transmute() + Offset::new(1));
+                    self.from_alias
+                        .resize(self.aliases.as_ref().len().transmute());
                     self.from_alias[alias.transmute()] = term;
                     (term, TermView::Variable(x))
                 }
@@ -211,13 +210,13 @@ impl Solver {
     }
 
     fn alias(&mut self, x: Id<Variable>, y: Id<Variable>) {
-        let x_alias = self.to_alias[x.transmute()].unwrap();
-        let y_alias = self.to_alias[y.transmute()].unwrap();
+        let x_alias = some(self.to_alias[x.transmute()]);
+        let y_alias = some(self.to_alias[y.transmute()]);
         self.aliases.merge(x_alias, y_alias);
     }
 
     fn bind(&mut self, x: Id<Variable>, term: Id<Term>) {
-        let alias = self.to_alias[x.transmute()].unwrap();
+        let alias = some(self.to_alias[x.transmute()]);
         self.from_alias[alias.transmute()] = term;
     }
 }

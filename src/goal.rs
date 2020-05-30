@@ -49,9 +49,9 @@ impl Goal {
                 }
             }
             Rule::Reduction(reduction) => {
-                self.stack.last_mut().unwrap().predicate_reduction(
+                some(self.stack.last_mut()).predicate_reduction(
                     record,
-                    &problem.symbols,
+                    &problem.signature(),
                     terms,
                     &self.literals,
                     solver,
@@ -62,7 +62,7 @@ impl Goal {
             Rule::PredicateExtension(extension) => {
                 self.add_regularity_constraints(solver, terms, &self.literals);
                 let new_clause =
-                    self.stack.last_mut().unwrap().predicate_extension(
+                    some(self.stack.last_mut()).predicate_extension(
                         record,
                         problem,
                         terms,
@@ -74,9 +74,9 @@ impl Goal {
                 self.stack.push(new_clause);
             }
             Rule::Reflexivity => {
-                self.stack.last_mut().unwrap().reflexivity(
+                some(self.stack.last_mut()).reflexivity(
                     record,
-                    &problem.symbols,
+                    &problem.signature(),
                     terms,
                     &self.literals,
                     solver,
@@ -87,8 +87,7 @@ impl Goal {
     }
 
     fn close_branches(&mut self) {
-        while !self.stack.is_empty()
-            && self.stack.last_mut().unwrap().is_empty()
+        while !self.stack.is_empty() && some(self.stack.last_mut()).is_empty()
         {
             self.stack.pop();
         }
@@ -101,7 +100,7 @@ impl Goal {
         literals: &Block<Literal>,
     ) {
         let current =
-            &self.literals[self.stack.last().unwrap().current_literal()];
+            &self.literals[some(self.stack.last()).current_literal()];
         self.path_literals()
             .map(|id| &literals[id])
             .for_each(|path| {
@@ -129,7 +128,6 @@ impl Goal {
                 problem,
                 solver,
                 terms,
-                &self.literals,
                 clause,
             );
         } else {
@@ -156,13 +154,12 @@ impl Goal {
         problem: &Problem,
         solver: &mut Solver,
         terms: &Terms,
-        literals: &Block<Literal>,
         clause: &Clause,
     ) {
-        let literal = &literals[clause.current_literal()];
+        let literal = &self.literals[clause.current_literal()];
         if literal.is_predicate() {
             self.possible_predicate_rules(
-                possible, problem, solver, terms, literals, literal,
+                possible, problem, solver, terms, literal,
             );
         } else if literal.is_equality() {
             self.possible_equality_rules(possible, solver, terms, literal);
@@ -175,11 +172,10 @@ impl Goal {
         problem: &Problem,
         solver: &mut Solver,
         terms: &Terms,
-        literals: &Block<Literal>,
         literal: &Literal,
     ) {
         self.possible_reduction_rules(
-            possible, solver, terms, literals, literal,
+            possible, solver, terms, literal,
         );
         self.possible_predicate_extension_rules(
             possible, problem, terms, literal,
@@ -191,12 +187,12 @@ impl Goal {
         possible: &mut E,
         solver: &mut Solver,
         terms: &Terms,
-        literals: &Block<Literal>,
         literal: &Literal,
     ) {
         let polarity = literal.polarity;
         let term = literal.get_predicate();
         let symbol = literal.get_predicate_symbol(terms);
+        let literals = &self.literals;
 
         let path_literals = self
             .path_literals()
@@ -272,7 +268,7 @@ impl Goal {
     }
 
     fn ancestor_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
-        let current = self.stack.last().unwrap().closed();
+        let current = some(self.stack.last()).closed();
         let past = self
             .stack
             .iter()
@@ -287,13 +283,13 @@ impl Goal {
             .iter()
             .rev()
             .skip(1)
-            .map(|clause| clause.closed().rev().next().unwrap())
+            .map(|clause| some(clause.closed().rev().next()))
     }
 }
 
 impl Clone for Goal {
     fn clone(&self) -> Self {
-        unreachable()
+        unimplemented!()
     }
 
     fn clone_from(&mut self, other: &Self) {

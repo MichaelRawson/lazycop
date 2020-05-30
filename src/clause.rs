@@ -104,7 +104,7 @@ impl Clause {
             solver, terms, literals, &clause,
         );
         record.predicate_extension(
-            &problem.symbols,
+            &problem.signature(),
             terms,
             literals,
             &self,
@@ -148,7 +148,7 @@ impl Clause {
         let clause = Self::new(start, end);
         clause.add_tautology_constraints(solver, terms, literals);
 
-        record.copy(&problem.symbols, terms, literals, &clause);
+        record.copy(&problem.signature(), terms, literals, &clause);
         clause
     }
 

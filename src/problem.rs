@@ -8,12 +8,6 @@ pub(crate) struct ProblemClause {
     terms: Terms,
 }
 
-#[derive(PartialEq, Eq, Hash)]
-struct PredicateQuery {
-    polarity: bool,
-    symbol: Id<Symbol>,
-}
-
 struct Position {
     problem_clause: Id<ProblemClause>,
     literal: Id<Literal>,
@@ -21,13 +15,17 @@ struct Position {
 
 #[derive(Default)]
 pub(crate) struct Problem {
-    pub(crate) symbols: Block<Symbol>,
+    symbols: Block<Symbol>,
     clauses: Block<ProblemClause>,
     start: Vec<Id<ProblemClause>>,
-    predicates: FnvHashMap<PredicateQuery, Vec<Position>>,
+    predicate_positions: [Block<Vec<Position>>; 2],
 }
 
 impl Problem {
+    pub(crate) fn signature(&self) -> &Block<Symbol> {
+        &self.symbols
+    }
+
     pub(crate) fn start_clauses(
         &self,
     ) -> impl Iterator<Item = Id<ProblemClause>> + '_ {
@@ -47,11 +45,7 @@ impl Problem {
         polarity: bool,
         symbol: Id<Symbol>,
     ) -> impl Iterator<Item = (Id<ProblemClause>, Id<Literal>)> + '_ {
-        let key = PredicateQuery { polarity, symbol };
-        self.predicates
-            .get(&key)
-            .map(|x| x.as_slice())
-            .unwrap_or_default()
+        self.predicate_positions[polarity as usize][symbol.transmute()]
             .iter()
             .map(|position| (position.problem_clause, position.literal))
     }
@@ -114,12 +108,11 @@ impl ProblemBuilder {
             problem_clause,
             literal,
         };
-        let key = PredicateQuery { polarity, symbol };
-        self.problem
-            .predicates
-            .entry(key)
-            .or_default()
-            .push(position);
+
+        let predicate_positions =
+            &mut self.problem.predicate_positions[polarity as usize];
+        predicate_positions.resize((self.problem.symbols.len()).transmute());
+        predicate_positions[symbol.transmute()].push(position);
         self.saved_literals.push(Literal::new(polarity, atom));
     }
 

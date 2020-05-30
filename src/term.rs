@@ -108,7 +108,7 @@ impl Terms {
 
 impl Clone for Terms {
     fn clone(&self) -> Self {
-        unreachable()
+        unimplemented!()
     }
 
     fn clone_from(&mut self, other: &Self) {

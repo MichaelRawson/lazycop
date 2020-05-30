@@ -49,7 +49,7 @@ impl Disjoint {
 
 impl Clone for Disjoint {
     fn clone(&self) -> Self {
-        unreachable()
+        unimplemented!()
     }
 
     fn clone_from(&mut self, other: &Self) {
@@ -57,11 +57,8 @@ impl Clone for Disjoint {
     }
 }
 
-/*
-impl<T> Default for Disjoint<T> {
-    fn default() -> Self {
-        let sets = Block::default();
-        Self { sets }
+impl AsRef<Block<Set>> for Disjoint {
+    fn as_ref(&self) -> &Block<Set> {
+        &self.sets
     }
 }
-*/

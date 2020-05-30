@@ -23,6 +23,7 @@ impl<T> Block<T> {
     }
 
     pub(crate) fn swap(&mut self, left: Id<T>, right: Id<T>) {
+
         self.items.swap(left.as_usize(), right.as_usize());
     }
 }
@@ -35,19 +36,19 @@ impl<T: Default> Block<T> {
 
 impl<T> AsRef<[T]> for Block<T> {
     fn as_ref(&self) -> &[T] {
-        &self.items[1..]
+        unsafe { self.items.get_unchecked(1..) }
     }
 }
 
 impl<T> AsMut<[T]> for Block<T> {
     fn as_mut(&mut self) -> &mut [T] {
-        &mut self.items[1..]
+        unsafe { self.items.get_unchecked_mut(1..) }
     }
 }
 
 impl<T: Clone> Clone for Block<T> {
     fn clone(&self) -> Self {
-        unreachable()
+        unimplemented!()
     }
 
     fn clone_from(&mut self, other: &Self) {
