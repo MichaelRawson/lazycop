@@ -61,8 +61,8 @@ impl Goal {
             }
             Rule::PredicateExtension(extension) => {
                 self.add_regularity_constraints(solver, terms, &self.literals);
-                let new_clause =
-                    some(self.stack.last_mut()).predicate_extension(
+                let new_clause = some(self.stack.last_mut())
+                    .predicate_extension(
                         record,
                         problem,
                         terms,
@@ -122,40 +122,7 @@ impl Goal {
         solver: &mut Solver,
         terms: &Terms,
     ) {
-        if let Some(clause) = self.stack.last() {
-            self.possible_nonstart_rules(
-                possible,
-                problem,
-                solver,
-                terms,
-                clause,
-            );
-        } else {
-            self.possible_start_rules(possible, problem);
-        }
-    }
-
-    fn possible_start_rules<E: Extend<Rule>>(
-        &self,
-        possible: &mut E,
-        problem: &Problem,
-    ) {
-        possible.extend(
-            problem
-                .start_clauses()
-                .map(|start_clause| Start { start_clause })
-                .map(Rule::Start),
-        );
-    }
-
-    fn possible_nonstart_rules<E: Extend<Rule>>(
-        &self,
-        possible: &mut E,
-        problem: &Problem,
-        solver: &mut Solver,
-        terms: &Terms,
-        clause: &Clause,
-    ) {
+        let clause = some(self.stack.last());
         let literal = &self.literals[clause.current_literal()];
         if literal.is_predicate() {
             self.possible_predicate_rules(
@@ -174,9 +141,7 @@ impl Goal {
         terms: &Terms,
         literal: &Literal,
     ) {
-        self.possible_reduction_rules(
-            possible, solver, terms, literal,
-        );
+        self.possible_reduction_rules(possible, solver, terms, literal);
         self.possible_predicate_extension_rules(
             possible, problem, terms, literal,
         );

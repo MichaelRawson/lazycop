@@ -21,6 +21,15 @@ mod util;
 fn main() {
     let problem = io::tptp::load_from_stdin();
     let mut queue = util::queue::Queue::default();
+    for start in problem
+        .start_clauses()
+        .map(|start_clause| rule::Start { start_clause })
+        .map(rule::Rule::Start)
+        .map(util::list::List::new)
+    {
+        queue.enqueue(start, 0);
+    }
+
     if let Some(proof) = search::astar(&mut queue, &problem) {
         io::szs::unsatisfiable();
         io::szs::begin_refutation();

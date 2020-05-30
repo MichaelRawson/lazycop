@@ -13,11 +13,6 @@ pub(crate) fn astar(
     let mut tableau = Tableau::new(problem);
 
     let mut possible = vec![];
-    tableau.possible_rules(&mut possible);
-    for rule in possible.drain(..) {
-        queue.enqueue(List::new(rule), 0);
-    }
-
     let mut script = VecDeque::new();
     let mut record = Silent; //crate::io::tstp::TSTP::default();
     while let Some(rule_list) = queue.dequeue() {
