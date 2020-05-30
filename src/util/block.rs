@@ -8,11 +8,11 @@ pub(crate) struct Block<T> {
 
 impl<T> Block<T> {
     pub(crate) fn clear(&mut self) {
-        self.items.clear();
+        self.items.truncate(1);
     }
 
     pub(crate) fn len(&self) -> Id<T> {
-        let index = self.items.len() as u32;
+        let index = non_zero(self.items.len() as u32);
         Id::new(index)
     }
 
@@ -35,13 +35,13 @@ impl<T: Default> Block<T> {
 
 impl<T> AsRef<[T]> for Block<T> {
     fn as_ref(&self) -> &[T] {
-        self.items.as_ref()
+        &self.items[1..]
     }
 }
 
 impl<T> AsMut<[T]> for Block<T> {
     fn as_mut(&mut self) -> &mut [T] {
-        self.items.as_mut()
+        &mut self.items[1..]
     }
 }
 
@@ -57,7 +57,9 @@ impl<T: Clone> Clone for Block<T> {
 
 impl<T> Default for Block<T> {
     fn default() -> Self {
-        let items = vec![];
+        let placeholder = std::mem::MaybeUninit::zeroed();
+        let placeholder = unsafe { placeholder.assume_init() };
+        let items = vec![placeholder];
         Self { items }
     }
 }

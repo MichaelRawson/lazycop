@@ -2,21 +2,22 @@ use crate::prelude::*;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
+use std::num::NonZeroU32;
 use std::ops::{Add, Sub};
 
 pub(crate) struct Id<T> {
-    id: u32,
+    id: NonZeroU32,
     _phantom: PhantomData<T>,
 }
 
 impl<T> Id<T> {
-    pub(super) fn new(id: u32) -> Self {
+    pub(super) fn new(id: NonZeroU32) -> Self {
         let _phantom = PhantomData;
         Self { id, _phantom }
     }
 
     pub(crate) fn as_usize(self) -> usize {
-        self.id as usize
+        self.id.get() as usize
     }
 
     pub(crate) fn transmute<S>(self) -> Id<S> {
@@ -30,7 +31,7 @@ impl<T> Add<Offset<T>> for Id<T> {
     type Output = Self;
 
     fn add(self, rhs: Offset<T>) -> Self {
-        Self::new((self.id as i32 + rhs.offset) as u32)
+        Self::new(non_zero((self.id.get() as i32 + rhs.offset) as u32))
     }
 }
 
@@ -38,7 +39,7 @@ impl<T> Sub for Id<T> {
     type Output = Offset<T>;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Offset::new(self.id as i32 - rhs.id as i32)
+        Offset::new(self.id.get() as i32 - rhs.id.get() as i32)
     }
 }
 
@@ -52,9 +53,8 @@ impl<T> Copy for Id<T> {}
 
 impl<T> Default for Id<T> {
     fn default() -> Self {
-        let id = 0;
-        let _phantom = PhantomData;
-        Self { id, _phantom }
+        let id = non_zero(1);
+        Self::new(id)
     }
 }
 

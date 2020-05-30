@@ -7,4 +7,4 @@ pub(crate) use crate::util::block::*;
 pub(crate) use crate::util::id::*;
 pub(crate) use crate::util::offset::*;
 pub(crate) use crate::util::range::*;
-pub(crate) use crate::util::unreachable::unreachable;
+pub(crate) use crate::util::unreachable::{non_zero, unreachable};
