@@ -28,15 +28,32 @@ impl Term {
 #[derive(Default)]
 pub(crate) struct Terms {
     terms: Block<Term>,
+    save: Id<Term>
 }
 
 impl Terms {
+    pub(crate) fn len(&self) -> Id<Term> {
+        self.terms.len()
+    }
+
     pub(crate) fn current_offset(&self) -> Offset<Term> {
         self.terms.len() - Id::default()
     }
 
-    pub(crate) fn extend_from(&mut self, other: &Self) {
-        self.terms.extend(other.terms.as_ref().iter().copied());
+    pub(crate) fn clear(&mut self) {
+        self.terms.clear();
+    }
+
+    pub(crate) fn save(&mut self) {
+        self.save = self.terms.len();
+    }
+
+    pub(crate) fn restore(&mut self) {
+        self.terms.truncate(self.save);
+    }
+
+    pub(crate) fn extend(&mut self, other: &Self) {
+        self.terms.extend(&other.terms);
     }
 
     pub(crate) fn is_variable(&mut self, term: Id<Term>) -> bool {
@@ -111,6 +128,19 @@ impl Terms {
         }
     }
 
+    pub(crate) fn proper_subterms<F: FnMut(Id<Term>)>(
+        &self,
+        symbols: &Symbols,
+        term: Id<Term>,
+        f: &mut F,
+    ) {
+        if let TermView::Function(_, args) = self.view(symbols, term) {
+            for subterm in args.map(|arg| self.resolve(arg)) {
+                self.subterms(symbols, subterm, f);
+            }
+        }
+    }
+
     pub(crate) fn resolve(&self, argument: Id<Argument>) -> Id<Term> {
         let id = argument.transmute();
         id + self.terms[id].as_offset()
@@ -137,27 +167,5 @@ impl Terms {
         let offset = referred - id;
         let term = Term { offset };
         self.terms.push(term)
-    }
-}
-
-impl Clone for Terms {
-    fn clone(&self) -> Self {
-        unimplemented!()
-    }
-
-    fn clone_from(&mut self, other: &Self) {
-        self.terms.clone_from(&other.terms);
-    }
-}
-
-impl AsRef<Block<Term>> for Terms {
-    fn as_ref(&self) -> &Block<Term> {
-        &self.terms
-    }
-}
-
-impl AsMut<Block<Term>> for Terms {
-    fn as_mut(&mut self) -> &mut Block<Term> {
-        &mut self.terms
     }
 }

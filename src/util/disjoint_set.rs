@@ -12,8 +12,16 @@ pub(crate) struct Disjoint {
 }
 
 impl Disjoint {
+    pub(crate) fn len(&self) -> Id<Set> {
+        self.sets.len()
+    }
+
     pub(crate) fn clear(&mut self) {
         self.sets.clear();
+    }
+
+    pub(crate) fn copy_from(&mut self, other: &Self) {
+        self.sets.copy_from(&other.sets);
     }
 
     pub(crate) fn singleton(&mut self) -> Id<Set> {
@@ -52,13 +60,4 @@ impl Clone for Disjoint {
         unimplemented!()
     }
 
-    fn clone_from(&mut self, other: &Self) {
-        self.sets.clone_from(&other.sets);
-    }
-}
-
-impl AsRef<Block<Set>> for Disjoint {
-    fn as_ref(&self) -> &Block<Set> {
-        &self.sets
-    }
 }

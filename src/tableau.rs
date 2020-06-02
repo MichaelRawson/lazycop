@@ -23,18 +23,30 @@ impl<'problem> Tableau<'problem> {
         }
     }
 
+    pub(crate) fn clear(&mut self) {
+        self.terms.clear();
+        self.goal.clear();
+        self.solver.clear();
+    }
+
+    pub(crate) fn save(&mut self) {
+        self.terms.save();
+        self.goal.save();
+        self.solver.save();
+    }
+
+    pub(crate) fn restore(&mut self) {
+        self.terms.restore();
+        self.goal.restore();
+        self.solver.restore();
+    }
+
     pub(crate) fn is_closed(&self) -> bool {
         self.goal.is_empty()
     }
 
     pub(crate) fn num_open_branches(&self) -> u32 {
         self.goal.num_open_branches()
-    }
-
-    pub(crate) fn clear(&mut self) {
-        self.terms.as_mut().clear();
-        self.goal.clear();
-        self.solver.clear();
     }
 
     pub(crate) fn apply_rule<R: Record>(
@@ -56,14 +68,12 @@ impl<'problem> Tableau<'problem> {
             .possible_rules(possible, &self.problem, &self.terms);
     }
 
-    pub(crate) fn solve_constraints_fast(&mut self) -> bool {
-        self.solver
-            .solve_fast(self.problem.signature(), &self.terms)
+    pub(crate) fn simplify_constraints(&mut self) -> bool {
+        self.solver.simplify(self.problem.signature(), &self.terms)
     }
 
-    pub(crate) fn solve_constraints_correct(&mut self) -> bool {
-        self.solver
-            .solve_correct(self.problem.signature(), &self.terms)
+    pub(crate) fn solve_constraints(&mut self) -> bool {
+        self.solver.solve(self.problem.signature(), &self.terms)
     }
 
     pub(crate) fn record_unification<R: Record>(&mut self, record: &mut R) {
@@ -72,17 +82,5 @@ impl<'problem> Tableau<'problem> {
             &self.terms,
             self.solver.bindings(),
         );
-    }
-}
-
-impl<'problem> Clone for Tableau<'problem> {
-    fn clone(&self) -> Self {
-        unimplemented!()
-    }
-
-    fn clone_from(&mut self, other: &Self) {
-        self.terms.clone_from(&other.terms);
-        self.goal.clone_from(&other.goal);
-        self.solver.clone_from(&other.solver);
     }
 }

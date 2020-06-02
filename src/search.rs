@@ -9,7 +9,6 @@ pub(crate) fn astar(
     queue: &mut Queue<List<Rule>>,
     problem: &Problem,
 ) -> Option<VecDeque<Rule>> {
-    let mut saved = Tableau::new(problem);
     let mut tableau = Tableau::new(problem);
 
     let mut possible = vec![];
@@ -17,7 +16,6 @@ pub(crate) fn astar(
     let mut record = Silent; //crate::io::tstp::TSTP::default();
     while let Some(rule_list) = queue.dequeue() {
         script.clear();
-        saved.clear();
         tableau.clear();
         for rule in rule_list.items() {
             script.push_front(rule.clone());
@@ -26,15 +24,15 @@ pub(crate) fn astar(
             tableau.apply_rule(&mut record, rule);
         }
 
-        assert!(tableau.solve_constraints_fast());
-        saved.clone_from(&tableau);
+        assert!(tableau.simplify_constraints());
+        tableau.save();
 
         tableau.possible_rules(&mut possible);
         possible.sort();
         possible.dedup();
         for rule in possible.drain(..) {
             tableau.apply_rule(&mut record, &rule);
-            if tableau.solve_constraints_correct() {
+            if tableau.solve_constraints() {
                 if tableau.is_closed() {
                     script.push_back(rule);
                     return Some(script);
@@ -43,7 +41,7 @@ pub(crate) fn astar(
                     tableau.num_open_branches() + (script.len() as u32);
                 queue.enqueue(List::cons(&rule_list, rule), estimate);
             }
-            tableau.clone_from(&saved);
+            tableau.restore();
         }
     }
     None

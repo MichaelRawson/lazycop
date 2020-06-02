@@ -6,7 +6,10 @@ use crate::solver::Solver;
 #[derive(Default)]
 pub(crate) struct Goal {
     literals: Literals,
-    stack: Vec<Clause>,
+    stack: Block<Clause>,
+
+    save_literals: Id<Literal>,
+    save_stack: Block<Clause>
 }
 
 impl Goal {
@@ -19,8 +22,19 @@ impl Goal {
         self.stack.clear();
     }
 
+    pub(crate) fn save(&mut self) {
+        self.save_literals = self.literals.len();
+        self.save_stack.copy_from(&self.stack);
+    }
+
+    pub(crate) fn restore(&mut self) {
+        self.literals.truncate(self.save_literals);
+        self.stack.copy_from(&self.save_stack);
+    }
+
     pub(crate) fn num_open_branches(&self) -> u32 {
         self.stack
+            .slice()
             .iter()
             .map(|clause| Range::len(clause.open()))
             .sum::<u32>()
@@ -36,17 +50,14 @@ impl Goal {
     ) {
         match rule {
             Rule::Start(start) => {
-                let start = Clause::start(
+                self.stack.push(Clause::start(
                     record,
                     problem,
                     terms,
                     &mut self.literals,
                     solver,
                     start.start_clause,
-                );
-                if !start.is_empty() {
-                    self.stack.push(start);
-                }
+                ));
             }
             Rule::Reduction(reduction) => {
                 some(self.stack.last_mut()).predicate_reduction(
@@ -118,18 +129,20 @@ impl Goal {
     ) {
         let current =
             &self.literals[some(self.stack.last()).current_literal()];
-        self.path_literals()
-            .map(|id| &literals[id])
-            .for_each(|path| {
-                current.add_disequation_constraints(solver, terms, &path);
-            });
+        if !current.polarity && current.is_equality() {
+            current.add_reflexivity_constraints(solver);
+        }
 
-        self.ancestor_literals()
+        for path in self.path_literals().map(|id| &literals[id]) {
+            current.add_disequation_constraints(solver, terms, &path);
+        }
+        for ancestor in self
+            .ancestor_literals()
             .map(|id| &literals[id])
             .filter(|reduction| reduction.polarity == current.polarity)
-            .for_each(|reduction| {
-                current.add_disequation_constraints(solver, terms, &reduction);
-            });
+        {
+            current.add_disequation_constraints(solver, terms, &ancestor);
+        }
     }
 
     pub(crate) fn possible_rules<E: Extend<Rule>>(
@@ -145,6 +158,7 @@ impl Goal {
         } else if literal.is_equality() {
             self.possible_equality_rules(possible, problem, terms, literal);
         }
+        self.possible_variable_extension_rules(possible, problem, terms, literal);
     }
 
     fn possible_predicate_rules<E: Extend<Rule>>(
@@ -219,14 +233,8 @@ impl Goal {
         terms: &Terms,
         literal: &Literal,
     ) {
-        let polarity = literal.polarity;
-        if !polarity {
+        if !literal.polarity {
             self.possible_reflexivity_rules(possible);
-            /*
-            self.possible_variable_extension_rules(
-                possible, problem, terms, literal,
-            )
-            */
         }
     }
 
@@ -262,6 +270,7 @@ impl Goal {
         let current = some(self.stack.last()).closed();
         let past = self
             .stack
+            .slice()
             .iter()
             .rev()
             .skip(1)
@@ -271,20 +280,10 @@ impl Goal {
 
     fn path_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
         self.stack
+            .slice()
             .iter()
             .rev()
             .skip(1)
             .map(|clause| some(clause.closed().rev().next()))
-    }
-}
-
-impl Clone for Goal {
-    fn clone(&self) -> Self {
-        unimplemented!()
-    }
-
-    fn clone_from(&mut self, other: &Self) {
-        self.literals.clone_from(&other.literals);
-        self.stack.clone_from(&other.stack);
     }
 }

@@ -39,7 +39,7 @@ fn main() {
             tableau.apply_rule(&mut record, &rule);
         }
         assert!(tableau.is_closed());
-        assert!(tableau.solve_constraints_correct());
+        assert!(tableau.solve_constraints());
         tableau.record_unification(&mut record);
         io::szs::end_refutation();
         io::exit::success()

@@ -158,23 +158,20 @@ impl Clause {
             fresh,
         );
         literals[equation_literal] = freshened;
-        /*
-        let q = literals[matching_literal].get_predicate();
-        let disequation = Literal::new(false, Atom::Equality(p, q));
-        literals[matching_literal] = disequation;
-        literals.swap(clause.current_literal(), matching_literal);
 
+        /*
         self.add_strong_connection_constraints(
             solver, terms, literals, &clause,
         );
-        record.predicate_extension(
+        */
+        record.inference(
             &problem.signature(),
             terms,
             literals,
-            &self,
-            &clause,
+            "equality_extension",
+            &[],
+            &[self, &clause],
         );
-        */
         clause
     }
 
@@ -207,12 +204,13 @@ impl Clause {
         solver: &mut Solver,
         clause: Id<ProblemClause>,
     ) -> Self {
-        let offset = terms.current_offset();
-        let (clause_literals, clause_terms) = problem.get_clause(clause);
-        terms.extend_from(clause_terms);
-
         let start = literals.len();
-        literals.extend(clause_literals.as_ref().iter().copied());
+        let offset = terms.current_offset();
+
+        let (clause_literals, clause_terms) = problem.get_clause(clause);
+        terms.extend(clause_terms);
+        literals.extend(clause_literals);
+
         let end = literals.len();
         for id in Range::new(start, end) {
             literals[id].offset(offset);
@@ -249,7 +247,9 @@ impl Clause {
         let open = self.open();
         for id in open {
             let literal = literals[id];
-            literal.add_unit_tautology_constraints(solver);
+            if literal.polarity && literal.is_equality() {
+                literal.add_reflexivity_constraints(solver);
+            }
             for other in open.skip(1).map(|id| &literals[id]) {
                 if literal.polarity != other.polarity {
                     literal.add_disequation_constraints(solver, terms, &other);

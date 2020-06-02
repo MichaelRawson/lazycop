@@ -60,7 +60,7 @@ impl Atom {
     ) {
         match self {
             Atom::Predicate(p) => {
-                terms.subterms(symbols, *p, f);
+                terms.proper_subterms(symbols, *p, f);
             }
             Atom::Equality(left, right) => {
                 terms.subterms(symbols, *left, f);
@@ -88,9 +88,8 @@ impl Atom {
     }
 
     pub(crate) fn add_reflexivity_constraints(&self, solver: &mut Solver) {
-        if let Atom::Equality(left, right) = self {
-            solver.assert_not_equal(*left, *right);
-        }
+        let (left, right) = self.get_equality();
+        solver.assert_not_equal(left, right);
     }
 
     pub(crate) fn add_disequation_constraints(

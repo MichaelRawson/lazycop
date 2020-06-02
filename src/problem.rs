@@ -176,7 +176,7 @@ impl ProblemBuilder {
         self.function_map.clear();
         let literals = mem::take(&mut self.saved_literals);
 
-        if literals.as_ref().is_empty() {
+        if literals.is_empty() {
             szs::unsatisfiable();
             szs::begin_refutation();
             let mut record = tstp::TSTP::default();

@@ -58,10 +58,8 @@ impl Literal {
         Self { polarity, atom }
     }
 
-    pub(crate) fn add_unit_tautology_constraints(&self, solver: &mut Solver) {
-        if self.polarity {
-            self.atom.add_reflexivity_constraints(solver);
-        }
+    pub(crate) fn add_reflexivity_constraints(&self, solver: &mut Solver) {
+        self.atom.add_reflexivity_constraints(solver);
     }
 
     pub(crate) fn add_disequation_constraints(
