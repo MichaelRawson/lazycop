@@ -37,9 +37,30 @@ impl Literal {
         self.atom.get_equality()
     }
 
-    pub(crate) fn add_unit_constraints(&self, solver: &mut Solver) {
+    pub(crate) fn subterms<F: FnMut(Id<Term>)>(
+        &self,
+        symbols: &Symbols,
+        terms: &Terms,
+        f: &mut F,
+    ) {
+        self.atom.subterms(symbols, terms, f);
+    }
+
+    pub(crate) fn subst(
+        &self,
+        symbols: &Symbols,
+        terms: &mut Terms,
+        from: Id<Term>,
+        to: Id<Term>,
+    ) -> Self {
+        let polarity = self.polarity;
+        let atom = self.atom.subst(symbols, terms, from, to);
+        Self { polarity, atom }
+    }
+
+    pub(crate) fn add_unit_tautology_constraints(&self, solver: &mut Solver) {
         if self.polarity {
-            self.atom.add_positive_constraints(solver);
+            self.atom.add_reflexivity_constraints(solver);
         }
     }
 
@@ -53,3 +74,5 @@ impl Literal {
             .add_disequation_constraints(solver, terms, &other.atom)
     }
 }
+
+pub(crate) type Literals = Block<Literal>;

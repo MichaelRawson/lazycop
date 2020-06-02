@@ -52,7 +52,42 @@ impl Atom {
         terms.symbol(self.get_predicate())
     }
 
-    pub(crate) fn add_positive_constraints(&self, solver: &mut Solver) {
+    pub(crate) fn subterms<F: FnMut(Id<Term>)>(
+        &self,
+        symbols: &Symbols,
+        terms: &Terms,
+        f: &mut F,
+    ) {
+        match self {
+            Atom::Predicate(p) => {
+                terms.subterms(symbols, *p, f);
+            }
+            Atom::Equality(left, right) => {
+                terms.subterms(symbols, *left, f);
+                terms.subterms(symbols, *right, f);
+            }
+        }
+    }
+
+    pub(crate) fn subst(
+        &self,
+        symbols: &Symbols,
+        terms: &mut Terms,
+        from: Id<Term>,
+        to: Id<Term>,
+    ) -> Self {
+        match self {
+            Atom::Predicate(p) => {
+                Atom::Predicate(terms.subst(symbols, *p, from, to))
+            }
+            Atom::Equality(left, right) => Atom::Equality(
+                terms.subst(symbols, *left, from, to),
+                terms.subst(symbols, *right, from, to),
+            ),
+        }
+    }
+
+    pub(crate) fn add_reflexivity_constraints(&self, solver: &mut Solver) {
         if let Atom::Equality(left, right) = self {
             solver.assert_not_equal(*left, *right);
         }

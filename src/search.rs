@@ -20,10 +20,10 @@ pub(crate) fn astar(
         saved.clear();
         tableau.clear();
         for rule in rule_list.items() {
-            script.push_front(*rule);
+            script.push_front(rule.clone());
         }
         for rule in &script {
-            tableau.apply_rule(&mut record, *rule);
+            tableau.apply_rule(&mut record, rule);
         }
 
         assert!(tableau.solve_constraints_fast());
@@ -33,7 +33,7 @@ pub(crate) fn astar(
         possible.sort();
         possible.dedup();
         for rule in possible.drain(..) {
-            tableau.apply_rule(&mut record, rule);
+            tableau.apply_rule(&mut record, &rule);
             if tableau.solve_constraints_correct() {
                 if tableau.is_closed() {
                     script.push_back(rule);

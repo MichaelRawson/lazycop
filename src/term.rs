@@ -10,35 +10,18 @@ pub(crate) enum TermView {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) enum Term {
-    Symbol(Id<Symbol>),
-    Arity(u32),
-    Reference(Offset<Term>),
+pub(crate) union Term {
+    symbol: Option<Id<Symbol>>,
+    offset: Offset<Term>,
 }
 
 impl Term {
-    fn as_symbol(self) -> Id<Symbol> {
-        if let Term::Symbol(symbol) = self {
-            symbol
-        } else {
-            unreachable()
-        }
+    fn as_symbol(self) -> Option<Id<Symbol>> {
+        unsafe { self.symbol }
     }
 
-    fn as_arity(self) -> u32 {
-        if let Term::Arity(arity) = self {
-            arity
-        } else {
-            unreachable()
-        }
-    }
-
-    fn as_reference(self) -> Offset<Term> {
-        if let Term::Reference(offset) = self {
-            offset
-        } else {
-            unreachable()
-        }
+    fn as_offset(self) -> Offset<Term> {
+        unsafe { self.offset }
     }
 }
 
@@ -56,9 +39,14 @@ impl Terms {
         self.terms.extend(other.terms.as_ref().iter().copied());
     }
 
+    pub(crate) fn is_variable(&mut self, term: Id<Term>) -> bool {
+        self.terms[term].as_symbol().is_none()
+    }
+
     pub(crate) fn add_variable(&mut self) -> Id<Term> {
-        let id = self.terms.len();
-        self.add_reference(id)
+        let symbol = None;
+        let term = Term { symbol };
+        self.terms.push(term)
     }
 
     pub(crate) fn add_function(
@@ -66,43 +54,89 @@ impl Terms {
         symbol: Id<Symbol>,
         args: &[Id<Term>],
     ) -> Id<Term> {
-        let id = self.terms.len();
-        self.terms.push(Term::Symbol(symbol));
-        self.terms.push(Term::Arity(args.len() as u32));
+        let symbol = Some(symbol);
+        let id = self.terms.push(Term { symbol });
         for arg in args {
             self.add_reference(*arg);
         }
         id
     }
 
-    pub(crate) fn resolve(&self, argument: Id<Argument>) -> Id<Term> {
-        let id = argument.transmute();
-        id + self.terms[id].as_reference()
+    pub(crate) fn subst(
+        &mut self,
+        symbols: &Symbols,
+        term: Id<Term>,
+        from: Id<Term>,
+        to: Id<Term>,
+    ) -> Id<Term> {
+        if term == from {
+            return to;
+        }
+        match self.view(symbols, term) {
+            TermView::Variable(_) => term,
+            TermView::Function(symbol, args) => {
+                let symbol = Some(symbol);
+                let start = self.terms.len();
+                let mut modified = false;
+                self.terms.push(Term { symbol });
+                for arg in args {
+                    let subterm = self.resolve(arg);
+                    let result = self.subst(symbols, subterm, from, to);
+                    if result != subterm {
+                        modified = true;
+                    }
+                    self.add_reference(result);
+                }
+                if !modified {
+                    self.terms.truncate(start);
+                    term
+                } else {
+                    start
+                }
+            }
+        }
     }
 
-    pub(crate) fn view(&self, mut id: Id<Term>) -> TermView {
-        match self.terms[id] {
-            Term::Symbol(symbol) => {
-                id = id + Offset::new(1);
-                let arity = self.terms[id].as_arity();
-                id = id + Offset::new(1);
-                let args = Range::new_with_len(id.transmute(), arity);
+    pub(crate) fn subterms<F: FnMut(Id<Term>)>(
+        &self,
+        symbols: &Symbols,
+        term: Id<Term>,
+        f: &mut F,
+    ) {
+        if let TermView::Function(_, args) = self.view(symbols, term) {
+            f(term);
+            for subterm in args.map(|arg| self.resolve(arg)) {
+                self.subterms(symbols, subterm, f);
+            }
+        }
+    }
+
+    pub(crate) fn resolve(&self, argument: Id<Argument>) -> Id<Term> {
+        let id = argument.transmute();
+        id + self.terms[id].as_offset()
+    }
+
+    pub(crate) fn view(&self, symbols: &Symbols, id: Id<Term>) -> TermView {
+        match self.terms[id].as_symbol() {
+            Some(symbol) => {
+                let arity = symbols.arity(symbol);
+                let start = (id + Offset::new(1)).transmute();
+                let args = Range::new_with_len(start, arity);
                 TermView::Function(symbol, args)
             }
-            Term::Reference(_) => TermView::Variable(id.transmute()),
-            _ => unreachable(),
+            None => TermView::Variable(id.transmute()),
         }
     }
 
     pub(crate) fn symbol(&self, id: Id<Term>) -> Id<Symbol> {
-        self.terms[id].as_symbol()
+        some(self.terms[id].as_symbol())
     }
 
     fn add_reference(&mut self, referred: Id<Term>) -> Id<Term> {
         let id = self.terms.len();
         let offset = referred - id;
-        self.terms.push(Term::Reference(offset));
-        id
+        let term = Term { offset };
+        self.terms.push(term)
     }
 }
 

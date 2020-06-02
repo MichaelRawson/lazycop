@@ -36,7 +36,7 @@ fn main() {
         let mut record = io::tstp::TSTP::default();
         let mut tableau = tableau::Tableau::new(&problem);
         for rule in proof {
-            tableau.apply_rule(&mut record, rule);
+            tableau.apply_rule(&mut record, &rule);
         }
         assert!(tableau.is_closed());
         assert!(tableau.solve_constraints_correct());

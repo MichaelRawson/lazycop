@@ -22,6 +22,10 @@ impl<T> Block<T> {
         id
     }
 
+    pub(crate) fn truncate(&mut self, len: Id<T>) {
+        self.items.truncate(len.as_usize());
+    }
+
     pub(crate) fn swap(&mut self, left: Id<T>, right: Id<T>) {
         self.items.swap(left.as_usize(), right.as_usize());
     }

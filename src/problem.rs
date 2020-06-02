@@ -1,28 +1,39 @@
 use crate::atom::Atom;
+use crate::clause::Clause;
+use crate::io::{exit, szs, tstp};
 use crate::prelude::*;
+use crate::record::Record;
 use fnv::FnvHashMap;
 use std::mem;
 
 pub(crate) struct ProblemClause {
-    literals: Block<Literal>,
+    literals: Literals,
     terms: Terms,
 }
 
-struct Position {
-    problem_clause: Id<ProblemClause>,
-    literal: Id<Literal>,
+pub(crate) struct PredicateOccurrence {
+    pub(crate) clause: Id<ProblemClause>,
+    pub(crate) literal: Id<Literal>,
+}
+
+pub(crate) struct VariableEqualityOccurrence {
+    pub(crate) clause: Id<ProblemClause>,
+    pub(crate) literal: Id<Literal>,
+    pub(crate) from: Id<Term>,
+    pub(crate) to: Id<Term>,
 }
 
 #[derive(Default)]
 pub(crate) struct Problem {
-    symbols: Block<Symbol>,
+    symbols: Symbols,
     clauses: Block<ProblemClause>,
     start: Vec<Id<ProblemClause>>,
-    predicate_positions: [Block<Vec<Position>>; 2],
+    predicate_occurrences: [Block<Vec<PredicateOccurrence>>; 2],
+    variable_equality_occurrences: Vec<VariableEqualityOccurrence>,
 }
 
 impl Problem {
-    pub(crate) fn signature(&self) -> &Block<Symbol> {
+    pub(crate) fn signature(&self) -> &Symbols {
         &self.symbols
     }
 
@@ -35,7 +46,7 @@ impl Problem {
     pub(crate) fn get_clause(
         &self,
         id: Id<ProblemClause>,
-    ) -> (&Block<Literal>, &Terms) {
+    ) -> (&Literals, &Terms) {
         let clause = &self.clauses[id];
         (&clause.literals, &clause.terms)
     }
@@ -44,10 +55,15 @@ impl Problem {
         &self,
         polarity: bool,
         symbol: Id<Symbol>,
-    ) -> impl Iterator<Item = (Id<ProblemClause>, Id<Literal>)> + '_ {
-        self.predicate_positions[polarity as usize][symbol.transmute()]
+    ) -> impl Iterator<Item = &PredicateOccurrence> + '_ {
+        self.predicate_occurrences[polarity as usize][symbol.transmute()]
             .iter()
-            .map(|position| (position.problem_clause, position.literal))
+    }
+
+    pub(crate) fn query_variable_equalities(
+        &self,
+    ) -> impl Iterator<Item = &VariableEqualityOccurrence> + '_ {
+        self.variable_equality_occurrences.iter()
     }
 }
 
@@ -61,7 +77,7 @@ pub(crate) struct ProblemBuilder {
     variable_map: FnvHashMap<String, Id<Term>>,
     function_map: FnvHashMap<FunctionKey, Id<Term>>,
     saved_terms: Vec<Id<Term>>,
-    saved_literals: Block<Literal>,
+    saved_literals: Literals,
 }
 
 impl ProblemBuilder {
@@ -84,7 +100,7 @@ impl ProblemBuilder {
         let symbol = *self
             .symbols
             .entry((name.clone(), arity))
-            .or_insert_with(|| symbols.push(Symbol { name }));
+            .or_insert_with(|| symbols.add(arity, name));
 
         let args = self
             .saved_terms
@@ -102,23 +118,46 @@ impl ProblemBuilder {
         let atom = Atom::Predicate(term);
         let symbol = atom.get_predicate_symbol(&self.terms);
 
-        let problem_clause = self.problem.clauses.len();
+        let clause = self.problem.clauses.len();
         let literal = self.saved_literals.len();
-        let position = Position {
-            problem_clause,
-            literal,
-        };
-
+        let occurrence = PredicateOccurrence { clause, literal };
         let predicate_positions =
-            &mut self.problem.predicate_positions[polarity as usize];
+            &mut self.problem.predicate_occurrences[polarity as usize];
         predicate_positions.resize((self.problem.symbols.len()).transmute());
-        predicate_positions[symbol.transmute()].push(position);
+        predicate_positions[symbol.transmute()].push(occurrence);
+
         self.saved_literals.push(Literal::new(polarity, atom));
     }
 
     pub(crate) fn equality(&mut self, polarity: bool) {
         let right = self.pop_term();
         let left = self.pop_term();
+
+        let clause = self.problem.clauses.len();
+        let literal = self.saved_literals.len();
+        if self.terms.is_variable(left) {
+            let from = left;
+            let to = right;
+            let position = VariableEqualityOccurrence {
+                clause,
+                literal,
+                from,
+                to,
+            };
+            self.problem.variable_equality_occurrences.push(position);
+        }
+        if self.terms.is_variable(right) {
+            let from = right;
+            let to = left;
+            let position = VariableEqualityOccurrence {
+                clause,
+                literal,
+                from,
+                to,
+            };
+            self.problem.variable_equality_occurrences.push(position);
+        }
+
         let atom = Atom::Equality(left, right);
         self.saved_literals.push(Literal::new(polarity, atom));
     }
@@ -128,6 +167,21 @@ impl ProblemBuilder {
         self.variable_map.clear();
         self.function_map.clear();
         let literals = mem::take(&mut self.saved_literals);
+
+        if literals.as_ref().is_empty() {
+            szs::unsatisfiable();
+            szs::begin_refutation();
+            let mut record = tstp::TSTP::default();
+            record.axiom(
+                &self.problem.symbols,
+                &terms,
+                &literals,
+                &Clause::new(Id::default(), Id::default()),
+            );
+            szs::end_refutation();
+            exit::success()
+        }
+
         let problem_clause = ProblemClause { literals, terms };
         let problem_clause = self.problem.clauses.push(problem_clause);
         if conjecture {

@@ -7,7 +7,7 @@ pub(crate) struct Start {
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PredicateReduction {
-    pub(crate) literal: Id<Literal>,
+    pub(crate) term: Id<Term>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -17,9 +17,19 @@ pub(crate) struct PredicateExtension {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct VariableExtension {
+    pub(crate) clause: Id<ProblemClause>,
+    pub(crate) literal: Id<Literal>,
+    pub(crate) target: Id<Term>,
+    pub(crate) from: Id<Term>,
+    pub(crate) to: Id<Term>,
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Rule {
     Start(Start),
     Reduction(PredicateReduction),
     PredicateExtension(PredicateExtension),
+    VariableExtension(Box<VariableExtension>),
     Reflexivity,
 }

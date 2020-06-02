@@ -5,7 +5,7 @@ use crate::solver::Solver;
 
 #[derive(Default)]
 pub(crate) struct Goal {
-    literals: Block<Literal>,
+    literals: Literals,
     stack: Vec<Clause>,
 }
 
@@ -32,7 +32,7 @@ impl Goal {
         problem: &Problem,
         terms: &mut Terms,
         solver: &mut Solver,
-        rule: Rule,
+        rule: &Rule,
     ) {
         match rule {
             Rule::Start(start) => {
@@ -53,9 +53,9 @@ impl Goal {
                     record,
                     &problem.signature(),
                     terms,
-                    &self.literals,
+                    &mut self.literals,
                     solver,
-                    reduction.literal,
+                    reduction.term,
                 );
                 self.close_branches();
             }
@@ -70,6 +70,23 @@ impl Goal {
                         solver,
                         extension.clause,
                         extension.literal,
+                    );
+                self.stack.push(new_clause);
+            }
+            Rule::VariableExtension(extension) => {
+                self.add_regularity_constraints(solver, terms, &self.literals);
+                let new_clause = some(self.stack.last_mut())
+                    .variable_extension(
+                        record,
+                        problem,
+                        terms,
+                        &mut self.literals,
+                        solver,
+                        extension.clause,
+                        extension.literal,
+                        extension.target,
+                        extension.from,
+                        extension.to,
                     );
                 self.stack.push(new_clause);
             }
@@ -97,7 +114,7 @@ impl Goal {
         &self,
         solver: &mut Solver,
         terms: &Terms,
-        literals: &Block<Literal>,
+        literals: &Literals,
     ) {
         let current =
             &self.literals[some(self.stack.last()).current_literal()];
@@ -119,17 +136,14 @@ impl Goal {
         &self,
         possible: &mut E,
         problem: &Problem,
-        solver: &mut Solver,
         terms: &Terms,
     ) {
         let clause = some(self.stack.last());
         let literal = &self.literals[clause.current_literal()];
         if literal.is_predicate() {
-            self.possible_predicate_rules(
-                possible, problem, solver, terms, literal,
-            );
+            self.possible_predicate_rules(possible, problem, terms, literal);
         } else if literal.is_equality() {
-            self.possible_equality_rules(possible, solver, terms, literal);
+            self.possible_equality_rules(possible, problem, terms, literal);
         }
     }
 
@@ -137,48 +151,43 @@ impl Goal {
         &self,
         possible: &mut E,
         problem: &Problem,
-        solver: &mut Solver,
         terms: &Terms,
         literal: &Literal,
     ) {
-        self.possible_reduction_rules(possible, solver, terms, literal);
+        self.possible_predicate_reduction_rules(possible, terms, literal);
         self.possible_predicate_extension_rules(
             possible, problem, terms, literal,
         );
     }
 
-    fn possible_reduction_rules<E: Extend<Rule>>(
+    fn possible_predicate_reduction_rules<E: Extend<Rule>>(
         &self,
         possible: &mut E,
-        solver: &mut Solver,
         terms: &Terms,
         literal: &Literal,
     ) {
         let polarity = literal.polarity;
-        let term = literal.get_predicate();
         let symbol = literal.get_predicate_symbol(terms);
         let literals = &self.literals;
 
         let path_literals = self
             .path_literals()
-            .map(|id| (id, &literals[id]))
-            .filter(|(_, literal)| literal.polarity != polarity);
+            .map(|id| &literals[id])
+            .filter(|literal| literal.polarity != polarity);
         let ancestor_literals = self
             .ancestor_literals()
-            .map(|id| (id, &literals[id]))
-            .filter(|(_, literal)| literal.polarity == polarity);
+            .map(|id| &literals[id])
+            .filter(|literal| literal.polarity == polarity);
         let correct_polarity = path_literals.chain(ancestor_literals);
 
         possible.extend(
             correct_polarity
-                .filter(|(_, literal)| literal.is_predicate())
-                .filter(|(_, literal)| {
+                .filter(|literal| literal.is_predicate())
+                .filter(|literal| {
                     literal.get_predicate_symbol(terms) == symbol
                 })
-                .filter(|(_, literal)| {
-                    solver.check_equation(terms, literal.get_predicate(), term)
-                })
-                .map(|(literal, _)| PredicateReduction { literal })
+                .map(|literal| literal.get_predicate())
+                .map(|term| PredicateReduction { term })
                 .map(Rule::Reduction),
         );
     }
@@ -195,9 +204,9 @@ impl Goal {
         possible.extend(
             problem
                 .query_predicates(polarity, symbol)
-                .map(|(clause, literal)| PredicateExtension {
-                    clause,
-                    literal,
+                .map(|occurrence| PredicateExtension {
+                    clause: occurrence.clause,
+                    literal: occurrence.literal,
                 })
                 .map(Rule::PredicateExtension),
         );
@@ -206,30 +215,47 @@ impl Goal {
     fn possible_equality_rules<E: Extend<Rule>>(
         &self,
         possible: &mut E,
-        solver: &mut Solver,
+        problem: &Problem,
         terms: &Terms,
         literal: &Literal,
     ) {
         let polarity = literal.polarity;
-        let (left, right) = literal.get_equality();
         if !polarity {
-            self.possible_reflexivity_rules(
-                possible, solver, terms, left, right,
-            );
+            self.possible_reflexivity_rules(possible);
+            /*
+            self.possible_variable_extension_rules(
+                possible, problem, terms, literal,
+            )
+            */
         }
     }
 
-    fn possible_reflexivity_rules<E: Extend<Rule>>(
+    fn possible_variable_extension_rules<E: Extend<Rule>>(
         &self,
         possible: &mut E,
-        solver: &mut Solver,
+        problem: &Problem,
         terms: &Terms,
-        left: Id<Term>,
-        right: Id<Term>,
+        literal: &Literal,
     ) {
-        if solver.check_equation(terms, left, right) {
-            possible.extend(Some(Rule::Reflexivity));
-        }
+        literal.subterms(problem.signature(), terms, &mut |target| {
+            possible.extend(
+                problem
+                    .query_variable_equalities()
+                    .map(|occurrence| VariableExtension {
+                        clause: occurrence.clause,
+                        literal: occurrence.literal,
+                        target,
+                        from: occurrence.from,
+                        to: occurrence.to,
+                    })
+                    .map(Box::new)
+                    .map(Rule::VariableExtension),
+            );
+        });
+    }
+
+    fn possible_reflexivity_rules<E: Extend<Rule>>(&self, possible: &mut E) {
+        possible.extend(Some(Rule::Reflexivity));
     }
 
     fn ancestor_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {

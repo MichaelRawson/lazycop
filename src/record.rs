@@ -2,52 +2,29 @@ use crate::clause::Clause;
 use crate::prelude::*;
 
 pub(crate) trait Record {
-    fn copy(
+    fn axiom(
         &mut self,
-        _symbols: &Block<Symbol>,
+        _symbols: &Symbols,
         _terms: &Terms,
-        _literals: &Block<Literal>,
-        _clause: &Clause,
+        _literals: &Literals,
+        _axiom: &Clause,
     ) {
     }
 
-    fn start(&mut self) {}
-
-    fn predicate_reduction(
+    fn inference(
         &mut self,
-        _symbols: &Block<Symbol>,
+        _symbols: &Symbols,
         _terms: &Terms,
-        _literals: &Block<Literal>,
-        _clause: &Clause,
-        _left: Id<Term>,
-        _right: Id<Term>,
-    ) {
-    }
-
-    fn predicate_extension(
-        &mut self,
-        _symbols: &Block<Symbol>,
-        _terms: &Terms,
-        _literals: &Block<Literal>,
-        _clause: &Clause,
-        _new_clause: &Clause,
-    ) {
-    }
-
-    fn reflexivity(
-        &mut self,
-        _symbols: &Block<Symbol>,
-        _terms: &Terms,
-        _literals: &Block<Literal>,
-        _clause: &Clause,
-        _left: Id<Term>,
-        _right: Id<Term>,
+        _literals: &Literals,
+        _inference: &'static str,
+        _equations: &[(Id<Term>, Id<Term>)],
+        _deductions: &[&Clause],
     ) {
     }
 
     fn unification<I: Iterator<Item = (Id<Variable>, Id<Term>)>>(
         &mut self,
-        _symbols: &Block<Symbol>,
+        _symbols: &Symbols,
         _terms: &Terms,
         _bindings: I,
     ) {
