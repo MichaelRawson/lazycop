@@ -5,7 +5,7 @@ pub(crate) struct Symbol;
 #[derive(Default)]
 pub(crate) struct Symbols {
     arities: Block<u32>,
-    names: Block<String>
+    names: Block<String>,
 }
 
 impl Symbols {

@@ -71,6 +71,8 @@ type FunctionKey = (Id<Symbol>, Vec<Id<Term>>);
 #[derive(Default)]
 pub(crate) struct ProblemBuilder {
     problem: Problem,
+    positive_clauses: Vec<Id<ProblemClause>>,
+    axiom_clauses: Vec<Id<ProblemClause>>,
     conjecture_clauses: Vec<Id<ProblemClause>>,
     terms: Terms,
     symbols: FnvHashMap<(String, u32), Id<Symbol>>,
@@ -78,11 +80,17 @@ pub(crate) struct ProblemBuilder {
     function_map: FnvHashMap<FunctionKey, Id<Term>>,
     saved_terms: Vec<Id<Term>>,
     saved_literals: Literals,
+    contains_negative_literal: bool,
 }
 
 impl ProblemBuilder {
     pub(crate) fn finish(mut self) -> Problem {
-        self.problem.start = self.conjecture_clauses;
+        if self.axiom_clauses.is_empty() || self.conjecture_clauses.is_empty()
+        {
+            self.problem.start = self.positive_clauses;
+        } else {
+            self.problem.start = self.conjecture_clauses;
+        }
         self.problem
     }
 
@@ -114,6 +122,8 @@ impl ProblemBuilder {
     }
 
     pub(crate) fn predicate(&mut self, polarity: bool) {
+        self.contains_negative_literal =
+            self.contains_negative_literal || !polarity;
         let term = self.pop_term();
         let atom = Atom::Predicate(term);
         let symbol = atom.get_predicate_symbol(&self.terms);
@@ -130,32 +140,30 @@ impl ProblemBuilder {
     }
 
     pub(crate) fn equality(&mut self, polarity: bool) {
+        self.contains_negative_literal =
+            self.contains_negative_literal || !polarity;
         let right = self.pop_term();
         let left = self.pop_term();
 
         let clause = self.problem.clauses.len();
         let literal = self.saved_literals.len();
-        if self.terms.is_variable(left) {
-            let from = left;
-            let to = right;
+
+        let variable_equality_occurrences =
+            &mut self.problem.variable_equality_occurrences;
+        let mut add_variable_equality = |from, to| {
             let position = VariableEqualityOccurrence {
                 clause,
                 literal,
                 from,
                 to,
             };
-            self.problem.variable_equality_occurrences.push(position);
+            variable_equality_occurrences.push(position);
+        };
+        if self.terms.is_variable(left) {
+            add_variable_equality(left, right);
         }
         if self.terms.is_variable(right) {
-            let from = right;
-            let to = left;
-            let position = VariableEqualityOccurrence {
-                clause,
-                literal,
-                from,
-                to,
-            };
-            self.problem.variable_equality_occurrences.push(position);
+            add_variable_equality(right, left);
         }
 
         let atom = Atom::Equality(left, right);
@@ -186,6 +194,14 @@ impl ProblemBuilder {
         let problem_clause = self.problem.clauses.push(problem_clause);
         if conjecture {
             self.conjecture_clauses.push(problem_clause);
+        } else {
+            self.axiom_clauses.push(problem_clause);
+        }
+
+        let is_positive_clause = !self.contains_negative_literal;
+        self.contains_negative_literal = false;
+        if is_positive_clause {
+            self.positive_clauses.push(problem_clause);
         }
     }
 

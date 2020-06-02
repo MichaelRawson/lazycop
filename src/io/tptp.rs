@@ -16,17 +16,17 @@ fn report_inappropriate<T: fmt::Display>(t: T) -> ! {
 }
 
 #[derive(Default)]
-struct TPTPProblemBuilder {
+struct TPTP {
     builder: ProblemBuilder,
 }
 
-impl TPTPProblemBuilder {
+impl TPTP {
     fn finish(self) -> Problem {
         self.builder.finish()
     }
 }
 
-impl<'v> Visitor<'v> for TPTPProblemBuilder {
+impl<'v> Visitor<'v> for TPTP {
     fn visit_variable(&mut self, variable: &ast::Variable) {
         self.builder.variable(format!("{}", variable));
     }
@@ -122,7 +122,7 @@ fn read_stdin_chunk(buf: &mut Vec<u8>) -> usize {
 }
 
 pub(crate) fn load_from_stdin() -> Problem {
-    let mut builder = TPTPProblemBuilder::default();
+    let mut builder = TPTP::default();
     let mut buf = vec![];
 
     while read_stdin_chunk(&mut buf) > 0 {

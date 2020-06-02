@@ -155,7 +155,7 @@ impl Clause {
             problem.signature(),
             terms,
             target,
-            fresh
+            fresh,
         );
         literals[equation_literal] = freshened;
         /*
