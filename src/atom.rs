@@ -52,6 +52,14 @@ impl Atom {
         terms.symbol(self.get_predicate())
     }
 
+    pub(crate) fn get_predicate_arguments(
+        &self,
+        symbols: &Symbols,
+        terms: &Terms,
+    ) -> Range<Argument> {
+        terms.arguments(symbols, self.get_predicate())
+    }
+
     pub(crate) fn subterms<F: FnMut(Id<Term>)>(
         &self,
         symbols: &Symbols,

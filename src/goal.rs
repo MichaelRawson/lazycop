@@ -9,7 +9,7 @@ pub(crate) struct Goal {
     stack: Block<Clause>,
 
     save_literals: Id<Literal>,
-    save_stack: Block<Clause>
+    save_stack: Block<Clause>,
 }
 
 impl Goal {
@@ -83,6 +83,7 @@ impl Goal {
                         extension.literal,
                     );
                 self.stack.push(new_clause);
+                self.close_branches();
             }
             Rule::VariableExtension(extension) => {
                 self.add_regularity_constraints(solver, terms, &self.literals);
@@ -158,7 +159,11 @@ impl Goal {
         } else if literal.is_equality() {
             self.possible_equality_rules(possible, problem, terms, literal);
         }
-        self.possible_variable_extension_rules(possible, problem, terms, literal);
+        /*
+        self.possible_variable_extension_rules(
+            possible, problem, terms, literal,
+        );
+        */
     }
 
     fn possible_predicate_rules<E: Extend<Rule>>(

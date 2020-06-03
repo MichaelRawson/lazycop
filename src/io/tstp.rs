@@ -108,13 +108,13 @@ impl Record for TSTP {
         println!(").");
     }
 
-    fn inference(
+    fn inference<I: IntoIterator<Item = (Id<Term>, Id<Term>)>>(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,
         literals: &Literals,
         inference: &'static str,
-        equations: &[(Id<Term>, Id<Term>)],
+        equations: I,
         deductions: &[&Clause],
     ) {
         if let Some(parent) = self.clause_stack.pop() {
@@ -124,9 +124,9 @@ impl Record for TSTP {
         let assumption_start = self.assumption_number;
         for (left, right) in equations {
             print!("cnf(a{}, assumption,\n\t", self.assumption_number);
-            self.print_term(symbols, terms, *left);
+            self.print_term(symbols, terms, left);
             print!(" = ");
-            self.print_term(symbols, terms, *right);
+            self.print_term(symbols, terms, right);
             println!(").");
             self.assumption_number += 1;
         }
@@ -139,15 +139,18 @@ impl Record for TSTP {
             self.clause_number += 1;
             self.print_clause(symbols, terms, literals, deduction);
 
-            print!(",\n\tinference({}, [assumptions([", inference);
-            let mut assumptions = assumption_start..self.assumption_number;
-            if let Some(first) = assumptions.next() {
+            print!(",\n\tinference({}, [", inference);
+            if assumption_start != self.assumption_number {
+                print!("assumptions([");
+                let mut assumptions = assumption_start..self.assumption_number;
+                let first = some(assumptions.next());
                 print!("a{}", first);
+                for rest in assumptions {
+                    print!(", a{}", rest);
+                }
+                print!("])");
             }
-            for rest in assumptions {
-                print!(", a{}", rest);
-            }
-            print!("])], [");
+            print!("], [");
 
             let mut premises = self.premise_list.iter();
             if let Some(first) = premises.next() {
@@ -168,7 +171,12 @@ impl Record for TSTP {
         terms: &Terms,
         bindings: I,
     ) {
-        print!("cnf(c{}, plain,\n\t$false,\n\tinference(constraint_solving, [\n\t\t", self.clause_number);
+        if self.assumption_number == 0 {
+            return;
+        }
+
+        print!("cnf(c{}, plain,\n\t$false", self.clause_number);
+        print!(",\n\tinference(constraint_solving, [\n\t\t");
         let mut first_bind = true;
         for (x, term) in bindings {
             if !first_bind {
@@ -183,9 +191,7 @@ impl Record for TSTP {
         }
 
         print!("\n\t],\n\t[");
-        if self.assumption_number > 0 {
-            print!("a0");
-        }
+        print!("a0");
         for number in 1..self.assumption_number {
             print!(", a{}", number);
         }

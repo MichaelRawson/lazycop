@@ -48,8 +48,10 @@ impl Solver {
     pub(crate) fn restore(&mut self) {
         self.equations.clear();
         self.disequations.clear();
-        self.atomic_disequations.truncate(self.save_atomic_disequations);
-        self.solved_disequations.truncate(self.save_solved_disequations);
+        self.atomic_disequations
+            .truncate(self.save_atomic_disequations);
+        self.solved_disequations
+            .truncate(self.save_solved_disequations);
         self.aliases.copy_from(&self.save_aliases);
         self.to_alias.copy_from(&self.save_to_alias);
         self.from_alias.copy_from(&self.save_from_alias);

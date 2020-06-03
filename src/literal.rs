@@ -33,6 +33,14 @@ impl Literal {
         self.atom.get_predicate_symbol(terms)
     }
 
+    pub(crate) fn get_predicate_arguments(
+        &self,
+        symbols: &Symbols,
+        terms: &Terms,
+    ) -> Range<Argument> {
+        self.atom.get_predicate_arguments(symbols, terms)
+    }
+
     pub(crate) fn get_equality(&self) -> (Id<Term>, Id<Term>) {
         self.atom.get_equality()
     }

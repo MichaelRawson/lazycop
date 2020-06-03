@@ -11,13 +11,13 @@ pub(crate) trait Record {
     ) {
     }
 
-    fn inference(
+    fn inference<I: IntoIterator<Item = (Id<Term>, Id<Term>)>>(
         &mut self,
         _symbols: &Symbols,
         _terms: &Terms,
         _literals: &Literals,
         _inference: &'static str,
-        _equations: &[(Id<Term>, Id<Term>)],
+        _equations: I,
         _deductions: &[&Clause],
     ) {
     }

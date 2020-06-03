@@ -57,7 +57,7 @@ impl Clause {
             terms,
             literals,
             "start",
-            &[],
+            std::iter::empty(),
             &[&start],
         );
         start
@@ -72,16 +72,24 @@ impl Clause {
         solver: &mut Solver,
         q: Id<Term>,
     ) {
-        let p = literals[self.close_literal()].get_predicate();
-        solver.assert_equal(p, q);
+        let p = literals[self.close_literal()];
+        let pargs = p.get_predicate_arguments(symbols, terms);
+        let qargs = terms.arguments(symbols, q);
+        let pterms = pargs.map(|p| terms.resolve(p));
+        let qterms = qargs.map(|q| terms.resolve(q));
+        let assertions = pterms.zip(qterms);
+
         record.inference(
             symbols,
             terms,
             literals,
             "predicate_reduction",
-            &[(p, q)],
+            assertions.clone(),
             &[self],
         );
+        for (s, t) in assertions {
+            solver.assert_equal(s, t);
+        }
     }
 
     pub(crate) fn predicate_extension<R: Record>(
@@ -94,8 +102,9 @@ impl Clause {
         problem_clause: Id<ProblemClause>,
         problem_literal: Id<Literal>,
     ) -> Self {
-        let literal_offset = literals.len() - Id::default();
-        let matching_literal = problem_literal + literal_offset;
+        let term_offset = terms.current_offset();
+        let start = literals.len();
+
         let clause = Self::copy(
             record,
             problem,
@@ -104,25 +113,46 @@ impl Clause {
             solver,
             problem_clause,
         );
-
-        let p = literals[self.close_literal()].get_predicate();
-        let q = literals[matching_literal].get_predicate();
-        let disequation = Literal::new(false, Atom::Equality(p, q));
-        literals[matching_literal] = disequation;
-        literals.swap(clause.current_literal(), matching_literal);
+        let p = literals[self.close_literal()];
         self.add_strong_connection_constraints(
             solver, terms, literals, &clause,
         );
+        literals.truncate(start);
 
+        let (clause_literals, _) = problem.get_clause(problem_clause);
+        let mut q = clause_literals[problem_literal];
+        q.offset(term_offset);
+
+        let pargs = p.get_predicate_arguments(problem.signature(), terms);
+        let qargs = q.get_predicate_arguments(problem.signature(), terms);
+        let fresh_start = terms.len();
+        for (parg, qarg) in pargs.zip(qargs) {
+            let pterm = terms.resolve(parg);
+            let qterm = terms.resolve(qarg);
+            let fresh = terms.add_variable();
+            solver.assert_equal(fresh, pterm);
+            let atom = Atom::Equality(fresh, qterm);
+            let disequation = Literal::new(false, atom);
+            literals.push(disequation);
+        }
+        let fresh_end = terms.len();
+        let fresh = Range::new(fresh_start, fresh_end);
+
+        for id in clause_literals.range().filter(|id| *id != problem_literal) {
+            let mut literal = clause_literals[id];
+            literal.offset(term_offset);
+            literals.push(literal);
+        }
+        let end = literals.len();
+        let clause = Self::new(start, end);
         record.inference(
             problem.signature(),
             terms,
             literals,
             "predicate_extension",
-            &[],
+            fresh.zip(pargs.map(|arg| terms.resolve(arg))),
             &[self, &clause],
         );
-
         clause
     }
 
@@ -139,6 +169,7 @@ impl Clause {
         from: Id<Term>,
         to: Id<Term>,
     ) -> Self {
+        /*
         let literal_offset = literals.len() - Id::default();
         let equation_literal = problem_literal + literal_offset;
         let clause = Self::copy(
@@ -173,6 +204,8 @@ impl Clause {
             &[self, &clause],
         );
         clause
+            */
+        todo!()
     }
 
     pub(crate) fn reflexivity<R: Record>(
@@ -191,7 +224,7 @@ impl Clause {
             terms,
             literals,
             "reflexivity",
-            &[(left, right)],
+            Some((left, right)),
             &[self],
         );
     }

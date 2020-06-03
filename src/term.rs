@@ -28,7 +28,7 @@ impl Term {
 #[derive(Default)]
 pub(crate) struct Terms {
     terms: Block<Term>,
-    save: Id<Term>
+    save: Id<Term>,
 }
 
 impl Terms {
@@ -156,6 +156,17 @@ impl Terms {
             }
             None => TermView::Variable(id.transmute()),
         }
+    }
+
+    pub(crate) fn arguments(
+        &self,
+        symbols: &Symbols,
+        id: Id<Term>,
+    ) -> Range<Argument> {
+        let symbol = self.symbol(id);
+        let arity = symbols.arity(symbol);
+        let start = (id + Offset::new(1)).transmute();
+        Range::new_with_len(start, arity)
     }
 
     pub(crate) fn symbol(&self, id: Id<Term>) -> Id<Symbol> {
