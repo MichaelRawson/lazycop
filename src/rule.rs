@@ -29,7 +29,8 @@ pub(crate) struct VariableExtension {
 pub(crate) enum Rule {
     Start(Start),
     Reduction(PredicateReduction),
-    PredicateExtension(PredicateExtension),
+    StrictPredicateExtension(PredicateExtension),
+    LazyPredicateExtension(PredicateExtension),
     VariableExtension(Box<VariableExtension>),
     Reflexivity,
 }

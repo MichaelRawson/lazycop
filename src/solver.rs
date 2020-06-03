@@ -12,6 +12,7 @@ struct AtomicDisequation {
 #[derive(Default)]
 pub(crate) struct Solver {
     equations: Vec<(Id<Term>, Id<Term>)>,
+    orderings: Vec<(Id<Term>, Id<Term>)>,
     disequations: Vec<(Id<Term>, Id<Term>)>,
     atomic_disequations: Block<AtomicDisequation>,
     solved_disequations: Block<Range<AtomicDisequation>>,
@@ -19,6 +20,7 @@ pub(crate) struct Solver {
     to_alias: Block<Option<Id<Set>>>,
     from_alias: Block<Id<Term>>,
 
+    save_orderings: usize,
     save_atomic_disequations: Id<AtomicDisequation>,
     save_solved_disequations: Id<Range<AtomicDisequation>>,
     save_aliases: Disjoint,
@@ -29,6 +31,7 @@ pub(crate) struct Solver {
 impl Solver {
     pub(crate) fn clear(&mut self) {
         self.equations.clear();
+        self.orderings.clear();
         self.disequations.clear();
         self.atomic_disequations.clear();
         self.solved_disequations.clear();
@@ -38,6 +41,7 @@ impl Solver {
     }
 
     pub(crate) fn save(&mut self) {
+        self.save_orderings = self.orderings.len();
         self.save_atomic_disequations = self.atomic_disequations.len();
         self.save_solved_disequations = self.solved_disequations.len();
         self.save_aliases.copy_from(&self.aliases);
@@ -47,6 +51,7 @@ impl Solver {
 
     pub(crate) fn restore(&mut self) {
         self.equations.clear();
+        self.orderings.truncate(self.save_orderings);
         self.disequations.clear();
         self.atomic_disequations
             .truncate(self.save_atomic_disequations);
@@ -59,6 +64,10 @@ impl Solver {
 
     pub(crate) fn assert_equal(&mut self, left: Id<Term>, right: Id<Term>) {
         self.equations.push((left, right));
+    }
+
+    pub(crate) fn assert_gt(&mut self, left: Id<Term>, right: Id<Term>) {
+        self.orderings.push((left, right));
     }
 
     pub(crate) fn assert_not_equal(
@@ -109,6 +118,12 @@ impl Solver {
             if !self
                 .solve_equation::<occurs::Check>(symbols, terms, left, right)
             {
+                return false;
+            }
+        }
+        for ordering in 0..self.orderings.len() {
+            let (left, right) = self.orderings[ordering];
+            if !self.lpo_gt(symbols, terms, left, right) {
                 return false;
             }
         }
@@ -167,6 +182,79 @@ impl Solver {
                     })
             }
             (TermView::Function(_, _), TermView::Function(_, _)) => false,
+        }
+    }
+
+    fn lpo_gt(
+        &mut self,
+        symbols: &Symbols,
+        terms: &Terms,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) -> bool {
+        let (left, lview) = self.lookup(symbols, terms, left);
+        let (right, rview) = self.lookup(symbols, terms, right);
+        if left == right {
+            return false;
+        }
+        match (lview, rview) {
+            (TermView::Variable(x), _) => {
+                !self.occurs(symbols, terms, x, right)
+            }
+            (TermView::Function(f, ss), TermView::Function(g, ts)) => {
+                let subterm_gte = ss.map(|s| terms.resolve(s)).any(|s| {
+                    self.lpo_eq(symbols, terms, s, right)
+                        || self.lpo_gt(symbols, terms, s, right)
+                });
+                if subterm_gte {
+                    return true;
+                }
+
+                if f > g {
+                    ts.map(|t| terms.resolve(t))
+                        .all(|t| self.lpo_gt(symbols, terms, left, t))
+                } else if f == g {
+                    let pairs = ss
+                        .zip(ts)
+                        .map(|(s, t)| (terms.resolve(s), terms.resolve(t)));
+                    for (s, t) in pairs {
+                        if self.lpo_gt(symbols, terms, s, t) {
+                            return true;
+                        } else if !self.lpo_eq(symbols, terms, s, t) {
+                            return false;
+                        }
+                    }
+                    false
+                } else {
+                    false
+                }
+            }
+            _ => true,
+        }
+    }
+
+    fn lpo_eq(
+        &mut self,
+        symbols: &Symbols,
+        terms: &Terms,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) -> bool {
+        let (left, lview) = self.lookup(symbols, terms, left);
+        let (right, rview) = self.lookup(symbols, terms, right);
+        if left == right {
+            return true;
+        }
+        match (lview, rview) {
+            (TermView::Function(f, ss), TermView::Function(g, ts)) => {
+                if f != g {
+                    return false;
+                }
+                ss.zip(ts)
+                    .map(|(s, t)| (terms.resolve(s), terms.resolve(t)))
+                    .all(|(s, t)| self.lpo_eq(symbols, terms, s, t))
+            }
+            (_, _) => true,
         }
     }
 

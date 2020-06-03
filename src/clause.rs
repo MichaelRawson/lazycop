@@ -92,7 +92,7 @@ impl Clause {
         }
     }
 
-    pub(crate) fn predicate_extension<R: Record>(
+    pub(crate) fn lazy_predicate_extension<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
@@ -145,6 +145,8 @@ impl Clause {
         }
         let end = literals.len();
         let clause = Self::new(start, end);
+
+        solver.assert_not_equal(p.get_predicate(), q.get_predicate());
         record.inference(
             problem.signature(),
             terms,
@@ -153,6 +155,67 @@ impl Clause {
             fresh.zip(pargs.map(|arg| terms.resolve(arg))),
             &[self, &clause],
         );
+        clause
+    }
+
+    pub(crate) fn strict_predicate_extension<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        solver: &mut Solver,
+        problem_clause: Id<ProblemClause>,
+        problem_literal: Id<Literal>,
+    ) -> Self {
+        let term_offset = terms.current_offset();
+        let start = literals.len();
+
+        let clause = Self::copy(
+            record,
+            problem,
+            terms,
+            literals,
+            solver,
+            problem_clause,
+        );
+        let p = literals[self.close_literal()];
+        self.add_strong_connection_constraints(
+            solver, terms, literals, &clause,
+        );
+        literals.truncate(start);
+
+        let (clause_literals, _) = problem.get_clause(problem_clause);
+        let mut q = clause_literals[problem_literal];
+        q.offset(term_offset);
+
+        let pargs = p.get_predicate_arguments(problem.signature(), terms);
+        let qargs = q.get_predicate_arguments(problem.signature(), terms);
+        for (parg, qarg) in pargs.zip(qargs) {
+            let pterm = terms.resolve(parg);
+            let qterm = terms.resolve(qarg);
+            solver.assert_equal(pterm, qterm);
+        }
+
+        for id in clause_literals.range().filter(|id| *id != problem_literal) {
+            let mut literal = clause_literals[id];
+            literal.offset(term_offset);
+            literals.push(literal);
+        }
+        let end = literals.len();
+        let clause = Self::new(start, end);
+
+        record.inference(
+            problem.signature(),
+            terms,
+            literals,
+            "predicate_extension",
+            pargs
+                .map(|arg| terms.resolve(arg))
+                .zip(qargs.map(|arg| terms.resolve(arg))),
+            &[self, &clause],
+        );
+
         clause
     }
 
@@ -169,43 +232,47 @@ impl Clause {
         from: Id<Term>,
         to: Id<Term>,
     ) -> Self {
-        /*
-        let literal_offset = literals.len() - Id::default();
-        let equation_literal = problem_literal + literal_offset;
-        let clause = Self::copy(
-            record,
-            problem,
-            terms,
-            literals,
-            solver,
-            problem_clause,
-        );
+        let term_offset = terms.current_offset();
+        let from = from + term_offset;
+        let to = to + term_offset;
+        let start = literals.len();
+
+        Self::copy(record, problem, terms, literals, solver, problem_clause);
+        literals.truncate(start);
 
         let fresh = terms.add_variable();
-        let freshened = literals[self.close_literal()].subst(
+        let atom = Atom::Equality(fresh, to);
+        let disequation = Literal::new(false, atom);
+        literals.push(disequation);
+        let literal = literals[self.close_literal()].subst(
             problem.signature(),
             terms,
             target,
             fresh,
         );
-        literals[equation_literal] = freshened;
+        literals.push(literal);
 
-        /*
-        self.add_strong_connection_constraints(
-            solver, terms, literals, &clause,
-        );
-        */
+        let (clause_literals, _) = problem.get_clause(problem_clause);
+        for id in clause_literals.range().filter(|id| *id != problem_literal) {
+            let mut literal = clause_literals[id];
+            literal.offset(term_offset);
+            literals.push(literal);
+        }
+        let end = literals.len();
+        let clause = Self::new(start, end);
+
+        solver.assert_equal(from, target);
+        solver.assert_gt(from, fresh);
         record.inference(
-            &problem.signature(),
+            problem.signature(),
             terms,
             literals,
             "equality_extension",
-            &[],
+            Some((from, target)),
             &[self, &clause],
         );
+
         clause
-            */
-        todo!()
     }
 
     pub(crate) fn reflexivity<R: Record>(

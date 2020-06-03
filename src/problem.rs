@@ -37,6 +37,10 @@ impl Problem {
         &self.symbols
     }
 
+    pub(crate) fn has_equality(&self) -> bool {
+        !self.variable_equality_occurrences.is_empty()
+    }
+
     pub(crate) fn start_clauses(
         &self,
     ) -> impl Iterator<Item = Id<ProblemClause>> + '_ {

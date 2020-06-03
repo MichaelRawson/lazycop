@@ -70,10 +70,25 @@ impl Goal {
                 );
                 self.close_branches();
             }
-            Rule::PredicateExtension(extension) => {
+            Rule::LazyPredicateExtension(extension) => {
                 self.add_regularity_constraints(solver, terms, &self.literals);
                 let new_clause = some(self.stack.last_mut())
-                    .predicate_extension(
+                    .lazy_predicate_extension(
+                        record,
+                        problem,
+                        terms,
+                        &mut self.literals,
+                        solver,
+                        extension.clause,
+                        extension.literal,
+                    );
+                self.stack.push(new_clause);
+                self.close_branches();
+            }
+            Rule::StrictPredicateExtension(extension) => {
+                self.add_regularity_constraints(solver, terms, &self.literals);
+                let new_clause = some(self.stack.last_mut())
+                    .strict_predicate_extension(
                         record,
                         problem,
                         terms,
@@ -157,13 +172,11 @@ impl Goal {
         if literal.is_predicate() {
             self.possible_predicate_rules(possible, problem, terms, literal);
         } else if literal.is_equality() {
-            self.possible_equality_rules(possible, problem, terms, literal);
+            self.possible_equality_rules(possible, literal);
         }
-        /*
         self.possible_variable_extension_rules(
             possible, problem, terms, literal,
         );
-        */
     }
 
     fn possible_predicate_rules<E: Extend<Rule>>(
@@ -220,22 +233,24 @@ impl Goal {
     ) {
         let polarity = !literal.polarity;
         let symbol = literal.get_predicate_symbol(terms);
-        possible.extend(
+        let matching = || {
             problem
                 .query_predicates(polarity, symbol)
                 .map(|occurrence| PredicateExtension {
                     clause: occurrence.clause,
                     literal: occurrence.literal,
                 })
-                .map(Rule::PredicateExtension),
-        );
+        };
+
+        if problem.has_equality() {
+            possible.extend(matching().map(Rule::LazyPredicateExtension));
+        }
+        possible.extend(matching().map(Rule::StrictPredicateExtension));
     }
 
     fn possible_equality_rules<E: Extend<Rule>>(
         &self,
         possible: &mut E,
-        problem: &Problem,
-        terms: &Terms,
         literal: &Literal,
     ) {
         if !literal.polarity {

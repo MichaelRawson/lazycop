@@ -55,13 +55,6 @@ impl<T> Block<T> {
 }
 
 impl<T: Copy> Block<T> {
-    #[allow(clippy::manual_swap)]
-    pub(crate) fn swap(&mut self, left: Id<T>, right: Id<T>) {
-        let save = self[left];
-        self[left] = self[right];
-        self[right] = save;
-    }
-
     pub(crate) fn extend(&mut self, other: &Self) {
         self.items.extend_from_slice(&other.slice());
     }
