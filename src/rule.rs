@@ -2,12 +2,12 @@ use crate::prelude::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Start {
-    pub(crate) start_clause: Id<ProblemClause>,
+    pub(crate) clause: Id<ProblemClause>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PredicateReduction {
-    pub(crate) term: Id<Term>,
+    pub(crate) literal: Id<Literal>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

@@ -48,7 +48,7 @@ impl Goal {
         solver: &mut Solver,
         rule: &Rule,
     ) {
-        match rule {
+        match *rule {
             Rule::Start(start) => {
                 self.stack.push(Clause::start(
                     record,
@@ -56,7 +56,7 @@ impl Goal {
                     terms,
                     &mut self.literals,
                     solver,
-                    start.start_clause,
+                    start,
                 ));
             }
             Rule::Reduction(reduction) => {
@@ -66,7 +66,7 @@ impl Goal {
                     terms,
                     &mut self.literals,
                     solver,
-                    reduction.term,
+                    reduction,
                 );
                 self.close_branches();
             }
@@ -79,7 +79,7 @@ impl Goal {
                         terms,
                         &mut self.literals,
                         solver,
-                        extension.occurrence,
+                        extension,
                     );
                 self.stack.push(new_clause);
                 self.close_branches();
@@ -93,7 +93,7 @@ impl Goal {
                         terms,
                         &mut self.literals,
                         solver,
-                        extension.occurrence,
+                        extension,
                     );
                 self.stack.push(new_clause);
                 self.close_branches();
@@ -107,8 +107,7 @@ impl Goal {
                         terms,
                         &mut self.literals,
                         solver,
-                        extension.target,
-                        extension.occurrence,
+                        extension,
                     );
                 self.stack.push(new_clause);
             }
@@ -147,12 +146,12 @@ impl Goal {
         for path in self.path_literals().map(|id| &literals[id]) {
             current.add_disequation_constraints(solver, terms, &path);
         }
-        for ancestor in self
-            .ancestor_literals()
+        for lemma in self
+            .lemma_literals()
             .map(|id| &literals[id])
             .filter(|reduction| reduction.polarity == current.polarity)
         {
-            current.add_disequation_constraints(solver, terms, &ancestor);
+            current.add_disequation_constraints(solver, terms, &lemma);
         }
     }
 
@@ -161,13 +160,22 @@ impl Goal {
         possible: &mut E,
         problem: &Problem,
         terms: &Terms,
+        solver: &mut Solver,
     ) {
         let clause = some(self.stack.last());
         let literal = &self.literals[clause.current_literal()];
         if literal.is_predicate() {
-            self.possible_predicate_rules(possible, problem, terms, literal);
+            self.possible_predicate_rules(
+                possible, problem, terms, solver, literal,
+            );
         } else if literal.is_equality() {
-            self.possible_equality_rules(possible, literal);
+            self.possible_equality_rules(
+                possible,
+                problem.signature(),
+                terms,
+                solver,
+                literal,
+            );
         }
         self.possible_variable_extension_rules(
             possible, problem, terms, literal,
@@ -179,9 +187,16 @@ impl Goal {
         possible: &mut E,
         problem: &Problem,
         terms: &Terms,
+        solver: &mut Solver,
         literal: &Literal,
     ) {
-        self.possible_predicate_reduction_rules(possible, terms, literal);
+        self.possible_predicate_reduction_rules(
+            possible,
+            problem.signature(),
+            terms,
+            solver,
+            literal,
+        );
         self.possible_predicate_extension_rules(
             possible, problem, terms, literal,
         );
@@ -190,31 +205,39 @@ impl Goal {
     fn possible_predicate_reduction_rules<E: Extend<Rule>>(
         &self,
         possible: &mut E,
+        symbols: &Symbols,
         terms: &Terms,
+        solver: &mut Solver,
         literal: &Literal,
     ) {
         let polarity = literal.polarity;
+        let predicate = literal.get_predicate();
         let symbol = literal.get_predicate_symbol(terms);
         let literals = &self.literals;
 
-        let path_literals = self
-            .path_literals()
-            .map(|id| &literals[id])
-            .filter(|literal| literal.polarity != polarity);
-        let ancestor_literals = self
-            .ancestor_literals()
-            .map(|id| &literals[id])
-            .filter(|literal| literal.polarity == polarity);
-        let correct_polarity = path_literals.chain(ancestor_literals);
+        let filter = |id, polarity| {
+            let literal = literals[id];
+            literal.polarity == polarity
+                && literal.is_predicate()
+                && literal.get_predicate_symbol(terms) == symbol
+        };
+        let path_literals =
+            self.path_literals().filter(|id| filter(*id, !polarity));
+        let lemma_literals =
+            self.lemma_literals().filter(|id| filter(*id, polarity));
+        let reduction_literals =
+            path_literals.chain(lemma_literals).filter(|id| {
+                solver.possibly_equal(
+                    symbols,
+                    terms,
+                    predicate,
+                    literals[*id].get_predicate(),
+                )
+            });
 
         possible.extend(
-            correct_polarity
-                .filter(|literal| literal.is_predicate())
-                .filter(|literal| {
-                    literal.get_predicate_symbol(terms) == symbol
-                })
-                .map(|literal| literal.get_predicate())
-                .map(|term| PredicateReduction { term })
+            reduction_literals
+                .map(|literal| PredicateReduction { literal })
                 .map(Rule::Reduction),
         );
     }
@@ -243,10 +266,16 @@ impl Goal {
     fn possible_equality_rules<E: Extend<Rule>>(
         &self,
         possible: &mut E,
+        symbols: &Symbols,
+        terms: &Terms,
+        solver: &mut Solver,
         literal: &Literal,
     ) {
+        let (left, right) = literal.get_equality();
         if !literal.polarity {
-            self.possible_reflexivity_rules(possible);
+            self.possible_reflexivity_rules(
+                possible, symbols, terms, solver, left, right,
+            );
         }
     }
 
@@ -267,20 +296,18 @@ impl Goal {
         });
     }
 
-    fn possible_reflexivity_rules<E: Extend<Rule>>(&self, possible: &mut E) {
-        possible.extend(Some(Rule::Reflexivity));
-    }
-
-    fn ancestor_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
-        let current = some(self.stack.last()).closed();
-        let past = self
-            .stack
-            .slice()
-            .iter()
-            .rev()
-            .skip(1)
-            .flat_map(|clause| clause.closed().rev().skip(1));
-        current.chain(past)
+    fn possible_reflexivity_rules<E: Extend<Rule>>(
+        &self,
+        possible: &mut E,
+        symbols: &Symbols,
+        terms: &Terms,
+        solver: &mut Solver,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) {
+        if solver.possibly_equal(symbols, terms, left, right) {
+            possible.extend(Some(Rule::Reflexivity));
+        }
     }
 
     fn path_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
@@ -290,5 +317,17 @@ impl Goal {
             .rev()
             .skip(1)
             .map(|clause| some(clause.closed().rev().next()))
+    }
+
+    fn lemma_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
+        let current = some(self.stack.last()).closed();
+        let past = self
+            .stack
+            .slice()
+            .iter()
+            .rev()
+            .skip(1)
+            .flat_map(|clause| clause.closed().rev().skip(1));
+        current.chain(past)
     }
 }

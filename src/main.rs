@@ -22,7 +22,7 @@ fn main() {
     let mut queue = util::queue::Queue::default();
     for start in problem
         .start_clauses()
-        .map(|start_clause| rule::Start { start_clause })
+        .map(|clause| rule::Start { clause })
         .map(rule::Rule::Start)
         .map(util::list::List::new)
     {

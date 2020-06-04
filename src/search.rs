@@ -18,7 +18,7 @@ pub(crate) fn astar(
         script.clear();
         tableau.clear();
         for rule in rule_list.items() {
-            script.push_front(rule.clone());
+            script.push_front(*rule);
         }
         for rule in &script {
             tableau.apply_rule(&mut record, rule);

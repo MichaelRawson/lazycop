@@ -2,6 +2,7 @@ use crate::occurs;
 use crate::occurs::Occurs;
 use crate::prelude::*;
 use crate::util::disjoint_set::{Disjoint, Set};
+use std::cmp::Ordering;
 
 #[derive(Clone, Copy)]
 struct AtomicDisequation {
@@ -94,6 +95,37 @@ impl Solver {
                 let term = from_alias[alias.transmute()];
                 (x, term)
             })
+    }
+
+    pub(crate) fn possibly_equal(
+        &mut self,
+        symbols: &Symbols,
+        terms: &Terms,
+        left: Id<Term>,
+        right: Id<Term>,
+    ) -> bool {
+        let (left, lview) = self.lookup(symbols, terms, left);
+        let (right, rview) = self.lookup(symbols, terms, right);
+        if left == right {
+            return true;
+        }
+        match (lview, rview) {
+            (TermView::Function(_, _), TermView::Variable(x)) => {
+                !self.occurs(symbols, terms, x, left)
+            }
+            (TermView::Variable(x), TermView::Function(_, _)) => {
+                !self.occurs(symbols, terms, x, right)
+            }
+            (TermView::Function(f, ss), TermView::Function(g, ts)) => {
+                if f != g {
+                    return false;
+                }
+                ss.zip(ts)
+                    .map(|(s, t)| (terms.resolve(s), terms.resolve(t)))
+                    .all(|(s, t)| self.possibly_equal(symbols, terms, s, t))
+            }
+            (_, _) => true,
+        }
     }
 
     pub(crate) fn simplify(
@@ -203,59 +235,43 @@ impl Solver {
             }
             (TermView::Function(f, ss), TermView::Function(g, ts)) => {
                 let subterm_gte = ss.map(|s| terms.resolve(s)).any(|s| {
-                    self.lpo_eq(symbols, terms, s, right)
+                    self.possibly_equal(symbols, terms, s, right)
                         || self.lpo_gt(symbols, terms, s, right)
                 });
                 if subterm_gte {
                     return true;
                 }
 
-                if f > g {
-                    ts.map(|t| terms.resolve(t))
-                        .all(|t| self.lpo_gt(symbols, terms, left, t))
-                } else if f == g {
-                    let pairs = ss
-                        .zip(ts)
-                        .map(|(s, t)| (terms.resolve(s), terms.resolve(t)));
-                    for (s, t) in pairs {
-                        if self.lpo_gt(symbols, terms, s, t) {
-                            return true;
-                        } else if !self.lpo_eq(symbols, terms, s, t) {
-                            return false;
-                        }
-                    }
-                    false
-                } else {
-                    false
+                match f.cmp(&g) {
+                    Ordering::Greater => ts
+                        .map(|t| terms.resolve(t))
+                        .all(|t| self.lpo_gt(symbols, terms, left, t)),
+                    Ordering::Equal => self.lpo_lex(symbols, terms, ss, ts),
+                    Ordering::Less => false,
                 }
             }
             _ => true,
         }
     }
 
-    fn lpo_eq(
+    fn lpo_lex(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,
-        left: Id<Term>,
-        right: Id<Term>,
+        ss: Range<Argument>,
+        ts: Range<Argument>,
     ) -> bool {
-        let (left, lview) = self.lookup(symbols, terms, left);
-        let (right, rview) = self.lookup(symbols, terms, right);
-        if left == right {
-            return true;
-        }
-        match (lview, rview) {
-            (TermView::Function(f, ss), TermView::Function(g, ts)) => {
-                if f != g {
-                    return false;
-                }
-                ss.zip(ts)
-                    .map(|(s, t)| (terms.resolve(s), terms.resolve(t)))
-                    .all(|(s, t)| self.lpo_eq(symbols, terms, s, t))
+        let pairs = ss
+            .zip(ts)
+            .map(|(s, t)| (terms.resolve(s), terms.resolve(t)));
+        for (s, t) in pairs {
+            if self.lpo_gt(symbols, terms, s, t) {
+                return true;
+            } else if !self.possibly_equal(symbols, terms, s, t) {
+                return false;
             }
-            (_, _) => true,
         }
+        false
     }
 
     fn check_solved_disequation(

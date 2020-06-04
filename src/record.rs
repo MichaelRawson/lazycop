@@ -11,6 +11,7 @@ pub(crate) trait Record {
     ) {
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn inference<I: IntoIterator<Item = (Id<Term>, Id<Term>)>>(
         &mut self,
         _symbols: &Symbols,
@@ -18,6 +19,7 @@ pub(crate) trait Record {
         _literals: &Literals,
         _inference: &'static str,
         _equations: I,
+        _lemma: Option<Id<Literal>>,
         _deductions: &[&Clause],
     ) {
     }

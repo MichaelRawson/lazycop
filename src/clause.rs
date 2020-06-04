@@ -48,16 +48,17 @@ impl Clause {
         terms: &mut Terms,
         literals: &mut Literals,
         solver: &mut Solver,
-        start_clause: Id<ProblemClause>,
+        start: Start,
     ) -> Self {
         let start =
-            Self::copy(record, problem, terms, literals, solver, start_clause);
+            Self::copy(record, problem, terms, literals, solver, start.clause);
         record.inference(
             problem.signature(),
             terms,
             literals,
             "start",
             std::iter::empty(),
+            None,
             &[&start],
         );
         start
@@ -70,11 +71,12 @@ impl Clause {
         terms: &Terms,
         literals: &mut Literals,
         solver: &mut Solver,
-        q: Id<Term>,
+        reduction: PredicateReduction,
     ) {
-        let p = literals[self.close_literal()];
+        let p = &literals[self.close_literal()];
+        let q = &literals[reduction.literal];
         let pargs = p.get_predicate_arguments(symbols, terms);
-        let qargs = terms.arguments(symbols, q);
+        let qargs = q.get_predicate_arguments(symbols, terms);
         let pterms = pargs.map(|p| terms.resolve(p));
         let qterms = qargs.map(|q| terms.resolve(q));
         let assertions = pterms.zip(qterms);
@@ -85,11 +87,78 @@ impl Clause {
             literals,
             "predicate_reduction",
             assertions.clone(),
+            Some(reduction.literal),
             &[self],
         );
         for (s, t) in assertions {
             solver.assert_equal(s, t);
         }
+    }
+
+    pub(crate) fn strict_predicate_extension<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        solver: &mut Solver,
+        extension: PredicateExtension,
+    ) -> Self {
+        let occurrence =
+            problem.get_predicate_occurrence(extension.occurrence);
+        let term_offset = terms.current_offset();
+        let start = literals.len();
+
+        let clause = Self::copy(
+            record,
+            problem,
+            terms,
+            literals,
+            solver,
+            occurrence.clause,
+        );
+        let p = literals[self.close_literal()];
+        self.add_strong_connection_constraints(
+            solver, terms, literals, &clause,
+        );
+        literals.truncate(start);
+
+        let clause_literals = &problem.get_clause(occurrence.clause).literals;
+        let mut q = clause_literals[occurrence.literal];
+        q.offset(term_offset);
+
+        let pargs = p.get_predicate_arguments(problem.signature(), terms);
+        let qargs = q.get_predicate_arguments(problem.signature(), terms);
+        for (parg, qarg) in pargs.zip(qargs) {
+            let pterm = terms.resolve(parg);
+            let qterm = terms.resolve(qarg);
+            solver.assert_equal(pterm, qterm);
+        }
+
+        for id in clause_literals
+            .range()
+            .filter(|id| *id != occurrence.literal)
+        {
+            let mut literal = clause_literals[id];
+            literal.offset(term_offset);
+            literals.push(literal);
+        }
+        let end = literals.len();
+        let clause = Self::new(start, end);
+
+        record.inference(
+            problem.signature(),
+            terms,
+            literals,
+            "strict_predicate_extension",
+            pargs
+                .map(|arg| terms.resolve(arg))
+                .zip(qargs.map(|arg| terms.resolve(arg))),
+            None,
+            &[self, &clause],
+        );
+
+        clause
     }
 
     pub(crate) fn lazy_predicate_extension<R: Record>(
@@ -99,9 +168,10 @@ impl Clause {
         terms: &mut Terms,
         literals: &mut Literals,
         solver: &mut Solver,
-        occurrence: Id<PredicateOccurrence>,
+        extension: PredicateExtension,
     ) -> Self {
-        let occurrence = problem.get_predicate_occurrence(occurrence);
+        let occurrence =
+            problem.get_predicate_occurrence(extension.occurrence);
         let term_offset = terms.current_offset();
         let start = literals.len();
 
@@ -154,74 +224,11 @@ impl Clause {
             problem.signature(),
             terms,
             literals,
-            "predicate_extension",
+            "lazy_predicate_extension",
             fresh.zip(pargs.map(|arg| terms.resolve(arg))),
+            None,
             &[self, &clause],
         );
-        clause
-    }
-
-    pub(crate) fn strict_predicate_extension<R: Record>(
-        &mut self,
-        record: &mut R,
-        problem: &Problem,
-        terms: &mut Terms,
-        literals: &mut Literals,
-        solver: &mut Solver,
-        occurrence: Id<PredicateOccurrence>,
-    ) -> Self {
-        let occurrence = problem.get_predicate_occurrence(occurrence);
-        let term_offset = terms.current_offset();
-        let start = literals.len();
-
-        let clause = Self::copy(
-            record,
-            problem,
-            terms,
-            literals,
-            solver,
-            occurrence.clause,
-        );
-        let p = literals[self.close_literal()];
-        self.add_strong_connection_constraints(
-            solver, terms, literals, &clause,
-        );
-        literals.truncate(start);
-
-        let clause_literals = &problem.get_clause(occurrence.clause).literals;
-        let mut q = clause_literals[occurrence.literal];
-        q.offset(term_offset);
-
-        let pargs = p.get_predicate_arguments(problem.signature(), terms);
-        let qargs = q.get_predicate_arguments(problem.signature(), terms);
-        for (parg, qarg) in pargs.zip(qargs) {
-            let pterm = terms.resolve(parg);
-            let qterm = terms.resolve(qarg);
-            solver.assert_equal(pterm, qterm);
-        }
-
-        for id in clause_literals
-            .range()
-            .filter(|id| *id != occurrence.literal)
-        {
-            let mut literal = clause_literals[id];
-            literal.offset(term_offset);
-            literals.push(literal);
-        }
-        let end = literals.len();
-        let clause = Self::new(start, end);
-
-        record.inference(
-            problem.signature(),
-            terms,
-            literals,
-            "predicate_extension",
-            pargs
-                .map(|arg| terms.resolve(arg))
-                .zip(qargs.map(|arg| terms.resolve(arg))),
-            &[self, &clause],
-        );
-
         clause
     }
 
@@ -233,10 +240,10 @@ impl Clause {
         terms: &mut Terms,
         literals: &mut Literals,
         solver: &mut Solver,
-        target: Id<Term>,
-        occurrence: Id<EqualityOccurrence>,
+        extension: VariableExtension,
     ) -> Self {
-        let occurrence = problem.get_equality_occurrence(occurrence);
+        let target = extension.target;
+        let occurrence = problem.get_equality_occurrence(extension.occurrence);
         let term_offset = terms.current_offset();
         let from = occurrence.from + term_offset;
         let to = occurrence.to + term_offset;
@@ -282,8 +289,9 @@ impl Clause {
             problem.signature(),
             terms,
             literals,
-            "equality_extension",
+            "lazy_equality_extension",
             Some((from, target)),
+            None,
             &[self, &clause],
         );
 
@@ -307,6 +315,7 @@ impl Clause {
             literals,
             "reflexivity",
             Some((left, right)),
+            None,
             &[self],
         );
     }
