@@ -79,8 +79,7 @@ impl Goal {
                         terms,
                         &mut self.literals,
                         solver,
-                        extension.clause,
-                        extension.literal,
+                        extension.occurrence,
                     );
                 self.stack.push(new_clause);
                 self.close_branches();
@@ -94,26 +93,22 @@ impl Goal {
                         terms,
                         &mut self.literals,
                         solver,
-                        extension.clause,
-                        extension.literal,
+                        extension.occurrence,
                     );
                 self.stack.push(new_clause);
                 self.close_branches();
             }
-            Rule::VariableExtension(extension) => {
+            Rule::LazyVariableExtension(extension) => {
                 self.add_regularity_constraints(solver, terms, &self.literals);
                 let new_clause = some(self.stack.last_mut())
-                    .variable_extension(
+                    .lazy_variable_extension(
                         record,
                         problem,
                         terms,
                         &mut self.literals,
                         solver,
-                        extension.clause,
-                        extension.literal,
                         extension.target,
-                        extension.from,
-                        extension.to,
+                        extension.occurrence,
                     );
                 self.stack.push(new_clause);
             }
@@ -236,10 +231,7 @@ impl Goal {
         let matching = || {
             problem
                 .query_predicates(polarity, symbol)
-                .map(|occurrence| PredicateExtension {
-                    clause: occurrence.clause,
-                    literal: occurrence.literal,
-                })
+                .map(|occurrence| PredicateExtension { occurrence })
         };
 
         if problem.has_equality() {
@@ -269,15 +261,8 @@ impl Goal {
             possible.extend(
                 problem
                     .query_variable_equalities()
-                    .map(|occurrence| VariableExtension {
-                        clause: occurrence.clause,
-                        literal: occurrence.literal,
-                        target,
-                        from: occurrence.from,
-                        to: occurrence.to,
-                    })
-                    .map(Box::new)
-                    .map(Rule::VariableExtension),
+                    .map(|occurrence| VariableExtension { target, occurrence })
+                    .map(Rule::LazyVariableExtension),
             );
         });
     }

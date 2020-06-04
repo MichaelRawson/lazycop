@@ -99,9 +99,9 @@ impl Clause {
         terms: &mut Terms,
         literals: &mut Literals,
         solver: &mut Solver,
-        problem_clause: Id<ProblemClause>,
-        problem_literal: Id<Literal>,
+        occurrence: Id<PredicateOccurrence>,
     ) -> Self {
+        let occurrence = problem.get_predicate_occurrence(occurrence);
         let term_offset = terms.current_offset();
         let start = literals.len();
 
@@ -111,7 +111,7 @@ impl Clause {
             terms,
             literals,
             solver,
-            problem_clause,
+            occurrence.clause,
         );
         let p = literals[self.close_literal()];
         self.add_strong_connection_constraints(
@@ -119,8 +119,8 @@ impl Clause {
         );
         literals.truncate(start);
 
-        let (clause_literals, _) = problem.get_clause(problem_clause);
-        let mut q = clause_literals[problem_literal];
+        let clause_literals = &problem.get_clause(occurrence.clause).literals;
+        let mut q = clause_literals[occurrence.literal];
         q.offset(term_offset);
 
         let pargs = p.get_predicate_arguments(problem.signature(), terms);
@@ -138,7 +138,10 @@ impl Clause {
         let fresh_end = terms.len();
         let fresh = Range::new(fresh_start, fresh_end);
 
-        for id in clause_literals.range().filter(|id| *id != problem_literal) {
+        for id in clause_literals
+            .range()
+            .filter(|id| *id != occurrence.literal)
+        {
             let mut literal = clause_literals[id];
             literal.offset(term_offset);
             literals.push(literal);
@@ -165,9 +168,9 @@ impl Clause {
         terms: &mut Terms,
         literals: &mut Literals,
         solver: &mut Solver,
-        problem_clause: Id<ProblemClause>,
-        problem_literal: Id<Literal>,
+        occurrence: Id<PredicateOccurrence>,
     ) -> Self {
+        let occurrence = problem.get_predicate_occurrence(occurrence);
         let term_offset = terms.current_offset();
         let start = literals.len();
 
@@ -177,7 +180,7 @@ impl Clause {
             terms,
             literals,
             solver,
-            problem_clause,
+            occurrence.clause,
         );
         let p = literals[self.close_literal()];
         self.add_strong_connection_constraints(
@@ -185,8 +188,8 @@ impl Clause {
         );
         literals.truncate(start);
 
-        let (clause_literals, _) = problem.get_clause(problem_clause);
-        let mut q = clause_literals[problem_literal];
+        let clause_literals = &problem.get_clause(occurrence.clause).literals;
+        let mut q = clause_literals[occurrence.literal];
         q.offset(term_offset);
 
         let pargs = p.get_predicate_arguments(problem.signature(), terms);
@@ -197,7 +200,10 @@ impl Clause {
             solver.assert_equal(pterm, qterm);
         }
 
-        for id in clause_literals.range().filter(|id| *id != problem_literal) {
+        for id in clause_literals
+            .range()
+            .filter(|id| *id != occurrence.literal)
+        {
             let mut literal = clause_literals[id];
             literal.offset(term_offset);
             literals.push(literal);
@@ -219,25 +225,31 @@ impl Clause {
         clause
     }
 
-    pub(crate) fn variable_extension<R: Record>(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn lazy_variable_extension<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         solver: &mut Solver,
-        problem_clause: Id<ProblemClause>,
-        problem_literal: Id<Literal>,
         target: Id<Term>,
-        from: Id<Term>,
-        to: Id<Term>,
+        occurrence: Id<EqualityOccurrence>,
     ) -> Self {
+        let occurrence = problem.get_equality_occurrence(occurrence);
         let term_offset = terms.current_offset();
-        let from = from + term_offset;
-        let to = to + term_offset;
+        let from = occurrence.from + term_offset;
+        let to = occurrence.to + term_offset;
         let start = literals.len();
 
-        Self::copy(record, problem, terms, literals, solver, problem_clause);
+        Self::copy(
+            record,
+            problem,
+            terms,
+            literals,
+            solver,
+            occurrence.clause,
+        );
         literals.truncate(start);
 
         let fresh = terms.add_variable();
@@ -252,8 +264,11 @@ impl Clause {
         );
         literals.push(literal);
 
-        let (clause_literals, _) = problem.get_clause(problem_clause);
-        for id in clause_literals.range().filter(|id| *id != problem_literal) {
+        let clause_literals = &problem.get_clause(occurrence.clause).literals;
+        for id in clause_literals
+            .range()
+            .filter(|id| *id != occurrence.literal)
+        {
             let mut literal = clause_literals[id];
             literal.offset(term_offset);
             literals.push(literal);
@@ -307,9 +322,9 @@ impl Clause {
         let start = literals.len();
         let offset = terms.current_offset();
 
-        let (clause_literals, clause_terms) = problem.get_clause(clause);
-        terms.extend(clause_terms);
-        literals.extend(clause_literals);
+        let clause = problem.get_clause(clause);
+        terms.extend(&clause.terms);
+        literals.extend(&clause.literals);
 
         let end = literals.len();
         for id in Range::new(start, end) {

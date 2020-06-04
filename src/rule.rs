@@ -12,25 +12,21 @@ pub(crate) struct PredicateReduction {
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct PredicateExtension {
-    pub(crate) clause: Id<ProblemClause>,
-    pub(crate) literal: Id<Literal>,
+    pub(crate) occurrence: Id<PredicateOccurrence>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct VariableExtension {
-    pub(crate) clause: Id<ProblemClause>,
-    pub(crate) literal: Id<Literal>,
     pub(crate) target: Id<Term>,
-    pub(crate) from: Id<Term>,
-    pub(crate) to: Id<Term>,
+    pub(crate) occurrence: Id<EqualityOccurrence>,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Rule {
     Start(Start),
     Reduction(PredicateReduction),
     StrictPredicateExtension(PredicateExtension),
     LazyPredicateExtension(PredicateExtension),
-    VariableExtension(Box<VariableExtension>),
+    LazyVariableExtension(VariableExtension),
     Reflexivity,
 }

@@ -7,8 +7,8 @@ use fnv::FnvHashMap;
 use std::mem;
 
 pub(crate) struct ProblemClause {
-    literals: Literals,
-    terms: Terms,
+    pub(crate) literals: Literals,
+    pub(crate) terms: Terms,
 }
 
 pub(crate) struct PredicateOccurrence {
@@ -16,7 +16,7 @@ pub(crate) struct PredicateOccurrence {
     pub(crate) literal: Id<Literal>,
 }
 
-pub(crate) struct VariableEqualityOccurrence {
+pub(crate) struct EqualityOccurrence {
     pub(crate) clause: Id<ProblemClause>,
     pub(crate) literal: Id<Literal>,
     pub(crate) from: Id<Term>,
@@ -28,8 +28,11 @@ pub(crate) struct Problem {
     symbols: Symbols,
     clauses: Block<ProblemClause>,
     start: Vec<Id<ProblemClause>>,
-    predicate_occurrences: [Block<Vec<PredicateOccurrence>>; 2],
-    variable_equality_occurrences: Vec<VariableEqualityOccurrence>,
+
+    predicate_occurrences: Block<PredicateOccurrence>,
+    equality_occurrences: Block<EqualityOccurrence>,
+    predicates: [Block<Vec<Id<PredicateOccurrence>>>; 2],
+    variable_equality_occurrences: Vec<Id<EqualityOccurrence>>,
 }
 
 impl Problem {
@@ -47,27 +50,38 @@ impl Problem {
         self.start.iter().copied()
     }
 
-    pub(crate) fn get_clause(
+    pub(crate) fn get_clause(&self, id: Id<ProblemClause>) -> &ProblemClause {
+        &self.clauses[id]
+    }
+
+    pub(crate) fn get_predicate_occurrence(
         &self,
-        id: Id<ProblemClause>,
-    ) -> (&Literals, &Terms) {
-        let clause = &self.clauses[id];
-        (&clause.literals, &clause.terms)
+        id: Id<PredicateOccurrence>,
+    ) -> &PredicateOccurrence {
+        &self.predicate_occurrences[id]
+    }
+
+    pub(crate) fn get_equality_occurrence(
+        &self,
+        id: Id<EqualityOccurrence>,
+    ) -> &EqualityOccurrence {
+        &self.equality_occurrences[id]
     }
 
     pub(crate) fn query_predicates(
         &self,
         polarity: bool,
         symbol: Id<Symbol>,
-    ) -> impl Iterator<Item = &PredicateOccurrence> + '_ {
-        self.predicate_occurrences[polarity as usize][symbol.transmute()]
+    ) -> impl Iterator<Item = Id<PredicateOccurrence>> + '_ {
+        self.predicates[polarity as usize][symbol.transmute()]
             .iter()
+            .copied()
     }
 
     pub(crate) fn query_variable_equalities(
         &self,
-    ) -> impl Iterator<Item = &VariableEqualityOccurrence> + '_ {
-        self.variable_equality_occurrences.iter()
+    ) -> impl Iterator<Item = Id<EqualityOccurrence>> + '_ {
+        self.variable_equality_occurrences.iter().copied()
     }
 }
 
@@ -134,9 +148,12 @@ impl ProblemBuilder {
 
         let clause = self.problem.clauses.len();
         let literal = self.saved_literals.len();
-        let occurrence = PredicateOccurrence { clause, literal };
+        let occurrence = self
+            .problem
+            .predicate_occurrences
+            .push(PredicateOccurrence { clause, literal });
         let predicate_positions =
-            &mut self.problem.predicate_occurrences[polarity as usize];
+            &mut self.problem.predicates[polarity as usize];
         predicate_positions.resize((self.problem.symbols.len()).transmute());
         predicate_positions[symbol.transmute()].push(occurrence);
 
@@ -152,22 +169,15 @@ impl ProblemBuilder {
         let clause = self.problem.clauses.len();
         let literal = self.saved_literals.len();
 
-        let variable_equality_occurrences =
-            &mut self.problem.variable_equality_occurrences;
-        let mut add_variable_equality = |from, to| {
-            let position = VariableEqualityOccurrence {
-                clause,
-                literal,
-                from,
-                to,
-            };
-            variable_equality_occurrences.push(position);
-        };
         if self.terms.is_variable(left) {
-            add_variable_equality(left, right);
+            self.add_variable_equality_occurrence(
+                clause, literal, left, right,
+            );
         }
         if self.terms.is_variable(right) {
-            add_variable_equality(right, left);
+            self.add_variable_equality_occurrence(
+                clause, literal, right, left,
+            );
         }
 
         let atom = Atom::Equality(left, right);
@@ -207,6 +217,23 @@ impl ProblemBuilder {
         if is_positive_clause {
             self.positive_clauses.push(problem_clause);
         }
+    }
+
+    fn add_variable_equality_occurrence(
+        &mut self,
+        clause: Id<ProblemClause>,
+        literal: Id<Literal>,
+        from: Id<Term>,
+        to: Id<Term>,
+    ) {
+        let occurrence =
+            self.problem.equality_occurrences.push(EqualityOccurrence {
+                clause,
+                literal,
+                from,
+                to,
+            });
+        self.problem.variable_equality_occurrences.push(occurrence);
     }
 
     fn pop_term(&mut self) -> Id<Term> {
