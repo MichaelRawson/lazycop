@@ -32,7 +32,8 @@ pub(crate) struct Problem {
     predicate_occurrences: Block<PredicateOccurrence>,
     equality_occurrences: Block<EqualityOccurrence>,
     predicates: [Block<Vec<Id<PredicateOccurrence>>>; 2],
-    variable_equality_occurrences: Vec<Id<EqualityOccurrence>>,
+    variable_equalities: Vec<Id<EqualityOccurrence>>,
+    function_equalities: Block<Vec<Id<EqualityOccurrence>>>,
 }
 
 impl Problem {
@@ -41,7 +42,8 @@ impl Problem {
     }
 
     pub(crate) fn has_equality(&self) -> bool {
-        !self.variable_equality_occurrences.is_empty()
+        !self.variable_equalities.is_empty()
+            || !self.function_equalities.is_empty()
     }
 
     pub(crate) fn start_clauses(
@@ -81,7 +83,14 @@ impl Problem {
     pub(crate) fn query_variable_equalities(
         &self,
     ) -> impl Iterator<Item = Id<EqualityOccurrence>> + '_ {
-        self.variable_equality_occurrences.iter().copied()
+        self.variable_equalities.iter().copied()
+    }
+
+    pub(crate) fn query_function_equalities(
+        &self,
+        symbol: Id<Symbol>,
+    ) -> impl Iterator<Item = Id<EqualityOccurrence>> + '_ {
+        self.function_equalities[symbol.transmute()].iter().copied()
     }
 }
 
@@ -103,6 +112,13 @@ pub(crate) struct ProblemBuilder {
 
 impl ProblemBuilder {
     pub(crate) fn finish(mut self) -> Problem {
+        let max_symbol = self.problem.signature().len();
+        self.problem.predicates[0].resize(max_symbol.transmute());
+        self.problem.predicates[1].resize(max_symbol.transmute());
+        self.problem
+            .function_equalities
+            .resize(max_symbol.transmute());
+
         if self.axiom_clauses.is_empty() || self.conjecture_clauses.is_empty()
         {
             self.problem.start = self.positive_clauses;
@@ -152,12 +168,12 @@ impl ProblemBuilder {
             .problem
             .predicate_occurrences
             .push(PredicateOccurrence { clause, literal });
-        let predicate_positions =
-            &mut self.problem.predicates[polarity as usize];
-        predicate_positions.resize((self.problem.symbols.len()).transmute());
-        predicate_positions[symbol.transmute()].push(occurrence);
 
         self.saved_literals.push(Literal::new(polarity, atom));
+        let polarity_positions =
+            &mut self.problem.predicates[polarity as usize];
+        polarity_positions.resize((self.problem.symbols.len()).transmute());
+        polarity_positions[symbol.transmute()].push(occurrence);
     }
 
     pub(crate) fn equality(&mut self, polarity: bool) {
@@ -169,19 +185,12 @@ impl ProblemBuilder {
         let clause = self.problem.clauses.len();
         let literal = self.saved_literals.len();
 
-        if self.terms.is_variable(left) {
-            self.add_variable_equality_occurrence(
-                clause, literal, left, right,
-            );
-        }
-        if self.terms.is_variable(right) {
-            self.add_variable_equality_occurrence(
-                clause, literal, right, left,
-            );
-        }
-
         let atom = Atom::Equality(left, right);
         self.saved_literals.push(Literal::new(polarity, atom));
+        if polarity {
+            self.add_equality_occurrence(clause, literal, left, right);
+            self.add_equality_occurrence(clause, literal, right, left);
+        }
     }
 
     pub(crate) fn clause(&mut self, conjecture: bool) {
@@ -219,7 +228,7 @@ impl ProblemBuilder {
         }
     }
 
-    fn add_variable_equality_occurrence(
+    fn add_equality_occurrence(
         &mut self,
         clause: Id<ProblemClause>,
         literal: Id<Literal>,
@@ -233,7 +242,18 @@ impl ProblemBuilder {
                 from,
                 to,
             });
-        self.problem.variable_equality_occurrences.push(occurrence);
+        match self.terms.view(&self.problem.symbols, from) {
+            TermView::Variable(_) => {
+                self.problem.variable_equalities.push(occurrence);
+            }
+            TermView::Function(f, _) => {
+                self.problem
+                    .function_equalities
+                    .resize((self.problem.symbols.len()).transmute());
+                self.problem.function_equalities[f.transmute()]
+                    .push(occurrence);
+            }
+        }
     }
 
     fn pop_term(&mut self) -> Id<Term> {

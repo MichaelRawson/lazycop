@@ -50,7 +50,7 @@ impl TSTP {
         &mut self,
         symbols: &Symbols,
         terms: &Terms,
-        literal: Literal,
+        literal: &Literal,
     ) {
         if literal.is_predicate() {
             if !literal.polarity {
@@ -79,14 +79,14 @@ impl TSTP {
     ) {
         let mut range = clause.open();
         if let Some(id) = range.next() {
-            let literal = literals[id];
+            let literal = &literals[id];
             self.print_literal(symbols, terms, literal);
         } else {
             print!("$false");
             return;
         }
         for id in range {
-            let literal = literals[id];
+            let literal = &literals[id];
             print!(" | ");
             self.print_literal(symbols, terms, literal);
         }
@@ -115,12 +115,29 @@ impl Record for TSTP {
         literals: &Literals,
         inference: &'static str,
         equations: I,
+        path: Option<Id<Literal>>,
+        lemma: Option<Id<Literal>>,
         deductions: &[&Clause],
     ) {
-        if let Some(parent) = self.clause_stack.pop() {
-            self.premise_list.push(parent);
+        if let Some(path) = path {
+            print!("cnf(c{}, plain,\n\t", self.clause_number);
+            self.premise_list.push(self.clause_number);
+            self.clause_number += 1;
+            self.print_literal(symbols, terms, &literals[path]);
+            println!(").");
         }
 
+        if let Some(lemma) = lemma {
+            print!("cnf(c{}, lemma,\n\t", self.clause_number);
+            self.premise_list.push(self.clause_number);
+            self.clause_number += 1;
+            let mut literal = literals[lemma];
+            literal.polarity = !literal.polarity;
+            self.print_literal(symbols, terms, &literal);
+            println!(").");
+        }
+
+        let parent = self.clause_stack.pop();
         let assumption_start = self.assumption_number;
         for (left, right) in equations {
             print!("cnf(a{}, assumption,\n\t", self.assumption_number);
@@ -152,12 +169,18 @@ impl Record for TSTP {
             }
             print!("], [");
 
-            let mut premises = self.premise_list.iter();
-            if let Some(first) = premises.next() {
-                print!("c{}", first);
+            let mut first_premise = true;
+            if let Some(parent) = parent {
+                print!("c{}", parent);
+                first_premise = false;
             }
-            for rest in premises {
-                print!(", c{}", rest);
+
+            for premise in self.premise_list.iter() {
+                if !first_premise {
+                    print!(", ");
+                }
+                first_premise = false;
+                print!("c{}", premise);
             }
             println!("])).")
         }
@@ -196,5 +219,6 @@ impl Record for TSTP {
             print!(", a{}", number);
         }
         println!("])).");
+        println!();
     }
 }

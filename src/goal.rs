@@ -59,7 +59,7 @@ impl Goal {
                     start,
                 ));
             }
-            Rule::Reduction(reduction) => {
+            Rule::PredicateReduction(reduction) => {
                 some(self.stack.last_mut()).predicate_reduction(
                     record,
                     &problem.signature(),
@@ -67,9 +67,23 @@ impl Goal {
                     &mut self.literals,
                     solver,
                     reduction,
+                    true,
                 );
                 self.close_branches();
             }
+            Rule::PredicateLemma(reduction) => {
+                some(self.stack.last_mut()).predicate_reduction(
+                    record,
+                    &problem.signature(),
+                    terms,
+                    &mut self.literals,
+                    solver,
+                    reduction,
+                    false,
+                );
+                self.close_branches();
+            }
+            Rule::EqualityReduction(reduction) => todo!(),
             Rule::LazyPredicateExtension(extension) => {
                 self.add_regularity_constraints(solver, terms, &self.literals);
                 let new_clause = some(self.stack.last_mut())
@@ -98,10 +112,23 @@ impl Goal {
                 self.stack.push(new_clause);
                 self.close_branches();
             }
-            Rule::LazyVariableExtension(extension) => {
+            Rule::VariableExtension(extension) => {
                 self.add_regularity_constraints(solver, terms, &self.literals);
                 let new_clause = some(self.stack.last_mut())
-                    .lazy_variable_extension(
+                    .variable_extension(
+                        record,
+                        problem,
+                        terms,
+                        &mut self.literals,
+                        solver,
+                        extension,
+                    );
+                self.stack.push(new_clause);
+            }
+            Rule::FunctionExtension(extension) => {
+                self.add_regularity_constraints(solver, terms, &self.literals);
+                let new_clause = some(self.stack.last_mut())
+                    .function_extension(
                         record,
                         problem,
                         terms,
@@ -177,7 +204,7 @@ impl Goal {
                 literal,
             );
         }
-        self.possible_variable_extension_rules(
+        self.possible_equality_extension_rules(
             possible, problem, terms, literal,
         );
     }
@@ -191,6 +218,13 @@ impl Goal {
         literal: &Literal,
     ) {
         self.possible_predicate_reduction_rules(
+            possible,
+            problem.signature(),
+            terms,
+            solver,
+            literal,
+        );
+        self.possible_predicate_lemma_rules(
             possible,
             problem.signature(),
             terms,
@@ -211,34 +245,54 @@ impl Goal {
         literal: &Literal,
     ) {
         let polarity = literal.polarity;
-        let predicate = literal.get_predicate();
         let symbol = literal.get_predicate_symbol(terms);
-        let literals = &self.literals;
-
-        let filter = |id, polarity| {
-            let literal = literals[id];
-            literal.polarity == polarity
-                && literal.is_predicate()
-                && literal.get_predicate_symbol(terms) == symbol
-        };
-        let path_literals =
-            self.path_literals().filter(|id| filter(*id, !polarity));
-        let lemma_literals =
-            self.lemma_literals().filter(|id| filter(*id, polarity));
-        let reduction_literals =
-            path_literals.chain(lemma_literals).filter(|id| {
-                solver.possibly_equal(
-                    symbols,
-                    terms,
-                    predicate,
-                    literals[*id].get_predicate(),
-                )
-            });
-
+        let predicate = literal.get_predicate();
         possible.extend(
-            reduction_literals
+            self.path_literals()
+                .filter(|id| {
+                    let path = self.literals[*id];
+                    path.polarity != polarity
+                        && path.is_predicate()
+                        && path.get_predicate_symbol(terms) == symbol
+                        && solver.possibly_equal(
+                            symbols,
+                            terms,
+                            path.get_predicate(),
+                            predicate,
+                        )
+                })
                 .map(|literal| PredicateReduction { literal })
-                .map(Rule::Reduction),
+                .map(Rule::PredicateReduction),
+        );
+    }
+
+    fn possible_predicate_lemma_rules<E: Extend<Rule>>(
+        &self,
+        possible: &mut E,
+        symbols: &Symbols,
+        terms: &Terms,
+        solver: &mut Solver,
+        literal: &Literal,
+    ) {
+        let polarity = literal.polarity;
+        let symbol = literal.get_predicate_symbol(terms);
+        let predicate = literal.get_predicate();
+        possible.extend(
+            self.lemma_literals()
+                .filter(|id| {
+                    let lemma = self.literals[*id];
+                    lemma.polarity == polarity
+                        && lemma.is_predicate()
+                        && lemma.get_predicate_symbol(terms) == symbol
+                        && solver.possibly_equal(
+                            symbols,
+                            terms,
+                            lemma.get_predicate(),
+                            predicate,
+                        )
+                })
+                .map(|literal| PredicateReduction { literal })
+                .map(Rule::PredicateLemma),
         );
     }
 
@@ -251,16 +305,16 @@ impl Goal {
     ) {
         let polarity = !literal.polarity;
         let symbol = literal.get_predicate_symbol(terms);
-        let matching = || {
+        let extensions = || {
             problem
                 .query_predicates(polarity, symbol)
                 .map(|occurrence| PredicateExtension { occurrence })
         };
 
         if problem.has_equality() {
-            possible.extend(matching().map(Rule::LazyPredicateExtension));
+            possible.extend(extensions().map(Rule::LazyPredicateExtension));
         }
-        possible.extend(matching().map(Rule::StrictPredicateExtension));
+        possible.extend(extensions().map(Rule::StrictPredicateExtension));
     }
 
     fn possible_equality_rules<E: Extend<Rule>>(
@@ -279,7 +333,7 @@ impl Goal {
         }
     }
 
-    fn possible_variable_extension_rules<E: Extend<Rule>>(
+    fn possible_equality_extension_rules<E: Extend<Rule>>(
         &self,
         possible: &mut E,
         problem: &Problem,
@@ -290,8 +344,16 @@ impl Goal {
             possible.extend(
                 problem
                     .query_variable_equalities()
-                    .map(|occurrence| VariableExtension { target, occurrence })
-                    .map(Rule::LazyVariableExtension),
+                    .map(|occurrence| EqualityExtension { target, occurrence })
+                    .map(Rule::VariableExtension),
+            );
+
+            let symbol = terms.symbol(target);
+            possible.extend(
+                problem
+                    .query_function_equalities(symbol)
+                    .map(|occurrence| EqualityExtension { target, occurrence })
+                    .map(Rule::FunctionExtension),
             );
         });
     }

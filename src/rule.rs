@@ -16,7 +16,14 @@ pub(crate) struct PredicateExtension {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct VariableExtension {
+pub(crate) struct EqualityReduction {
+    pub(crate) target: Id<Term>,
+    pub(crate) from: Id<Term>,
+    pub(crate) to: Id<Term>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct EqualityExtension {
     pub(crate) target: Id<Term>,
     pub(crate) occurrence: Id<EqualityOccurrence>,
 }
@@ -24,9 +31,12 @@ pub(crate) struct VariableExtension {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Rule {
     Start(Start),
-    Reduction(PredicateReduction),
+    PredicateReduction(PredicateReduction),
+    PredicateLemma(PredicateReduction),
+    EqualityReduction(EqualityReduction),
     StrictPredicateExtension(PredicateExtension),
     LazyPredicateExtension(PredicateExtension),
-    LazyVariableExtension(VariableExtension),
+    VariableExtension(EqualityExtension),
+    FunctionExtension(EqualityExtension),
     Reflexivity,
 }

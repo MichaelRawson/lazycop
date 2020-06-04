@@ -85,16 +85,13 @@ impl Solver {
         let to_alias = &self.to_alias;
         let from_alias = &self.from_alias;
         let aliases = &mut self.aliases;
-        to_alias
-            .range()
-            .filter_map(move |id| {
-                to_alias[id].map(|alias| (id.transmute(), alias))
-            })
-            .map(move |(x, alias)| {
-                let alias = aliases.find(alias);
-                let term = from_alias[alias.transmute()];
-                (x, term)
-            })
+        to_alias.range().filter_map(move |id| {
+            let x = id.transmute();
+            let alias = to_alias[id]?;
+            let set = aliases.find(alias);
+            let term = from_alias[set.transmute()];
+            Some((x, term))
+        })
     }
 
     pub(crate) fn possibly_equal(
@@ -229,6 +226,7 @@ impl Solver {
         if left == right {
             return false;
         }
+
         match (lview, rview) {
             (TermView::Variable(x), _) => {
                 !self.occurs(symbols, terms, x, right)
@@ -242,13 +240,17 @@ impl Solver {
                     return true;
                 }
 
-                match f.cmp(&g) {
-                    Ordering::Greater => ts
-                        .map(|t| terms.resolve(t))
-                        .all(|t| self.lpo_gt(symbols, terms, left, t)),
-                    Ordering::Equal => self.lpo_lex(symbols, terms, ss, ts),
-                    Ordering::Less => false,
+                if f < g {
+                    return false;
                 }
+                let left_larger = ts
+                    .map(|t| terms.resolve(t))
+                    .all(|t| self.lpo_gt(symbols, terms, left, t));
+                if !left_larger {
+                    return false;
+                }
+
+                f > g || self.lpo_lex(symbols, terms, ss, ts)
             }
             _ => true,
         }

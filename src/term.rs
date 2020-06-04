@@ -56,10 +56,6 @@ impl Terms {
         self.terms.extend(&other.terms);
     }
 
-    pub(crate) fn is_variable(&mut self, term: Id<Term>) -> bool {
-        self.terms[term].as_symbol().is_none()
-    }
-
     pub(crate) fn add_variable(&mut self) -> Id<Term> {
         let symbol = None;
         let term = Term { symbol };

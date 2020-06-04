@@ -13,8 +13,8 @@ pub(crate) fn astar(
 
     let mut possible = vec![];
     let mut script = VecDeque::new();
-    let mut record = Silent; //crate::io::tstp::TSTP::default();
     while let Some(rule_list) = queue.dequeue() {
+        let mut record = Silent; //crate::io::tstp::TSTP::default();
         script.clear();
         tableau.clear();
         for rule in rule_list.items() {
@@ -31,7 +31,7 @@ pub(crate) fn astar(
         possible.sort();
         possible.dedup();
         for rule in possible.drain(..) {
-            tableau.apply_rule(&mut record, &rule);
+            tableau.apply_rule(&mut Silent, &rule);
             if tableau.solve_constraints() {
                 if tableau.is_closed() {
                     script.push_back(rule);

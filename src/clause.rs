@@ -59,11 +59,13 @@ impl Clause {
             "start",
             std::iter::empty(),
             None,
+            None,
             &[&start],
         );
         start
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn predicate_reduction<R: Record>(
         &mut self,
         record: &mut R,
@@ -72,6 +74,7 @@ impl Clause {
         literals: &mut Literals,
         solver: &mut Solver,
         reduction: PredicateReduction,
+        is_path: bool,
     ) {
         let p = &literals[self.close_literal()];
         let q = &literals[reduction.literal];
@@ -81,13 +84,23 @@ impl Clause {
         let qterms = qargs.map(|q| terms.resolve(q));
         let assertions = pterms.zip(qterms);
 
+        let (path, lemma) = if is_path {
+            (Some(reduction.literal), None)
+        } else {
+            (None, Some(reduction.literal))
+        };
         record.inference(
             symbols,
             terms,
             literals,
-            "predicate_reduction",
+            if is_path {
+                "predicate_reduction"
+            } else {
+                "predicate_lemma"
+            },
             assertions.clone(),
-            Some(reduction.literal),
+            path,
+            lemma,
             &[self],
         );
         for (s, t) in assertions {
@@ -154,6 +167,7 @@ impl Clause {
             pargs
                 .map(|arg| terms.resolve(arg))
                 .zip(qargs.map(|arg| terms.resolve(arg))),
+            None,
             None,
             &[self, &clause],
         );
@@ -227,20 +241,20 @@ impl Clause {
             "lazy_predicate_extension",
             fresh.zip(pargs.map(|arg| terms.resolve(arg))),
             None,
+            None,
             &[self, &clause],
         );
         clause
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn lazy_variable_extension<R: Record>(
+    pub(crate) fn variable_extension<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         solver: &mut Solver,
-        extension: VariableExtension,
+        extension: EqualityExtension,
     ) -> Self {
         let target = extension.target;
         let occurrence = problem.get_equality_occurrence(extension.occurrence);
@@ -263,6 +277,7 @@ impl Clause {
         let atom = Atom::Equality(fresh, to);
         let disequation = Literal::new(false, atom);
         literals.push(disequation);
+
         let literal = literals[self.close_literal()].subst(
             problem.signature(),
             terms,
@@ -284,13 +299,86 @@ impl Clause {
         let clause = Self::new(start, end);
 
         solver.assert_equal(from, target);
-        solver.assert_gt(from, fresh);
+        //solver.assert_gt(from, fresh);
         record.inference(
             problem.signature(),
             terms,
             literals,
-            "lazy_equality_extension",
+            "equality_extension",
             Some((from, target)),
+            None,
+            None,
+            &[self, &clause],
+        );
+
+        clause
+    }
+
+    pub(crate) fn function_extension<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        solver: &mut Solver,
+        extension: EqualityExtension,
+    ) -> Self {
+        let target = extension.target;
+        let occurrence = problem.get_equality_occurrence(extension.occurrence);
+        let term_offset = terms.current_offset();
+        let from = occurrence.from + term_offset;
+        let to = occurrence.to + term_offset;
+        let start = literals.len();
+
+        Self::copy(
+            record,
+            problem,
+            terms,
+            literals,
+            solver,
+            occurrence.clause,
+        );
+        literals.truncate(start);
+
+        let placeholder = terms.add_variable();
+        let atom = Atom::Equality(placeholder, from);
+        let disequation = Literal::new(false, atom);
+        literals.push(disequation);
+
+        let fresh = terms.add_variable();
+        let atom = Atom::Equality(fresh, to);
+        let disequation = Literal::new(false, atom);
+        literals.push(disequation);
+
+        let literal = literals[self.close_literal()].subst(
+            problem.signature(),
+            terms,
+            target,
+            fresh,
+        );
+        literals.push(literal);
+
+        let clause_literals = &problem.get_clause(occurrence.clause).literals;
+        for id in clause_literals
+            .range()
+            .filter(|id| *id != occurrence.literal)
+        {
+            let mut literal = clause_literals[id];
+            literal.offset(term_offset);
+            literals.push(literal);
+        }
+        let end = literals.len();
+        let clause = Self::new(start, end);
+
+        solver.assert_equal(placeholder, target);
+        solver.assert_gt(placeholder, fresh);
+        record.inference(
+            problem.signature(),
+            terms,
+            literals,
+            "equality_extension",
+            Some((placeholder, target)),
+            None,
             None,
             &[self, &clause],
         );
@@ -315,6 +403,7 @@ impl Clause {
             literals,
             "reflexivity",
             Some((left, right)),
+            None,
             None,
             &[self],
         );
