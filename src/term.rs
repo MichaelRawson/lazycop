@@ -75,6 +75,24 @@ impl Terms {
         id
     }
 
+    pub(crate) fn fresh_function(
+        &mut self,
+        symbols: &Symbols,
+        symbol: Id<Symbol>,
+    ) -> Id<Term> {
+        let arity = symbols.arity(symbol);
+        let symbol = Some(symbol);
+        let start = self.terms.len();
+        for _ in 0..arity {
+            self.add_variable();
+        }
+        let id = self.terms.push(Term { symbol });
+        for arg in Range::new_with_len(start, arity) {
+            self.add_reference(arg);
+        }
+        id
+    }
+
     pub(crate) fn subst(
         &mut self,
         symbols: &Symbols,
@@ -97,23 +115,18 @@ impl Terms {
                 let new_args =
                     Range::new(start + Offset::new(1), self.terms.len());
 
-                let mut modified = false;
                 for (new, old) in new_args.zip(args) {
                     let subterm = self.resolve(old);
                     let result = self.subst(symbols, subterm, from, to);
                     if result != subterm {
-                        modified = true;
                         let offset = result - new;
                         let term = Term { offset };
                         self.terms[new] = term;
+                        return start;
                     }
                 }
-                if !modified {
-                    self.terms.truncate(start);
-                    term
-                } else {
-                    start
-                }
+                self.terms.truncate(start);
+                term
             }
         }
     }

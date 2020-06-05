@@ -274,7 +274,7 @@ impl Clause {
         literals.truncate(start);
 
         let fresh = terms.add_variable();
-        let atom = Atom::Equality(fresh, to);
+        let atom = Atom::Equality(to, fresh);
         let disequation = Literal::new(false, atom);
         literals.push(disequation);
 
@@ -298,14 +298,14 @@ impl Clause {
         let end = literals.len();
         let clause = Self::new(start, end);
 
-        solver.assert_equal(from, target);
-        //solver.assert_gt(from, fresh);
+        solver.assert_equal(target, from);
+        solver.assert_gt(from, fresh);
         record.inference(
             problem.signature(),
             terms,
             literals,
-            "equality_extension",
-            Some((from, target)),
+            "variable_extension",
+            Some((target, from)),
             None,
             None,
             &[self, &clause],
@@ -340,12 +340,17 @@ impl Clause {
         );
         literals.truncate(start);
 
-        let placeholder = terms.add_variable();
-        let atom = Atom::Equality(placeholder, from);
-        let disequation = Literal::new(false, atom);
-        literals.push(disequation);
-
         let fresh = terms.add_variable();
+        let placeholder =
+            terms.fresh_function(problem.signature(), terms.symbol(from));
+
+        let ss = terms.arguments(problem.signature(), placeholder);
+        let ts = terms.arguments(problem.signature(), from);
+        for (s, t) in ss.zip(ts) {
+            let atom = Atom::Equality(terms.resolve(s), terms.resolve(t));
+            let disequation = Literal::new(false, atom);
+            literals.push(disequation);
+        }
         let atom = Atom::Equality(fresh, to);
         let disequation = Literal::new(false, atom);
         literals.push(disequation);
@@ -370,13 +375,13 @@ impl Clause {
         let end = literals.len();
         let clause = Self::new(start, end);
 
-        solver.assert_equal(placeholder, target);
+        solver.assert_equal(target, placeholder);
         solver.assert_gt(placeholder, fresh);
         record.inference(
             problem.signature(),
             terms,
             literals,
-            "equality_extension",
+            "function_extension",
             Some((placeholder, target)),
             None,
             None,

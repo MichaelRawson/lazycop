@@ -10,11 +10,13 @@ struct AtomicDisequation {
     term: Id<Term>,
 }
 
+type Pair = (Id<Term>, Id<Term>);
 #[derive(Default)]
 pub(crate) struct Solver {
-    equations: Vec<(Id<Term>, Id<Term>)>,
-    orderings: Vec<(Id<Term>, Id<Term>)>,
-    disequations: Vec<(Id<Term>, Id<Term>)>,
+    equations: Vec<Pair>,
+    orderings: Vec<Pair>,
+    disequations: Vec<Pair>,
+    symmetric_disequations: Vec<(Pair, Pair)>,
     atomic_disequations: Block<AtomicDisequation>,
     solved_disequations: Block<Range<AtomicDisequation>>,
     aliases: Disjoint,
@@ -34,6 +36,7 @@ impl Solver {
         self.equations.clear();
         self.orderings.clear();
         self.disequations.clear();
+        self.symmetric_disequations.clear();
         self.atomic_disequations.clear();
         self.solved_disequations.clear();
         self.aliases.clear();
@@ -54,6 +57,7 @@ impl Solver {
         self.equations.clear();
         self.orderings.truncate(self.save_orderings);
         self.disequations.clear();
+        self.symmetric_disequations.clear();
         self.atomic_disequations
             .truncate(self.save_atomic_disequations);
         self.solved_disequations
@@ -77,6 +81,14 @@ impl Solver {
         right: Id<Term>,
     ) {
         self.disequations.push((left, right));
+    }
+
+    pub(crate) fn assert_not_equal_symmetric(
+        &mut self,
+        left: Pair,
+        right: Pair,
+    ) {
+        self.symmetric_disequations.push((left, right));
     }
 
     pub(crate) fn bindings(
@@ -240,40 +252,30 @@ impl Solver {
                     return true;
                 }
 
-                if f < g {
-                    return false;
+                match f.cmp(&g) {
+                    Ordering::Less => false,
+                    Ordering::Greater => ts
+                        .map(|t| terms.resolve(t))
+                        .all(|t| self.lpo_gt(symbols, terms, left, t)),
+                    Ordering::Equal => {
+                        let ss = ss.map(|s| terms.resolve(s));
+                        let ts = ts.map(|t| terms.resolve(t));
+                        let pairs = ss.zip(ts);
+                        for (s, t) in pairs {
+                            if self.lpo_gt(symbols, terms, s, t) {
+                                return true;
+                            } else if !self
+                                .possibly_equal(symbols, terms, s, t)
+                            {
+                                return false;
+                            }
+                        }
+                        false
+                    }
                 }
-                let left_larger = ts
-                    .map(|t| terms.resolve(t))
-                    .all(|t| self.lpo_gt(symbols, terms, left, t));
-                if !left_larger {
-                    return false;
-                }
-
-                f > g || self.lpo_lex(symbols, terms, ss, ts)
             }
             _ => true,
         }
-    }
-
-    fn lpo_lex(
-        &mut self,
-        symbols: &Symbols,
-        terms: &Terms,
-        ss: Range<Argument>,
-        ts: Range<Argument>,
-    ) -> bool {
-        let pairs = ss
-            .zip(ts)
-            .map(|(s, t)| (terms.resolve(s), terms.resolve(t)));
-        for (s, t) in pairs {
-            if self.lpo_gt(symbols, terms, s, t) {
-                return true;
-            } else if !self.possibly_equal(symbols, terms, s, t) {
-                return false;
-            }
-        }
-        false
     }
 
     fn check_solved_disequation(
@@ -328,6 +330,24 @@ impl Solver {
         while let Some((left, right)) = self.disequations.pop() {
             let start = self.atomic_disequations.len();
             if !self.simplify_disequation(symbols, terms, left, right) {
+                self.atomic_disequations.truncate(start);
+                continue;
+            }
+            let end = self.atomic_disequations.len();
+            if start == end {
+                return true;
+            }
+            let solved = Range::new(start, end);
+            self.solved_disequations.push(solved);
+        }
+        while let Some((left, right)) = self.symmetric_disequations.pop() {
+            let (left1, left2) = left;
+            let (right1, right2) = right;
+
+            let start = self.atomic_disequations.len();
+            if !self.simplify_disequation(symbols, terms, left1, right1)
+                || !self.simplify_disequation(symbols, terms, left2, right2)
+            {
                 self.atomic_disequations.truncate(start);
                 continue;
             }
