@@ -1,0 +1,104 @@
+% SZS status Unsatisfiable
+% SZS begin CNFRefutation
+cnf(c0, axiom,
+	subset(sK10,sK11)).
+cnf(c1, plain,
+	subset(sK10,sK11),
+	inference(start, [], [c0])).
+
+cnf(c2, axiom,
+	subset(set_difference(X0,set_difference(X0,X1)),set_difference(X2,set_difference(X2,X1))) | ~subset(X0,X2)).
+cnf(a0, assumption,
+	sK10 = X0).
+cnf(a1, assumption,
+	sK11 = X2).
+cnf(c3, plain,
+	$false,
+	inference(strict_predicate_extension, [assumptions([a0, a1])], [c1, c2])).
+cnf(c4, plain,
+	subset(set_difference(X0,set_difference(X0,X1)),set_difference(X2,set_difference(X2,X1))),
+	inference(strict_predicate_extension, [assumptions([a0, a1])], [c1, c2])).
+
+cnf(c5, axiom,
+	in(X3,X4) | ~in(X3,X5) | ~subset(X5,X4)).
+cnf(a2, assumption,
+	set_difference(X0,set_difference(X0,X1)) = X5).
+cnf(a3, assumption,
+	set_difference(X2,set_difference(X2,X1)) = X4).
+cnf(c6, plain,
+	$false,
+	inference(strict_predicate_extension, [assumptions([a2, a3])], [c4, c5])).
+cnf(c7, plain,
+	in(X3,X4) | ~in(X3,X5),
+	inference(strict_predicate_extension, [assumptions([a2, a3])], [c4, c5])).
+
+cnf(c8, axiom,
+	~disjoint(X6,X7) | ~in(X8,set_difference(X6,set_difference(X6,X7)))).
+cnf(a4, assumption,
+	X3 = X8).
+cnf(a5, assumption,
+	X4 = set_difference(X6,set_difference(X6,X7))).
+cnf(c9, plain,
+	~in(X3,X5),
+	inference(strict_predicate_extension, [assumptions([a4, a5])], [c7, c8])).
+cnf(c10, plain,
+	~disjoint(X6,X7),
+	inference(strict_predicate_extension, [assumptions([a4, a5])], [c7, c8])).
+
+cnf(c11, axiom,
+	disjoint(sK11,sK12)).
+cnf(a6, assumption,
+	X6 = sK11).
+cnf(a7, assumption,
+	X7 = sK12).
+cnf(c12, plain,
+	$false,
+	inference(strict_predicate_extension, [assumptions([a6, a7])], [c10, c11])).
+cnf(c13, plain,
+	$false,
+	inference(strict_predicate_extension, [assumptions([a6, a7])], [c10, c11])).
+
+cnf(c14, axiom,
+	in(sK9(X9,X10),set_difference(X9,set_difference(X9,X10))) | disjoint(X9,X10)).
+cnf(a8, assumption,
+	X3 = sK9(X9,X10)).
+cnf(a9, assumption,
+	X5 = set_difference(X9,set_difference(X9,X10))).
+cnf(c15, plain,
+	$false,
+	inference(strict_predicate_extension, [assumptions([a8, a9])], [c9, c14])).
+cnf(c16, plain,
+	disjoint(X9,X10),
+	inference(strict_predicate_extension, [assumptions([a8, a9])], [c9, c14])).
+
+cnf(c17, axiom,
+	~disjoint(sK10,sK12)).
+cnf(a10, assumption,
+	X9 = sK10).
+cnf(a11, assumption,
+	X10 = sK12).
+cnf(c18, plain,
+	$false,
+	inference(strict_predicate_extension, [assumptions([a10, a11])], [c16, c17])).
+cnf(c19, plain,
+	$false,
+	inference(strict_predicate_extension, [assumptions([a10, a11])], [c16, c17])).
+
+cnf(c20, plain,
+	$false,
+	inference(constraint_solving, [
+		bind(X0, sK10),
+		bind(X1, sK12),
+		bind(X2, sK11),
+		bind(X3, sK9(X9,X10)),
+		bind(X4, set_difference(X6,set_difference(X6,X7))),
+		bind(X5, set_difference(X9,set_difference(X9,X10))),
+		bind(X6, sK11),
+		bind(X7, sK12),
+		bind(X8, sK9(X9,X10)),
+		bind(X9, sK10),
+		bind(X10, sK12)
+	],
+	[a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11])).
+
+% SZS end CNFRefutation

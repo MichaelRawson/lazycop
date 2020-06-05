@@ -1,0 +1,46 @@
+<HR><!------------------------------------------------------------------------>
+<H2>lazyCoP 0.1</H2>
+Michael Rawson &amp; Giles Reger<BR>
+University of Manchester, UK<BR>
+
+<H3>Architecture</H3>
+lazyCoP 0.1 is a connection-tableaux system for first-order logic with equality.
+It implements the lazy paramodulation calculus described in [Pas08], with some additional inferences such as "shortcut" strict rules and equality lemmas.
+The system implements well-known refinements of the predicate connection calculus, such as tautology elimination and strong regularity, and these are lifted to equalities where appropriate.
+The resulting system appears to be complete, but we make no theoretical claim one way or another.
+<P>
+The system was originally conceived to efficiently accommodate a machine-learned heuristic guidance system: this system is not yet guided in this way, but learned heuristics are intended for a future version.
+
+<H3>Strategies</H3>
+The system explores a tableaux-level search space using the classic A* informed-search algorithm.
+The (admissible) heuristic function is the number of open branches.
+Typical connection systems explore via some kind of iterative deepening: A* search is a necessity for future learned guidance, and is not as catastrophic in memory consumption as might be expected.
+No form of strategy scheduling is yet implemented and the system will run for the entire time allowed on all available cores.
+
+<H3>Implementation</H3>
+A finite tree of inference rules forms a search space. To expand a selected leaf node, the system traverses from root to leaf, applying each rule to a new empty tableau. Possible inferences from the resulting tableau are added to the leaf and the resulting nodes are enqueued.
+
+The system does not yet include a custom clausification routine: a recent build of Vampire is employed for this purpose.
+lazyCoP is implemented entirely in the <A HREF="https://rust-lang.org">Rust</A> programming language, allowing tight control over memory allocation and layout while avoiding some classes of memory- and thread- safety bugs.
+The source code (likely to be incomplete and/or buggy up to and including the competition!) is available at:
+<PRE>
+    <A HREF="https://github.com/MichaelRawson/lazycop">https://github.com/MichaelRawson/lazycop</A>
+</PRE>
+
+<H3>Expected Competition Performance</H3>
+Performance on problems without equality is hoped to be comparable with other connection systems, if slightly slower.
+Problems requiring a modest amount of equational reasoning (or problems requiring no equational reasoning but containing extraneous equality axioms) are not expected to perform well, but should not cause catastrophic blowup either.
+Pure-equality problems (such as UEQ) are not the intended domain and do not perform well, but the first author remains hopeful for At Least One Problem.
+
+<H3>References</H3>
+<DL>
+<DT> Pas08
+<DD> Paskevitch A. (2008),
+     <STRONG>Connection tableaux with lazy paramodulation</STRONG>,
+     <EM>Journal of Automated Reasoning</EM> 40(2-3),
+     pp.179-194,
+     Springer.
+</DL>
+<P>
+
+<HR><!------------------------------------------------------------------------>

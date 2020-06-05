@@ -1,0 +1,165 @@
+% SZS status Unsatisfiable
+% SZS begin CNFRefutation
+cnf(c0, axiom,
+	a != inverse(inverse(a))).
+cnf(c1, plain,
+	a != inverse(inverse(a)),
+	inference(start, [], [c0])).
+
+cnf(c2, axiom,
+	multiply(X0,X1,inverse(X1)) = X0).
+cnf(a0, assumption,
+	inverse(inverse(a)) = X0).
+cnf(c3, plain,
+	$false,
+	inference(variable_extension, [assumptions([a0])], [c1, c2])).
+cnf(c4, plain,
+	multiply(X0,X1,inverse(X1)) != X2 | a != X2,
+	inference(variable_extension, [assumptions([a0])], [c1, c2])).
+
+cnf(c5, axiom,
+	multiply(X3,X4,X4) = X4).
+cnf(a1, assumption,
+	inverse(X1) = X4).
+cnf(c6, plain,
+	a != X2,
+	inference(variable_extension, [assumptions([a1])], [c4, c5])).
+cnf(c7, plain,
+	multiply(X3,X4,X4) != X5 | multiply(X0,X1,X5) != X2,
+	inference(variable_extension, [assumptions([a1])], [c4, c5])).
+
+cnf(a2, assumption,
+	multiply(X3,X4,X4) = X5).
+cnf(c8, plain,
+	multiply(X0,X1,X5) != X2,
+	inference(reflexivity, [assumptions([a2])], [c7])).
+
+cnf(a3, assumption,
+	multiply(X0,X1,X5) = X2).
+cnf(c9, plain,
+	$false,
+	inference(reflexivity, [assumptions([a3])], [c8])).
+
+cnf(c10, axiom,
+	multiply(X6,X7,X7) = X7).
+cnf(a4, assumption,
+	a = X7).
+cnf(c11, plain,
+	$false,
+	inference(variable_extension, [assumptions([a4])], [c6, c10])).
+cnf(c12, plain,
+	multiply(X6,X7,X7) != X8 | X8 != X2,
+	inference(variable_extension, [assumptions([a4])], [c6, c10])).
+
+cnf(c13, axiom,
+	multiply(X9,X10,inverse(X10)) = X9).
+cnf(a5, assumption,
+	multiply(X6,X7,X7) = X9).
+cnf(c14, plain,
+	X8 != X2,
+	inference(variable_extension, [assumptions([a5])], [c12, c13])).
+cnf(c15, plain,
+	multiply(X9,X10,inverse(X10)) != X11 | X11 != X8,
+	inference(variable_extension, [assumptions([a5])], [c12, c13])).
+
+cnf(c16, axiom,
+	multiply(X12,X13,inverse(X13)) = X12).
+cnf(a6, assumption,
+	inverse(X10) = X12).
+cnf(c17, plain,
+	X11 != X8,
+	inference(variable_extension, [assumptions([a6])], [c15, c16])).
+cnf(c18, plain,
+	multiply(X12,X13,inverse(X13)) != X14 | multiply(X9,X10,X14) != X11,
+	inference(variable_extension, [assumptions([a6])], [c15, c16])).
+
+cnf(a7, assumption,
+	multiply(X12,X13,inverse(X13)) = X14).
+cnf(c19, plain,
+	multiply(X9,X10,X14) != X11,
+	inference(reflexivity, [assumptions([a7])], [c18])).
+
+cnf(c20, axiom,
+	multiply(multiply(X15,X16,X17),X18,multiply(X15,X16,X19)) = multiply(X15,X16,multiply(X17,X18,X19))).
+cnf(a8, assumption,
+	multiply(X20,X21,X22) = multiply(X9,X10,X14)).
+cnf(c21, plain,
+	$false,
+	inference(function_extension, [assumptions([a8])], [c19, c20])).
+cnf(c22, plain,
+	X20 != multiply(X15,X16,X17) | X21 != X18 | X22 != multiply(X15,X16,X19) | X23 != multiply(X15,X16,multiply(X17,X18,X19)) | X23 != X11,
+	inference(function_extension, [assumptions([a8])], [c19, c20])).
+
+cnf(a9, assumption,
+	X20 = multiply(X15,X16,X17)).
+cnf(c23, plain,
+	X21 != X18 | X22 != multiply(X15,X16,X19) | X23 != multiply(X15,X16,multiply(X17,X18,X19)) | X23 != X11,
+	inference(reflexivity, [assumptions([a9])], [c22])).
+
+cnf(a10, assumption,
+	X21 = X18).
+cnf(c24, plain,
+	X22 != multiply(X15,X16,X19) | X23 != multiply(X15,X16,multiply(X17,X18,X19)) | X23 != X11,
+	inference(reflexivity, [assumptions([a10])], [c23])).
+
+cnf(a11, assumption,
+	X22 = multiply(X15,X16,X19)).
+cnf(c25, plain,
+	X23 != multiply(X15,X16,multiply(X17,X18,X19)) | X23 != X11,
+	inference(reflexivity, [assumptions([a11])], [c24])).
+
+cnf(a12, assumption,
+	X23 = multiply(X15,X16,multiply(X17,X18,X19))).
+cnf(c26, plain,
+	X23 != X11,
+	inference(reflexivity, [assumptions([a12])], [c25])).
+
+cnf(a13, assumption,
+	X23 = X11).
+cnf(c27, plain,
+	$false,
+	inference(reflexivity, [assumptions([a13])], [c26])).
+
+cnf(a14, assumption,
+	X11 = X8).
+cnf(c28, plain,
+	$false,
+	inference(reflexivity, [assumptions([a14])], [c17])).
+
+cnf(a15, assumption,
+	X8 = X2).
+cnf(c29, plain,
+	$false,
+	inference(reflexivity, [assumptions([a15])], [c14])).
+
+cnf(c30, plain,
+	$false,
+	inference(constraint_solving, [
+		bind(X0, inverse(X10)),
+		bind(X1, a),
+		bind(X2, multiply(X15,X16,multiply(X17,X18,X19))),
+		bind(X3, a),
+		bind(X4, inverse(X13)),
+		bind(X5, multiply(X17,X18,X19)),
+		bind(X6, inverse(X10)),
+		bind(X7, a),
+		bind(X8, multiply(X15,X16,multiply(X17,X18,X19))),
+		bind(X9, multiply(X15,X16,X17)),
+		bind(X10, inverse(X13)),
+		bind(X11, multiply(X15,X16,multiply(X17,X18,X19))),
+		bind(X12, inverse(X10)),
+		bind(X13, a),
+		bind(X14, multiply(X15,X16,X19)),
+		bind(X15, inverse(X10)),
+		bind(X16, a),
+		bind(X17, a),
+		bind(X18, inverse(X13)),
+		bind(X19, inverse(X13)),
+		bind(X23, multiply(X15,X16,multiply(X17,X18,X19))),
+		bind(X20, multiply(X15,X16,X17)),
+		bind(X21, inverse(X13)),
+		bind(X22, multiply(X15,X16,X19))
+	],
+	[a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15])).
+
+% SZS end CNFRefutation
