@@ -63,16 +63,9 @@ impl<'problem> Tableau<'problem> {
         );
     }
 
-    pub(crate) fn possible_rules<E: Extend<Rule>>(
-        &mut self,
-        possible: &mut E,
-    ) {
-        self.goal.possible_rules(
-            possible,
-            &self.problem,
-            &self.terms,
-            &mut self.solver,
-        );
+    pub(crate) fn possible_rules<E: Extend<Rule>>(&self, possible: &mut E) {
+        self.goal
+            .possible_rules(possible, &self.problem, &self.terms);
     }
 
     pub(crate) fn simplify_constraints(&mut self) -> bool {

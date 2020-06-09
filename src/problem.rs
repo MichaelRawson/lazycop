@@ -26,6 +26,7 @@ pub(crate) struct EqualityOccurrence {
 #[derive(Default)]
 pub(crate) struct Problem {
     symbols: Symbols,
+    equalities_present: bool,
     clauses: Block<ProblemClause>,
     start: Vec<Id<ProblemClause>>,
 
@@ -42,8 +43,7 @@ impl Problem {
     }
 
     pub(crate) fn has_equality(&self) -> bool {
-        !self.variable_equalities.is_empty()
-            || !self.function_equalities.is_empty()
+        self.equalities_present
     }
 
     pub(crate) fn start_clauses(
@@ -177,6 +177,7 @@ impl ProblemBuilder {
     }
 
     pub(crate) fn equality(&mut self, polarity: bool) {
+        self.problem.equalities_present = true;
         self.contains_negative_literal =
             self.contains_negative_literal || !polarity;
         let right = self.pop_term();
@@ -207,7 +208,7 @@ impl ProblemBuilder {
                 &self.problem.symbols,
                 &terms,
                 &literals,
-                &Clause::new(Id::default(), Id::default()),
+                Clause::new(Id::default(), Id::default()),
             );
             szs::end_refutation();
             exit::success()

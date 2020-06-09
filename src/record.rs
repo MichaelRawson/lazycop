@@ -7,7 +7,7 @@ pub(crate) trait Record {
         _symbols: &Symbols,
         _terms: &Terms,
         _literals: &Literals,
-        _axiom: &Clause,
+        _axiom: Clause,
     ) {
     }
 
@@ -19,9 +19,8 @@ pub(crate) trait Record {
         _literals: &Literals,
         _inference: &'static str,
         _equations: I,
-        _path: Option<Id<Literal>>,
-        _lemma: Option<Id<Literal>>,
-        _deductions: &[&Clause],
+        _literal: Option<Id<Literal>>,
+        _deductions: &[Clause],
     ) {
     }
 

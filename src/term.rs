@@ -36,8 +36,8 @@ impl Terms {
         self.terms.len()
     }
 
-    pub(crate) fn current_offset(&self) -> Offset<Term> {
-        self.terms.len() - Id::default()
+    pub(crate) fn offset(&self) -> Offset<Term> {
+        self.terms.offset()
     }
 
     pub(crate) fn clear(&mut self) {
@@ -184,6 +184,10 @@ impl Terms {
         let arity = symbols.arity(symbol);
         let start = (id + Offset::new(1)).transmute();
         Range::new_with_len(start, arity)
+    }
+
+    pub(crate) fn is_variable(&self, id: Id<Term>) -> bool {
+        self.terms[id].as_symbol().is_none()
     }
 
     pub(crate) fn symbol(&self, id: Id<Term>) -> Id<Symbol> {

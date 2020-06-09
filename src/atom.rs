@@ -114,11 +114,5 @@ impl Atom {
             solver
                 .assert_not_equal(self.get_predicate(), other.get_predicate());
         }
-        else if self.is_equality() && other.is_equality() {
-            solver.assert_not_equal_symmetric(
-                self.get_equality(),
-                other.get_equality()
-            );
-        }
     }
 }

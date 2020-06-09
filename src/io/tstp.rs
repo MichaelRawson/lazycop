@@ -75,7 +75,7 @@ impl TSTP {
         symbols: &Symbols,
         terms: &Terms,
         literals: &Literals,
-        clause: &Clause,
+        clause: Clause,
     ) {
         let mut range = clause.open();
         if let Some(id) = range.next() {
@@ -99,7 +99,7 @@ impl Record for TSTP {
         symbols: &Symbols,
         terms: &Terms,
         literals: &Literals,
-        axiom: &Clause,
+        axiom: Clause,
     ) {
         print!("cnf(c{}, axiom,\n\t", self.clause_number);
         self.premise_list.push(self.clause_number);
@@ -115,25 +115,14 @@ impl Record for TSTP {
         literals: &Literals,
         inference: &'static str,
         equations: I,
-        path: Option<Id<Literal>>,
-        lemma: Option<Id<Literal>>,
-        deductions: &[&Clause],
+        literal: Option<Id<Literal>>,
+        deductions: &[Clause],
     ) {
-        if let Some(path) = path {
+        if let Some(literal) = literal {
             print!("cnf(c{}, plain,\n\t", self.clause_number);
             self.premise_list.push(self.clause_number);
             self.clause_number += 1;
-            self.print_literal(symbols, terms, &literals[path]);
-            println!(").");
-        }
-
-        if let Some(lemma) = lemma {
-            print!("cnf(c{}, lemma,\n\t", self.clause_number);
-            self.premise_list.push(self.clause_number);
-            self.clause_number += 1;
-            let mut literal = literals[lemma];
-            literal.polarity = !literal.polarity;
-            self.print_literal(symbols, terms, &literal);
+            self.print_literal(symbols, terms, &literals[literal]);
             println!(").");
         }
 
@@ -154,7 +143,7 @@ impl Record for TSTP {
                 self.clause_stack.push(self.clause_number);
             }
             self.clause_number += 1;
-            self.print_clause(symbols, terms, literals, deduction);
+            self.print_clause(symbols, terms, literals, *deduction);
 
             print!(",\n\tinference({}, [", inference);
             if assumption_start != self.assumption_number {

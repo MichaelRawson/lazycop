@@ -11,8 +11,11 @@ impl<T> Block<T> {
     }
 
     pub(crate) fn len(&self) -> Id<T> {
-        let index = non_zero(self.items.len() as u32);
-        Id::new(index)
+        Id::new(non_zero(self.items.len() as u32))
+    }
+
+    pub(crate) fn offset(&self) -> Offset<T> {
+        Offset::new(self.items.len() as i32 - 1)
     }
 
     pub(crate) fn is_empty(&self) -> bool {
@@ -47,6 +50,14 @@ impl<T> Block<T> {
 
     pub(crate) fn pop(&mut self) -> Option<T> {
         self.items.pop()
+    }
+
+    pub(crate) fn insert(&mut self, index: Id<T>, value: T) {
+        self.items.insert(index.as_usize(), value);
+    }
+
+    pub(crate) fn remove(&mut self, index: Id<T>) -> T {
+        self.items.remove(index.as_usize())
     }
 
     pub(crate) fn truncate(&mut self, len: Id<T>) {

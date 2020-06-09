@@ -1,23 +1,31 @@
-use crate::atom::Atom;
 use crate::prelude::*;
 use crate::record::Record;
 use crate::solver::Solver;
+use std::iter::once;
+
+fn argument_pairs<'terms>(
+    symbols: &Symbols,
+    terms: &'terms Terms,
+    p: &Literal,
+    q: &Literal,
+) -> impl Iterator<Item = (Id<Term>, Id<Term>)> + Clone + 'terms {
+    let pargs = p.get_predicate_arguments(symbols, terms);
+    let qargs = q.get_predicate_arguments(symbols, terms);
+    let pterms = pargs.map(move |p| terms.resolve(p));
+    let qterms = qargs.map(move |q| terms.resolve(q));
+    pterms.zip(qterms)
+}
 
 #[derive(Clone, Copy)]
 pub(crate) struct Clause {
-    start: Id<Literal>,
-    end: Id<Literal>,
     current: Id<Literal>,
+    end: Id<Literal>,
 }
 
 impl Clause {
     pub(crate) fn new(start: Id<Literal>, end: Id<Literal>) -> Self {
         let current = start;
-        Self {
-            start,
-            end,
-            current,
-        }
+        Self { current, end }
     }
 
     pub(crate) fn is_empty(self) -> bool {
@@ -28,8 +36,8 @@ impl Clause {
         Range::new(self.current, self.end)
     }
 
-    pub(crate) fn closed(self) -> Range<Literal> {
-        Range::new(self.start, self.current)
+    pub(crate) fn remaining(self) -> Range<Literal> {
+        Range::new(self.current + Offset::new(1), self.end)
     }
 
     pub(crate) fn current_literal(self) -> Id<Literal> {
@@ -57,338 +65,11 @@ impl Clause {
             terms,
             literals,
             "start",
-            std::iter::empty(),
             None,
             None,
-            &[&start],
+            &[start],
         );
         start
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn predicate_reduction<R: Record>(
-        &mut self,
-        record: &mut R,
-        symbols: &Symbols,
-        terms: &Terms,
-        literals: &mut Literals,
-        solver: &mut Solver,
-        reduction: PredicateReduction,
-        is_path: bool,
-    ) {
-        let p = &literals[self.close_literal()];
-        let q = &literals[reduction.literal];
-        let pargs = p.get_predicate_arguments(symbols, terms);
-        let qargs = q.get_predicate_arguments(symbols, terms);
-        let pterms = pargs.map(|p| terms.resolve(p));
-        let qterms = qargs.map(|q| terms.resolve(q));
-        let assertions = pterms.zip(qterms);
-
-        let (path, lemma) = if is_path {
-            (Some(reduction.literal), None)
-        } else {
-            (None, Some(reduction.literal))
-        };
-        record.inference(
-            symbols,
-            terms,
-            literals,
-            if is_path {
-                "predicate_reduction"
-            } else {
-                "predicate_lemma"
-            },
-            assertions.clone(),
-            path,
-            lemma,
-            &[self],
-        );
-        for (s, t) in assertions {
-            solver.assert_equal(s, t);
-        }
-    }
-
-    pub(crate) fn strict_predicate_extension<R: Record>(
-        &mut self,
-        record: &mut R,
-        problem: &Problem,
-        terms: &mut Terms,
-        literals: &mut Literals,
-        solver: &mut Solver,
-        extension: PredicateExtension,
-    ) -> Self {
-        let occurrence =
-            problem.get_predicate_occurrence(extension.occurrence);
-        let term_offset = terms.current_offset();
-        let start = literals.len();
-
-        let clause = Self::copy(
-            record,
-            problem,
-            terms,
-            literals,
-            solver,
-            occurrence.clause,
-        );
-        let p = literals[self.close_literal()];
-        self.add_strong_connection_constraints(
-            solver, terms, literals, &clause,
-        );
-        literals.truncate(start);
-
-        let clause_literals = &problem.get_clause(occurrence.clause).literals;
-        let mut q = clause_literals[occurrence.literal];
-        q.offset(term_offset);
-
-        let pargs = p.get_predicate_arguments(problem.signature(), terms);
-        let qargs = q.get_predicate_arguments(problem.signature(), terms);
-        for (parg, qarg) in pargs.zip(qargs) {
-            let pterm = terms.resolve(parg);
-            let qterm = terms.resolve(qarg);
-            solver.assert_equal(pterm, qterm);
-        }
-
-        for id in clause_literals
-            .range()
-            .filter(|id| *id != occurrence.literal)
-        {
-            let mut literal = clause_literals[id];
-            literal.offset(term_offset);
-            literals.push(literal);
-        }
-        let end = literals.len();
-        let clause = Self::new(start, end);
-
-        record.inference(
-            problem.signature(),
-            terms,
-            literals,
-            "strict_predicate_extension",
-            pargs
-                .map(|arg| terms.resolve(arg))
-                .zip(qargs.map(|arg| terms.resolve(arg))),
-            None,
-            None,
-            &[self, &clause],
-        );
-
-        clause
-    }
-
-    pub(crate) fn lazy_predicate_extension<R: Record>(
-        &mut self,
-        record: &mut R,
-        problem: &Problem,
-        terms: &mut Terms,
-        literals: &mut Literals,
-        solver: &mut Solver,
-        extension: PredicateExtension,
-    ) -> Self {
-        let occurrence =
-            problem.get_predicate_occurrence(extension.occurrence);
-        let term_offset = terms.current_offset();
-        let start = literals.len();
-
-        let clause = Self::copy(
-            record,
-            problem,
-            terms,
-            literals,
-            solver,
-            occurrence.clause,
-        );
-        let p = literals[self.close_literal()];
-        self.add_strong_connection_constraints(
-            solver, terms, literals, &clause,
-        );
-        literals.truncate(start);
-
-        let clause_literals = &problem.get_clause(occurrence.clause).literals;
-        let mut q = clause_literals[occurrence.literal];
-        q.offset(term_offset);
-
-        let pargs = p.get_predicate_arguments(problem.signature(), terms);
-        let qargs = q.get_predicate_arguments(problem.signature(), terms);
-        let fresh_start = terms.len();
-        for (parg, qarg) in pargs.zip(qargs) {
-            let pterm = terms.resolve(parg);
-            let qterm = terms.resolve(qarg);
-            let fresh = terms.add_variable();
-            solver.assert_equal(fresh, pterm);
-            let atom = Atom::Equality(fresh, qterm);
-            let disequation = Literal::new(false, atom);
-            literals.push(disequation);
-        }
-        let fresh_end = terms.len();
-        let fresh = Range::new(fresh_start, fresh_end);
-
-        for id in clause_literals
-            .range()
-            .filter(|id| *id != occurrence.literal)
-        {
-            let mut literal = clause_literals[id];
-            literal.offset(term_offset);
-            literals.push(literal);
-        }
-        let end = literals.len();
-        let clause = Self::new(start, end);
-
-        solver.assert_not_equal(p.get_predicate(), q.get_predicate());
-        record.inference(
-            problem.signature(),
-            terms,
-            literals,
-            "lazy_predicate_extension",
-            fresh.zip(pargs.map(|arg| terms.resolve(arg))),
-            None,
-            None,
-            &[self, &clause],
-        );
-        clause
-    }
-
-    pub(crate) fn variable_extension<R: Record>(
-        &mut self,
-        record: &mut R,
-        problem: &Problem,
-        terms: &mut Terms,
-        literals: &mut Literals,
-        solver: &mut Solver,
-        extension: EqualityExtension,
-    ) -> Self {
-        let target = extension.target;
-        let occurrence = problem.get_equality_occurrence(extension.occurrence);
-        let term_offset = terms.current_offset();
-        let from = occurrence.from + term_offset;
-        let to = occurrence.to + term_offset;
-        let start = literals.len();
-
-        Self::copy(
-            record,
-            problem,
-            terms,
-            literals,
-            solver,
-            occurrence.clause,
-        );
-        literals.truncate(start);
-
-        let fresh = terms.add_variable();
-        let atom = Atom::Equality(to, fresh);
-        let disequation = Literal::new(false, atom);
-        literals.push(disequation);
-
-        let literal = literals[self.close_literal()].subst(
-            problem.signature(),
-            terms,
-            target,
-            fresh,
-        );
-        literals.push(literal);
-
-        let clause_literals = &problem.get_clause(occurrence.clause).literals;
-        for id in clause_literals
-            .range()
-            .filter(|id| *id != occurrence.literal)
-        {
-            let mut literal = clause_literals[id];
-            literal.offset(term_offset);
-            literals.push(literal);
-        }
-        let end = literals.len();
-        let clause = Self::new(start, end);
-
-        solver.assert_equal(target, from);
-        solver.assert_gt(from, fresh);
-        record.inference(
-            problem.signature(),
-            terms,
-            literals,
-            "variable_extension",
-            Some((target, from)),
-            None,
-            None,
-            &[self, &clause],
-        );
-
-        clause
-    }
-
-    pub(crate) fn function_extension<R: Record>(
-        &mut self,
-        record: &mut R,
-        problem: &Problem,
-        terms: &mut Terms,
-        literals: &mut Literals,
-        solver: &mut Solver,
-        extension: EqualityExtension,
-    ) -> Self {
-        let target = extension.target;
-        let occurrence = problem.get_equality_occurrence(extension.occurrence);
-        let term_offset = terms.current_offset();
-        let from = occurrence.from + term_offset;
-        let to = occurrence.to + term_offset;
-        let start = literals.len();
-
-        Self::copy(
-            record,
-            problem,
-            terms,
-            literals,
-            solver,
-            occurrence.clause,
-        );
-        literals.truncate(start);
-
-        let fresh = terms.add_variable();
-        let placeholder =
-            terms.fresh_function(problem.signature(), terms.symbol(from));
-
-        let ss = terms.arguments(problem.signature(), placeholder);
-        let ts = terms.arguments(problem.signature(), from);
-        for (s, t) in ss.zip(ts) {
-            let atom = Atom::Equality(terms.resolve(s), terms.resolve(t));
-            let disequation = Literal::new(false, atom);
-            literals.push(disequation);
-        }
-        let atom = Atom::Equality(fresh, to);
-        let disequation = Literal::new(false, atom);
-        literals.push(disequation);
-
-        let literal = literals[self.close_literal()].subst(
-            problem.signature(),
-            terms,
-            target,
-            fresh,
-        );
-        literals.push(literal);
-
-        let clause_literals = &problem.get_clause(occurrence.clause).literals;
-        for id in clause_literals
-            .range()
-            .filter(|id| *id != occurrence.literal)
-        {
-            let mut literal = clause_literals[id];
-            literal.offset(term_offset);
-            literals.push(literal);
-        }
-        let end = literals.len();
-        let clause = Self::new(start, end);
-
-        solver.assert_equal(target, placeholder);
-        solver.assert_gt(placeholder, fresh);
-        record.inference(
-            problem.signature(),
-            terms,
-            literals,
-            "function_extension",
-            Some((placeholder, target)),
-            None,
-            None,
-            &[self, &clause],
-        );
-
-        clause
     }
 
     pub(crate) fn reflexivity<R: Record>(
@@ -407,11 +88,312 @@ impl Clause {
             terms,
             literals,
             "reflexivity",
-            Some((left, right)),
+            once((left, right)),
             None,
-            None,
-            &[self],
+            &[*self],
         );
+    }
+
+    pub(crate) fn predicate_reduction<R: Record>(
+        &mut self,
+        record: &mut R,
+        symbols: &Symbols,
+        terms: &Terms,
+        literals: &mut Literals,
+        solver: &mut Solver,
+        reduction: PredicateReduction,
+    ) {
+        let p = &literals[self.close_literal()];
+        let q = &literals[reduction.literal];
+        let assertions = argument_pairs(symbols, terms, p, q);
+
+        record.inference(
+            symbols,
+            terms,
+            literals,
+            "predicate_reduction",
+            assertions.clone(),
+            Some(reduction.literal),
+            &[*self],
+        );
+        for (s, t) in assertions {
+            solver.assert_equal(s, t);
+        }
+    }
+
+    pub(crate) fn equality_reduction<R: Record>(
+        &mut self,
+        record: &mut R,
+        symbols: &Symbols,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        solver: &mut Solver,
+        reduction: EqualityReduction,
+    ) -> Self {
+        let (left, right) = literals[reduction.literal].get_equality();
+        let target = reduction.target;
+        let from = reduction.from;
+        let to = if from == left { right } else { left };
+        let fresh = terms.add_variable();
+
+        let start = literals.len();
+        literals
+            .push(literals[self.current].subst(symbols, terms, target, fresh));
+        let end = literals.len();
+        let consequence = Self::new(start, end);
+
+        solver.assert_equal(target, from);
+        solver.assert_equal(to, fresh);
+        solver.assert_gt(from, to);
+        record.inference(
+            symbols,
+            terms,
+            literals,
+            "equality_reduction",
+            once((target, from)).chain(once((to, fresh))),
+            Some(reduction.literal),
+            &[self.closed(), consequence],
+        );
+        consequence
+    }
+
+    pub(crate) fn strict_predicate_extension<R: Record>(
+        self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        solver: &mut Solver,
+        extension: PredicateExtension,
+    ) -> Self {
+        let mut extension = self.predicate_extension(
+            record, problem, terms, literals, solver, extension,
+        );
+        let p = &literals[self.current];
+        let q = &literals[extension.close_literal()];
+        let assertions = argument_pairs(problem.signature(), terms, p, q);
+        record.inference(
+            problem.signature(),
+            terms,
+            literals,
+            "strict_predicate_extension",
+            assertions.clone(),
+            None,
+            &[self.closed(), extension],
+        );
+
+        for (parg, qarg) in assertions {
+            solver.assert_equal(parg, qarg);
+        }
+        extension
+    }
+
+    pub(crate) fn lazy_predicate_extension<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        solver: &mut Solver,
+        extension: PredicateExtension,
+    ) -> (Self, Self) {
+        let extension = self.predicate_extension(
+            record, problem, terms, literals, solver, extension,
+        );
+        let p = &literals[self.current];
+        let q = &literals[extension.current];
+        let pargs = p.get_predicate_arguments(problem.signature(), terms);
+        let qargs = q.get_predicate_arguments(problem.signature(), terms);
+
+        let fresh_start = terms.len();
+        for parg in pargs {
+            let fresh = terms.add_variable();
+            solver.assert_equal(fresh, terms.resolve(parg));
+        }
+        let fresh_end = terms.len();
+        let fresh = Range::new(fresh_start, fresh_end);
+
+        let disequation_start = literals.len();
+        for (fresh, qarg) in fresh.zip(qargs) {
+            literals.push(Literal::disequation(terms.resolve(qarg), fresh));
+        }
+        let disequation_end = literals.len();
+        let disequations = Self::new(disequation_start, disequation_end);
+
+        record.inference(
+            problem.signature(),
+            terms,
+            literals,
+            "lazy_predicate_extension",
+            fresh.zip(pargs.map(|p| terms.resolve(p))),
+            None,
+            &[self.closed(), extension.closed(), disequations],
+        );
+        (extension, disequations)
+    }
+
+    pub(crate) fn variable_extension<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        solver: &mut Solver,
+        extension: EqualityExtension,
+    ) -> (Self, Self) {
+        let target = extension.target;
+        let (extension, from, to) = Self::equality_extension(
+            record, problem, terms, literals, solver, extension,
+        );
+
+        let start = literals.len();
+        let fresh = terms.add_variable();
+        literals.push(literals[self.current].subst(
+            problem.signature(),
+            terms,
+            target,
+            fresh,
+        ));
+        literals.push(Literal::disequation(to, fresh));
+        let end = literals.len();
+        let consequence = Self::new(start, end);
+
+        solver.assert_equal(target, from);
+        solver.assert_gt(from, fresh);
+        record.inference(
+            problem.signature(),
+            terms,
+            literals,
+            "variable_extension",
+            once((target, from)),
+            None,
+            &[self.closed(), extension.closed(), consequence],
+        );
+
+        (extension, consequence)
+    }
+
+    pub(crate) fn lazy_function_extension<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        solver: &mut Solver,
+        extension: EqualityExtension,
+    ) -> (Self, Self) {
+        let target = extension.target;
+        let (extension, from, to) = Self::equality_extension(
+            record, problem, terms, literals, solver, extension,
+        );
+        let start = literals.len();
+        let fresh = terms.add_variable();
+        let placeholder =
+            terms.fresh_function(problem.signature(), terms.symbol(from));
+        solver.assert_equal(target, placeholder);
+        solver.assert_gt(placeholder, fresh);
+
+        literals.push(literals[self.current].subst(
+            problem.signature(),
+            terms,
+            target,
+            fresh,
+        ));
+        literals.push(Literal::disequation(fresh, to));
+        let ss = terms
+            .arguments(problem.signature(), placeholder)
+            .map(|s| terms.resolve(s));
+        let ts = terms
+            .arguments(problem.signature(), from)
+            .map(|t| terms.resolve(t));
+        for (s, t) in ss.zip(ts) {
+            literals.push(Literal::disequation(s, t));
+        }
+        let end = literals.len();
+        let consequence = Self::new(start, end);
+
+        record.inference(
+            problem.signature(),
+            terms,
+            literals,
+            "lazy_function_extension",
+            once((placeholder, target)),
+            None,
+            &[self.closed(), extension.closed(), consequence],
+        );
+        (extension, consequence)
+    }
+
+    fn predicate_extension<R: Record>(
+        self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        solver: &mut Solver,
+        extension: PredicateExtension,
+    ) -> Self {
+        let occurrence =
+            problem.get_predicate_occurrence(extension.occurrence);
+        let extension = Self::extension(
+            record,
+            problem,
+            terms,
+            literals,
+            solver,
+            occurrence.clause,
+            occurrence.literal,
+        );
+        extension.add_strong_connection_constraints(
+            solver,
+            terms,
+            literals,
+            &literals[self.current],
+        );
+        extension
+    }
+
+    fn equality_extension<R: Record>(
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        solver: &mut Solver,
+        extension: EqualityExtension,
+    ) -> (Self, Id<Term>, Id<Term>) {
+        let offset = terms.offset();
+        let occurrence = problem.get_equality_occurrence(extension.occurrence);
+        let extension = Self::extension(
+            record,
+            problem,
+            terms,
+            literals,
+            solver,
+            occurrence.clause,
+            occurrence.literal,
+        );
+        (extension, occurrence.from + offset, occurrence.to + offset)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn extension<R: Record>(
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        solver: &mut Solver,
+        clause: Id<ProblemClause>,
+        literal: Id<Literal>,
+    ) -> Self {
+        let front = literals.len();
+        let literal_offset = literals.offset();
+        let extension =
+            Self::copy(record, problem, terms, literals, solver, clause);
+
+        let matching = literal + literal_offset;
+        let mate = literals.remove(matching);
+        literals.insert(front, mate);
+        extension
     }
 
     fn copy<R: Record>(
@@ -423,7 +405,7 @@ impl Clause {
         clause: Id<ProblemClause>,
     ) -> Self {
         let start = literals.len();
-        let offset = terms.current_offset();
+        let offset = terms.offset();
 
         let clause = problem.get_clause(clause);
         terms.extend(&clause.terms);
@@ -436,28 +418,26 @@ impl Clause {
         let clause = Self::new(start, end);
         clause.add_tautology_constraints(solver, terms, literals);
 
-        record.axiom(problem.signature(), terms, literals, &clause);
+        record.axiom(problem.signature(), terms, literals, clause);
         clause
     }
 
     fn add_strong_connection_constraints(
-        &self,
+        self,
         solver: &mut Solver,
         terms: &Terms,
         literals: &Literals,
-        new: &Self,
+        mate: &Literal,
     ) {
-        for original in self.open().map(|id| &literals[id]) {
-            for new in new.open().map(|id| &literals[id]) {
-                if original.polarity != new.polarity {
-                    original.add_disequation_constraints(solver, terms, &new);
-                }
+        for literal in self.open().skip(1).map(|id| &literals[id]) {
+            if mate.polarity != literal.polarity {
+                mate.add_disequation_constraints(solver, terms, &literal);
             }
         }
     }
 
     fn add_tautology_constraints(
-        &self,
+        self,
         solver: &mut Solver,
         terms: &Terms,
         literals: &Literals,
@@ -474,5 +454,11 @@ impl Clause {
                 }
             }
         }
+    }
+
+    fn closed(self) -> Self {
+        let current = self.current + Offset::new(1);
+        let end = self.end;
+        Self { current, end }
     }
 }

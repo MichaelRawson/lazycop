@@ -16,7 +16,6 @@ pub(crate) struct Solver {
     equations: Vec<Pair>,
     orderings: Vec<Pair>,
     disequations: Vec<Pair>,
-    symmetric_disequations: Vec<(Pair, Pair)>,
     atomic_disequations: Block<AtomicDisequation>,
     solved_disequations: Block<Range<AtomicDisequation>>,
     aliases: Disjoint,
@@ -36,7 +35,6 @@ impl Solver {
         self.equations.clear();
         self.orderings.clear();
         self.disequations.clear();
-        self.symmetric_disequations.clear();
         self.atomic_disequations.clear();
         self.solved_disequations.clear();
         self.aliases.clear();
@@ -57,7 +55,6 @@ impl Solver {
         self.equations.clear();
         self.orderings.truncate(self.save_orderings);
         self.disequations.clear();
-        self.symmetric_disequations.clear();
         self.atomic_disequations
             .truncate(self.save_atomic_disequations);
         self.solved_disequations
@@ -83,14 +80,6 @@ impl Solver {
         self.disequations.push((left, right));
     }
 
-    pub(crate) fn assert_not_equal_symmetric(
-        &mut self,
-        left: Pair,
-        right: Pair,
-    ) {
-        self.symmetric_disequations.push((left, right));
-    }
-
     pub(crate) fn bindings(
         &mut self,
     ) -> impl Iterator<Item = (Id<Variable>, Id<Term>)> + '_ {
@@ -106,7 +95,7 @@ impl Solver {
         })
     }
 
-    pub(crate) fn possibly_equal(
+    fn possibly_equal(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,
@@ -252,7 +241,10 @@ impl Solver {
                     return true;
                 }
 
-                match f.cmp(&g) {
+                let f_arity = symbols.arity(f);
+                let g_arity = symbols.arity(g);
+                let ordering = f_arity.cmp(&g_arity).then(f.cmp(&g));
+                match ordering {
                     Ordering::Less => false,
                     Ordering::Greater => ts
                         .map(|t| terms.resolve(t))
@@ -330,24 +322,6 @@ impl Solver {
         while let Some((left, right)) = self.disequations.pop() {
             let start = self.atomic_disequations.len();
             if !self.simplify_disequation(symbols, terms, left, right) {
-                self.atomic_disequations.truncate(start);
-                continue;
-            }
-            let end = self.atomic_disequations.len();
-            if start == end {
-                return true;
-            }
-            let solved = Range::new(start, end);
-            self.solved_disequations.push(solved);
-        }
-        while let Some((left, right)) = self.symmetric_disequations.pop() {
-            let (left1, left2) = left;
-            let (right1, right2) = right;
-
-            let start = self.atomic_disequations.len();
-            if !self.simplify_disequation(symbols, terms, left1, right1)
-                || !self.simplify_disequation(symbols, terms, left2, right2)
-            {
                 self.atomic_disequations.truncate(start);
                 continue;
             }

@@ -13,6 +13,10 @@ impl Literal {
         Self { polarity, atom }
     }
 
+    pub(crate) fn disequation(left: Id<Term>, right: Id<Term>) -> Self {
+        Self::new(false, Atom::Equality(left, right))
+    }
+
     pub(crate) fn offset(&mut self, offset: Offset<Term>) {
         self.atom.offset(offset);
     }
