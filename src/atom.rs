@@ -1,4 +1,4 @@
-use crate::constraint::Constraints;
+use crate::constraint::{Constraints, SymmetricDisequation};
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -116,6 +116,16 @@ impl Atom {
         {
             constraints
                 .assert_neq(self.get_predicate(), other.get_predicate());
+        } else if self.is_equality() && other.is_equality() {
+            let (left1, right1) = self.get_equality();
+            let (left2, right2) = other.get_equality();
+            let symmetric = SymmetricDisequation {
+                left1,
+                left2,
+                right1,
+                right2,
+            };
+            constraints.assert_symmetric_neq(symmetric);
         }
     }
 }

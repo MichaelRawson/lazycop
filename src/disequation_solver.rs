@@ -1,4 +1,5 @@
 use crate::binding::Bindings;
+use crate::constraint::SymmetricDisequation;
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -42,6 +43,60 @@ impl DisequationSolver {
         for (left, right) in disequations {
             let start = self.atomic.len();
             if self.simplify_disequation(symbols, terms, bindings, left, right)
+            {
+                self.atomic.truncate(start);
+                continue;
+            }
+            let end = self.atomic.len();
+            if start == end {
+                return false;
+            }
+            let solved = Range::new(start, end);
+            self.solved.push(solved);
+        }
+        true
+    }
+
+    pub(crate) fn simplify_symmetric<
+        I: Iterator<Item = SymmetricDisequation>,
+   >(
+        &mut self,
+        symbols: &Symbols,
+        terms: &Terms,
+        bindings: &Bindings,
+        disequations: I,
+    ) -> bool {
+        for symmetric in disequations {
+            let SymmetricDisequation {
+                left1,
+                left2,
+                right1,
+                right2,
+            } = symmetric;
+
+            let start = self.atomic.len();
+            if self
+                .simplify_disequation(symbols, terms, bindings, left1, left2)
+                || self.simplify_disequation(
+                    symbols, terms, bindings, right1, right2,
+                )
+            {
+                self.atomic.truncate(start);
+                continue;
+            }
+            let end = self.atomic.len();
+            if start == end {
+                return false;
+            }
+            let solved = Range::new(start, end);
+            self.solved.push(solved);
+
+            let start = self.atomic.len();
+            if self
+                .simplify_disequation(symbols, terms, bindings, left1, right2)
+                || self.simplify_disequation(
+                    symbols, terms, bindings, right1, left2,
+                )
             {
                 self.atomic.truncate(start);
                 continue;

@@ -108,6 +108,11 @@ impl<'problem> Tableau<'problem> {
             &self.terms,
             &self.bindings,
             self.constraints.drain_disequations(),
+        ) && self.disequation_solver.simplify_symmetric(
+            self.problem.signature(),
+            &self.terms,
+            &self.bindings,
+            self.constraints.drain_symmetric_disequations(),
         )
     }
 
@@ -122,6 +127,11 @@ impl<'problem> Tableau<'problem> {
             &self.terms,
             &self.bindings,
             self.constraints.drain_disequations(),
+        ) && self.disequation_solver.simplify_symmetric(
+            self.problem.signature(),
+            &self.terms,
+            &self.bindings,
+            self.constraints.drain_symmetric_disequations(),
         ) && self.disequation_solver.check(
             self.problem.signature(),
             &self.terms,

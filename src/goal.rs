@@ -217,8 +217,25 @@ impl Goal {
             current.add_reflexivity_constraints(constraints);
         }
 
-        for path in self.reduction_literals().map(|id| &literals[id]) {
+        for path in self
+            .path_literals()
+            .map(|id| &literals[id])
+            .filter(|path| path.polarity == current.polarity)
+        {
             current.add_disequation_constraints(constraints, terms, &path);
+        }
+
+        for reduction in self
+            .reduction_literals()
+            .map(|id| &literals[id])
+            .filter(|reduction| reduction.polarity != current.polarity)
+            .filter(|reduction| reduction.is_predicate())
+        {
+            current.add_disequation_constraints(
+                constraints,
+                terms,
+                &reduction,
+            );
         }
     }
 
