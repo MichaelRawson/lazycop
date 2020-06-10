@@ -1,44 +1,73 @@
+use crate::binding::Bindings;
+use crate::constraint::Constraints;
+use crate::disequation_solver::DisequationSolver;
+use crate::equation_solver::EquationSolver;
 use crate::goal::Goal;
+use crate::occurs::{Check, SkipCheck};
+use crate::ordering_solver::OrderingSolver;
 use crate::prelude::*;
 use crate::record::Record;
-use crate::solver::Solver;
 
 pub(crate) struct Tableau<'problem> {
     problem: &'problem Problem,
     terms: Terms,
     goal: Goal,
-    solver: Solver,
+    bindings: Bindings,
+    constraints: Constraints,
+    disequation_solver: DisequationSolver,
+    equation_solver: EquationSolver,
+    ordering_solver: OrderingSolver,
 }
 
 impl<'problem> Tableau<'problem> {
     pub(crate) fn new(problem: &'problem Problem) -> Self {
         let terms = Terms::default();
-        let solver = Solver::default();
         let goal = Goal::default();
+        let bindings = Bindings::default();
+        let constraints = Constraints::default();
+        let disequation_solver = DisequationSolver::default();
+        let equation_solver = EquationSolver::default();
+        let ordering_solver = OrderingSolver::default();
         Self {
             problem,
             goal,
             terms,
-            solver,
+            bindings,
+            constraints,
+            disequation_solver,
+            equation_solver,
+            ordering_solver,
         }
     }
 
     pub(crate) fn clear(&mut self) {
         self.terms.clear();
         self.goal.clear();
-        self.solver.clear();
+        self.bindings.clear();
+        self.constraints.clear();
+        self.disequation_solver.clear();
+        self.equation_solver.clear();
+        self.ordering_solver.clear();
     }
 
     pub(crate) fn save(&mut self) {
         self.terms.save();
         self.goal.save();
-        self.solver.save();
+        self.bindings.save();
+        self.constraints.save();
+        self.disequation_solver.save();
+        self.equation_solver.save();
+        self.ordering_solver.save();
     }
 
     pub(crate) fn restore(&mut self) {
         self.terms.restore();
         self.goal.restore();
-        self.solver.restore();
+        self.bindings.restore();
+        self.constraints.restore();
+        self.disequation_solver.restore();
+        self.equation_solver.restore();
+        self.ordering_solver.restore();
     }
 
     pub(crate) fn is_closed(&self) -> bool {
@@ -58,29 +87,58 @@ impl<'problem> Tableau<'problem> {
             record,
             &self.problem,
             &mut self.terms,
-            &mut self.solver,
+            &mut self.constraints,
             rule,
         );
     }
 
     pub(crate) fn possible_rules<E: Extend<Rule>>(&self, possible: &mut E) {
         self.goal
-            .possible_rules(possible, &self.problem, &self.terms);
+            .possible_rules(possible, self.problem, &self.terms);
     }
 
     pub(crate) fn simplify_constraints(&mut self) -> bool {
-        self.solver.simplify(self.problem.signature(), &self.terms)
+        self.equation_solver.solve::<SkipCheck, _>(
+            self.problem.signature(),
+            &self.terms,
+            &mut self.bindings,
+            self.constraints.drain_equations(),
+        ) && self.disequation_solver.simplify(
+            self.problem.signature(),
+            &self.terms,
+            &self.bindings,
+            self.constraints.drain_disequations(),
+        )
     }
 
     pub(crate) fn solve_constraints(&mut self) -> bool {
-        self.solver.solve(self.problem.signature(), &self.terms)
+        self.equation_solver.solve::<Check, _>(
+            self.problem.signature(),
+            &self.terms,
+            &mut self.bindings,
+            self.constraints.drain_equations(),
+        ) && self.disequation_solver.simplify(
+            self.problem.signature(),
+            &self.terms,
+            &self.bindings,
+            self.constraints.drain_disequations(),
+        ) && self.disequation_solver.check(
+            self.problem.signature(),
+            &self.terms,
+            &self.bindings,
+        ) && self.ordering_solver.check(
+            self.problem.signature(),
+            &self.terms,
+            &self.bindings,
+            self.constraints.keep_orderings(),
+        )
     }
 
     pub(crate) fn record_unification<R: Record>(&mut self, record: &mut R) {
         record.unification(
             &self.problem.signature(),
             &self.terms,
-            self.solver.bindings(),
+            self.bindings.items(),
         );
     }
 }

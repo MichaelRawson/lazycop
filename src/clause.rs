@@ -1,6 +1,6 @@
+use crate::constraint::Constraints;
 use crate::prelude::*;
 use crate::record::Record;
-use crate::solver::Solver;
 use std::iter::once;
 
 fn argument_pairs<'terms>(
@@ -55,11 +55,17 @@ impl Clause {
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         start: Start,
     ) -> Self {
-        let start =
-            Self::copy(record, problem, terms, literals, solver, start.clause);
+        let start = Self::copy(
+            record,
+            problem,
+            terms,
+            literals,
+            constraints,
+            start.clause,
+        );
         record.inference(
             problem.signature(),
             terms,
@@ -78,11 +84,11 @@ impl Clause {
         symbols: &Symbols,
         terms: &Terms,
         literals: &Literals,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
     ) {
         let literal = literals[self.close_literal()];
         let (left, right) = literal.get_equality();
-        solver.assert_equal(left, right);
+        constraints.assert_eq(left, right);
         record.inference(
             symbols,
             terms,
@@ -100,7 +106,7 @@ impl Clause {
         symbols: &Symbols,
         terms: &Terms,
         literals: &mut Literals,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         reduction: PredicateReduction,
     ) {
         let p = &literals[self.close_literal()];
@@ -117,7 +123,7 @@ impl Clause {
             &[*self],
         );
         for (s, t) in assertions {
-            solver.assert_equal(s, t);
+            constraints.assert_eq(s, t);
         }
     }
 
@@ -127,7 +133,7 @@ impl Clause {
         symbols: &Symbols,
         terms: &mut Terms,
         literals: &mut Literals,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         reduction: EqualityReduction,
     ) -> Self {
         let (left, right) = literals[reduction.literal].get_equality();
@@ -142,9 +148,9 @@ impl Clause {
         let end = literals.len();
         let consequence = Self::new(start, end);
 
-        solver.assert_equal(target, from);
-        solver.assert_equal(to, fresh);
-        solver.assert_gt(from, to);
+        constraints.assert_eq(target, from);
+        constraints.assert_eq(to, fresh);
+        constraints.assert_gt(from, to);
         record.inference(
             symbols,
             terms,
@@ -163,11 +169,16 @@ impl Clause {
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         extension: PredicateExtension,
     ) -> Self {
         let mut extension = self.predicate_extension(
-            record, problem, terms, literals, solver, extension,
+            record,
+            problem,
+            terms,
+            literals,
+            constraints,
+            extension,
         );
         let p = &literals[self.current];
         let q = &literals[extension.close_literal()];
@@ -183,7 +194,7 @@ impl Clause {
         );
 
         for (parg, qarg) in assertions {
-            solver.assert_equal(parg, qarg);
+            constraints.assert_eq(parg, qarg);
         }
         extension
     }
@@ -194,11 +205,16 @@ impl Clause {
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         extension: PredicateExtension,
     ) -> (Self, Self) {
         let extension = self.predicate_extension(
-            record, problem, terms, literals, solver, extension,
+            record,
+            problem,
+            terms,
+            literals,
+            constraints,
+            extension,
         );
         let p = &literals[self.current];
         let q = &literals[extension.current];
@@ -208,7 +224,7 @@ impl Clause {
         let fresh_start = terms.len();
         for parg in pargs {
             let fresh = terms.add_variable();
-            solver.assert_equal(fresh, terms.resolve(parg));
+            constraints.assert_eq(fresh, terms.resolve(parg));
         }
         let fresh_end = terms.len();
         let fresh = Range::new(fresh_start, fresh_end);
@@ -238,12 +254,17 @@ impl Clause {
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         extension: EqualityExtension,
     ) -> (Self, Self) {
         let target = extension.target;
         let (extension, from, to) = Self::equality_extension(
-            record, problem, terms, literals, solver, extension,
+            record,
+            problem,
+            terms,
+            literals,
+            constraints,
+            extension,
         );
 
         let start = literals.len();
@@ -258,8 +279,8 @@ impl Clause {
         let end = literals.len();
         let consequence = Self::new(start, end);
 
-        solver.assert_equal(target, from);
-        solver.assert_gt(from, fresh);
+        constraints.assert_eq(target, from);
+        constraints.assert_gt(from, fresh);
         record.inference(
             problem.signature(),
             terms,
@@ -279,19 +300,24 @@ impl Clause {
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         extension: EqualityExtension,
     ) -> (Self, Self) {
         let target = extension.target;
         let (extension, from, to) = Self::equality_extension(
-            record, problem, terms, literals, solver, extension,
+            record,
+            problem,
+            terms,
+            literals,
+            constraints,
+            extension,
         );
         let start = literals.len();
         let fresh = terms.add_variable();
         let placeholder =
             terms.fresh_function(problem.signature(), terms.symbol(from));
-        solver.assert_equal(target, placeholder);
-        solver.assert_gt(placeholder, fresh);
+        constraints.assert_eq(target, placeholder);
+        constraints.assert_gt(placeholder, fresh);
 
         literals.push(literals[self.current].subst(
             problem.signature(),
@@ -330,7 +356,7 @@ impl Clause {
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         extension: PredicateExtension,
     ) -> Self {
         let occurrence =
@@ -340,12 +366,12 @@ impl Clause {
             problem,
             terms,
             literals,
-            solver,
+            constraints,
             occurrence.clause,
             occurrence.literal,
         );
         extension.add_strong_connection_constraints(
-            solver,
+            constraints,
             terms,
             literals,
             &literals[self.current],
@@ -358,7 +384,7 @@ impl Clause {
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         extension: EqualityExtension,
     ) -> (Self, Id<Term>, Id<Term>) {
         let offset = terms.offset();
@@ -368,7 +394,7 @@ impl Clause {
             problem,
             terms,
             literals,
-            solver,
+            constraints,
             occurrence.clause,
             occurrence.literal,
         );
@@ -381,14 +407,14 @@ impl Clause {
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         clause: Id<ProblemClause>,
         literal: Id<Literal>,
     ) -> Self {
         let front = literals.len();
         let literal_offset = literals.offset();
         let extension =
-            Self::copy(record, problem, terms, literals, solver, clause);
+            Self::copy(record, problem, terms, literals, constraints, clause);
 
         let matching = literal + literal_offset;
         let mate = literals.remove(matching);
@@ -401,7 +427,7 @@ impl Clause {
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         clause: Id<ProblemClause>,
     ) -> Self {
         let start = literals.len();
@@ -416,7 +442,7 @@ impl Clause {
             literals[id].offset(offset);
         }
         let clause = Self::new(start, end);
-        clause.add_tautology_constraints(solver, terms, literals);
+        clause.add_tautology_constraints(constraints, terms, literals);
 
         record.axiom(problem.signature(), terms, literals, clause);
         clause
@@ -424,21 +450,21 @@ impl Clause {
 
     fn add_strong_connection_constraints(
         self,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         terms: &Terms,
         literals: &Literals,
         mate: &Literal,
     ) {
         for literal in self.open().skip(1).map(|id| &literals[id]) {
             if mate.polarity != literal.polarity {
-                mate.add_disequation_constraints(solver, terms, &literal);
+                mate.add_disequation_constraints(constraints, terms, &literal);
             }
         }
     }
 
     fn add_tautology_constraints(
         self,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         terms: &Terms,
         literals: &Literals,
     ) {
@@ -446,11 +472,15 @@ impl Clause {
         for id in open {
             let literal = literals[id];
             if literal.polarity && literal.is_equality() {
-                literal.add_reflexivity_constraints(solver);
+                literal.add_reflexivity_constraints(constraints);
             }
             for other in open.skip(1).map(|id| &literals[id]) {
                 if literal.polarity != other.polarity {
-                    literal.add_disequation_constraints(solver, terms, &other);
+                    literal.add_disequation_constraints(
+                        constraints,
+                        terms,
+                        &other,
+                    );
                 }
             }
         }

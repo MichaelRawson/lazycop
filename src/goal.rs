@@ -1,7 +1,7 @@
 use crate::clause::Clause;
+use crate::constraint::Constraints;
 use crate::prelude::*;
 use crate::record::Record;
-use crate::solver::Solver;
 use std::iter::once;
 
 #[derive(Default)]
@@ -47,7 +47,7 @@ impl Goal {
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         rule: &Rule,
     ) {
         match *rule {
@@ -57,7 +57,7 @@ impl Goal {
                     problem,
                     terms,
                     &mut self.literals,
-                    solver,
+                    constraints,
                     start,
                 ));
             }
@@ -67,7 +67,7 @@ impl Goal {
                     &problem.signature(),
                     terms,
                     &self.literals,
-                    solver,
+                    constraints,
                 );
                 self.close_branches();
             }
@@ -77,82 +77,114 @@ impl Goal {
                     &problem.signature(),
                     terms,
                     &mut self.literals,
-                    solver,
+                    constraints,
                     reduction,
                 );
                 self.close_branches();
             }
             Rule::EqualityReduction(reduction) => {
-                self.add_regularity_constraints(solver, terms, &self.literals);
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
                 let consequence = some(self.stack.last_mut())
                     .equality_reduction(
                         record,
                         &problem.signature(),
                         terms,
                         &mut self.literals,
-                        solver,
+                        constraints,
                         reduction,
                     );
                 self.stack.push(consequence);
             }
             Rule::LazyPredicateExtension(extension) => {
-                self.add_regularity_constraints(solver, terms, &self.literals);
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
                 let (extension, consequence) = some(self.stack.last_mut())
                     .lazy_predicate_extension(
                         record,
                         problem,
                         terms,
                         &mut self.literals,
-                        solver,
+                        constraints,
                         extension,
                     );
                 self.stack.push(extension);
-                self.add_regularity_constraints(solver, terms, &self.literals);
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
                 self.stack.push(consequence);
                 self.close_branches();
             }
             Rule::StrictPredicateExtension(extension) => {
-                self.add_regularity_constraints(solver, terms, &self.literals);
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
                 let extension = some(self.stack.last_mut())
                     .strict_predicate_extension(
                         record,
                         problem,
                         terms,
                         &mut self.literals,
-                        solver,
+                        constraints,
                         extension,
                     );
                 self.stack.push(extension);
                 self.close_branches();
             }
             Rule::VariableExtension(extension) => {
-                self.add_regularity_constraints(solver, terms, &self.literals);
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
                 let (extension, consequence) = some(self.stack.last_mut())
                     .variable_extension(
                         record,
                         problem,
                         terms,
                         &mut self.literals,
-                        solver,
+                        constraints,
                         extension,
                     );
                 self.stack.push(extension);
-                self.add_regularity_constraints(solver, terms, &self.literals);
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
                 self.stack.push(consequence);
             }
             Rule::LazyFunctionExtension(extension) => {
-                self.add_regularity_constraints(solver, terms, &self.literals);
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
                 let (extension, consequence) = some(self.stack.last_mut())
                     .lazy_function_extension(
                         record,
                         problem,
                         terms,
                         &mut self.literals,
-                        solver,
+                        constraints,
                         extension,
                     );
                 self.stack.push(extension);
-                self.add_regularity_constraints(solver, terms, &self.literals);
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
                 self.stack.push(consequence);
             }
         }
@@ -175,18 +207,18 @@ impl Goal {
 
     fn add_regularity_constraints(
         &self,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         terms: &Terms,
         literals: &Literals,
     ) {
         let current =
             &self.literals[some(self.stack.last()).current_literal()];
         if !current.polarity && current.is_equality() {
-            current.add_reflexivity_constraints(solver);
+            current.add_reflexivity_constraints(constraints);
         }
 
         for path in self.reduction_literals().map(|id| &literals[id]) {
-            current.add_disequation_constraints(solver, terms, &path);
+            current.add_disequation_constraints(constraints, terms, &path);
         }
     }
 

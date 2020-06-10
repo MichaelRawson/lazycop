@@ -1,17 +1,21 @@
 #![type_length_limit = "10000000"]
 
 mod atom;
+mod binding;
 mod clause;
+mod constraint;
+mod disequation_solver;
+mod equation_solver;
 mod goal;
 mod io;
 mod literal;
 mod occurs;
+mod ordering_solver;
 mod prelude;
 mod problem;
 mod record;
 mod rule;
 mod search;
-mod solver;
 mod symbol;
 mod tableau;
 mod term;

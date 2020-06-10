@@ -1,6 +1,6 @@
 use crate::atom::Atom;
+use crate::constraint::Constraints;
 use crate::prelude::*;
-use crate::solver::Solver;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Literal {
@@ -70,18 +70,21 @@ impl Literal {
         Self { polarity, atom }
     }
 
-    pub(crate) fn add_reflexivity_constraints(&self, solver: &mut Solver) {
-        self.atom.add_reflexivity_constraints(solver);
+    pub(crate) fn add_reflexivity_constraints(
+        &self,
+        constraints: &mut Constraints,
+    ) {
+        self.atom.add_reflexivity_constraints(constraints);
     }
 
     pub(crate) fn add_disequation_constraints(
         &self,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         terms: &Terms,
         other: &Self,
     ) {
         self.atom
-            .add_disequation_constraints(solver, terms, &other.atom)
+            .add_disequation_constraints(constraints, terms, &other.atom)
     }
 }
 

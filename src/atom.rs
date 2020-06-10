@@ -1,5 +1,5 @@
+use crate::constraint::Constraints;
 use crate::prelude::*;
-use crate::solver::Solver;
 
 #[derive(Clone, Copy)]
 pub(crate) enum Atom {
@@ -95,14 +95,17 @@ impl Atom {
         }
     }
 
-    pub(crate) fn add_reflexivity_constraints(&self, solver: &mut Solver) {
+    pub(crate) fn add_reflexivity_constraints(
+        &self,
+        constraints: &mut Constraints,
+    ) {
         let (left, right) = self.get_equality();
-        solver.assert_not_equal(left, right);
+        constraints.assert_neq(left, right);
     }
 
     pub(crate) fn add_disequation_constraints(
         &self,
-        solver: &mut Solver,
+        constraints: &mut Constraints,
         terms: &Terms,
         other: &Self,
     ) {
@@ -111,8 +114,8 @@ impl Atom {
             && self.get_predicate_symbol(terms)
                 == other.get_predicate_symbol(terms)
         {
-            solver
-                .assert_not_equal(self.get_predicate(), other.get_predicate());
+            constraints
+                .assert_neq(self.get_predicate(), other.get_predicate());
         }
     }
 }
