@@ -13,8 +13,6 @@ pub(crate) struct Constraints {
     disequations: Vec<(Id<Term>, Id<Term>)>,
     symmetric_disequations: Vec<SymmetricDisequation>,
     orderings: Vec<(Id<Term>, Id<Term>)>,
-
-    save_orderings: usize,
 }
 
 impl Constraints {
@@ -25,15 +23,13 @@ impl Constraints {
         self.orderings.clear();
     }
 
-    pub(crate) fn save(&mut self) {
-        self.save_orderings = self.orderings.len();
-    }
+    pub(crate) fn save(&mut self) {}
 
     pub(crate) fn restore(&mut self) {
         self.equations.clear();
         self.disequations.clear();
         self.symmetric_disequations.clear();
-        self.orderings.truncate(self.save_orderings);
+        self.orderings.clear();
     }
 
     pub(crate) fn assert_eq(&mut self, left: Id<Term>, right: Id<Term>) {
@@ -70,7 +66,7 @@ impl Constraints {
         self.symmetric_disequations.drain(..)
     }
 
-    pub(crate) fn keep_orderings(
+    pub(crate) fn drain_orderings(
         &self,
     ) -> impl Iterator<Item = (Id<Term>, Id<Term>)> + '_ {
         self.orderings.iter().copied()

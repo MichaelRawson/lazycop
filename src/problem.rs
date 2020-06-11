@@ -145,7 +145,8 @@ impl ProblemBuilder {
             .saved_terms
             .split_off(self.saved_terms.len() - (arity as usize));
 
-        self.saved_terms.push(self.terms.add_function(symbol, &args));
+        self.saved_terms
+            .push(self.terms.add_function(symbol, &args));
     }
 
     pub(crate) fn predicate(&mut self, polarity: bool) {

@@ -115,25 +115,57 @@ fn lpo(
 }
 
 #[derive(Default)]
-pub(crate) struct OrderingSolver;
+pub(crate) struct OrderingSolver {
+    remaining: Vec<(Id<Term>, Id<Term>)>,
+    save: usize,
+}
 
 impl OrderingSolver {
-    pub(crate) fn clear(&mut self) {}
+    pub(crate) fn clear(&mut self) {
+        self.remaining.clear();
+    }
 
-    pub(crate) fn save(&mut self) {}
+    pub(crate) fn save(&mut self) {
+        self.save = self.remaining.len();
+    }
 
-    pub(crate) fn restore(&mut self) {}
+    pub(crate) fn restore(&mut self) {
+        self.remaining.truncate(self.save);
+    }
 
-    pub(crate) fn check<I: Iterator<Item = (Id<Term>, Id<Term>)>>(
+    pub(crate) fn check(
+        &self,
+        symbols: &Symbols,
+        terms: &Terms,
+        bindings: &Bindings,
+    ) -> bool {
+        self.remaining
+            .iter()
+            .copied()
+            .filter_map(|(left, right)| {
+                lpo(symbols, terms, bindings, left, right)
+            })
+            .all(|ordering| ordering == Ordering::Greater)
+    }
+
+    pub(crate) fn simplify<I: Iterator<Item = (Id<Term>, Id<Term>)>>(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,
         bindings: &Bindings,
-        gt: I,
+        orderings: I,
     ) -> bool {
-        gt.filter_map(|(left, right)| {
-            lpo(symbols, terms, bindings, left, right)
-        })
-        .all(|ordering| ordering == Ordering::Greater)
+        for (left, right) in orderings {
+            match lpo(symbols, terms, bindings, left, right) {
+                None => {
+                    self.remaining.push((left, right));
+                }
+                Some(Ordering::Greater) => {}
+                Some(_) => {
+                    return false;
+                }
+            }
+        }
+        true
     }
 }

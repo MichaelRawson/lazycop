@@ -59,7 +59,7 @@ impl DisequationSolver {
 
     pub(crate) fn simplify_symmetric<
         I: Iterator<Item = SymmetricDisequation>,
-   >(
+    >(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,
