@@ -1,9 +1,15 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct Priority {
+    pub(crate) estimate: u16,
+    pub(crate) precedence: u16,
+}
+
 struct Item<T> {
     item: T,
-    priority: u32,
+    priority: Priority,
 }
 
 impl<T> PartialEq for Item<T> {
@@ -16,7 +22,7 @@ impl<T> Eq for Item<T> {}
 
 impl<T> PartialOrd for Item<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        other.priority.partial_cmp(&self.priority)
+        Some(self.cmp(other))
     }
 }
 
@@ -38,7 +44,7 @@ impl<T> Default for Queue<T> {
 }
 
 impl<T> Queue<T> {
-    pub(crate) fn enqueue(&mut self, item: T, priority: u32) {
+    pub(crate) fn enqueue(&mut self, item: T, priority: Priority) {
         self.heap.push(Item { item, priority });
     }
 

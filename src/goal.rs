@@ -33,12 +33,12 @@ impl Goal {
         self.stack.copy_from(&self.save_stack);
     }
 
-    pub(crate) fn num_open_branches(&self) -> u32 {
+    pub(crate) fn num_open_branches(&self) -> u16 {
         self.stack
             .slice()
             .iter()
-            .map(|clause| Range::len(clause.remaining()))
-            .sum::<u32>()
+            .map(|clause| Range::len(clause.remaining()) as u16)
+            .sum::<u16>()
             + 1
     }
 
@@ -141,29 +141,6 @@ impl Goal {
                 self.stack.push(extension);
                 self.close_branches();
             }
-            Rule::VariableExtension(extension) => {
-                self.add_regularity_constraints(
-                    constraints,
-                    terms,
-                    &self.literals,
-                );
-                let (extension, consequence) = some(self.stack.last_mut())
-                    .variable_extension(
-                        record,
-                        problem,
-                        terms,
-                        &mut self.literals,
-                        constraints,
-                        extension,
-                    );
-                self.stack.push(extension);
-                self.add_regularity_constraints(
-                    constraints,
-                    terms,
-                    &self.literals,
-                );
-                self.stack.push(consequence);
-            }
             Rule::StrictFunctionExtension(extension) => {
                 self.add_regularity_constraints(
                     constraints,
@@ -195,6 +172,29 @@ impl Goal {
                 );
                 let (extension, consequence) = some(self.stack.last_mut())
                     .lazy_function_extension(
+                        record,
+                        problem,
+                        terms,
+                        &mut self.literals,
+                        constraints,
+                        extension,
+                    );
+                self.stack.push(extension);
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
+                self.stack.push(consequence);
+            }
+            Rule::VariableExtension(extension) => {
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
+                let (extension, consequence) = some(self.stack.last_mut())
+                    .variable_extension(
                         record,
                         problem,
                         terms,

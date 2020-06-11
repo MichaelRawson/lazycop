@@ -119,7 +119,7 @@ impl Clause {
             literals,
             "predicate_reduction",
             assertions.clone(),
-            Some(reduction.literal),
+            Some(q),
             &[*self],
         );
         for (s, t) in assertions {
@@ -157,7 +157,7 @@ impl Clause {
             literals,
             "equality_reduction",
             once((target, from)).chain(once((to, fresh))),
-            Some(reduction.literal),
+            Some(&literals[reduction.literal]),
             &[self.closed(), consequence],
         );
         consequence
@@ -246,52 +246,6 @@ impl Clause {
             &[self.closed(), extension.closed(), disequations],
         );
         (extension, disequations)
-    }
-
-    pub(crate) fn variable_extension<R: Record>(
-        &mut self,
-        record: &mut R,
-        problem: &Problem,
-        terms: &mut Terms,
-        literals: &mut Literals,
-        constraints: &mut Constraints,
-        extension: EqualityExtension,
-    ) -> (Self, Self) {
-        let target = extension.target;
-        let (extension, from, to) = Self::equality_extension(
-            record,
-            problem,
-            terms,
-            literals,
-            constraints,
-            extension,
-        );
-
-        let start = literals.len();
-        let fresh = terms.add_variable();
-        literals.push(literals[self.current].subst(
-            problem.signature(),
-            terms,
-            target,
-            fresh,
-        ));
-        literals.push(Literal::disequation(to, fresh));
-        let end = literals.len();
-        let consequence = Self::new(start, end);
-
-        constraints.assert_eq(target, from);
-        constraints.assert_gt(from, fresh);
-        record.inference(
-            problem.signature(),
-            terms,
-            literals,
-            "variable_extension",
-            once((target, from)),
-            None,
-            &[self.closed(), extension.closed(), consequence],
-        );
-
-        (extension, consequence)
     }
 
     pub(crate) fn strict_function_extension<R: Record>(
@@ -393,6 +347,52 @@ impl Clause {
             None,
             &[self.closed(), extension.closed(), consequence],
         );
+        (extension, consequence)
+    }
+
+    pub(crate) fn variable_extension<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        constraints: &mut Constraints,
+        extension: EqualityExtension,
+    ) -> (Self, Self) {
+        let target = extension.target;
+        let (extension, from, to) = Self::equality_extension(
+            record,
+            problem,
+            terms,
+            literals,
+            constraints,
+            extension,
+        );
+
+        let start = literals.len();
+        let fresh = terms.add_variable();
+        literals.push(literals[self.current].subst(
+            problem.signature(),
+            terms,
+            target,
+            fresh,
+        ));
+        literals.push(Literal::disequation(to, fresh));
+        let end = literals.len();
+        let consequence = Self::new(start, end);
+
+        constraints.assert_eq(target, from);
+        constraints.assert_gt(from, fresh);
+        record.inference(
+            problem.signature(),
+            terms,
+            literals,
+            "variable_extension",
+            once((target, from)),
+            None,
+            &[self.closed(), extension.closed(), consequence],
+        );
+
         (extension, consequence)
     }
 

@@ -19,7 +19,7 @@ pub(crate) trait Record {
         _literals: &Literals,
         _inference: &'static str,
         _equations: I,
-        _literal: Option<Id<Literal>>,
+        _literal: Option<&Literal>,
         _deductions: &[Clause],
     ) {
     }

@@ -23,17 +23,25 @@ mod util;
 
 fn main() {
     let problem = io::tptp::load_from_stdin();
+
+    let mut rules = rule::Rules::default();
     let mut queue = util::queue::Queue::default();
     for start in problem
         .start_clauses()
         .map(|clause| rule::Start { clause })
         .map(rule::Rule::Start)
-        .map(util::list::List::new)
     {
-        queue.enqueue(start, 0);
+        let id = rules.add(None, start);
+        let estimate = 0;
+        let precedence = start.precedence();
+        let priority = util::queue::Priority {
+            estimate,
+            precedence,
+        };
+        queue.enqueue(id, priority);
     }
 
-    if let Some(proof) = search::astar(&mut queue, &problem) {
+    if let Some(proof) = search::astar(&mut rules, &mut queue, &problem) {
         io::szs::unsatisfiable();
         io::szs::begin_refutation();
         let mut record = io::tstp::TSTP::default();

@@ -115,14 +115,14 @@ impl Record for TSTP {
         literals: &Literals,
         inference: &'static str,
         equations: I,
-        literal: Option<Id<Literal>>,
+        literal: Option<&Literal>,
         deductions: &[Clause],
     ) {
         if let Some(literal) = literal {
             print!("cnf(c{}, plain,\n\t", self.clause_number);
             self.premise_list.push(self.clause_number);
             self.clause_number += 1;
-            self.print_literal(symbols, terms, &literals[literal]);
+            self.print_literal(symbols, terms, literal);
             println!(").");
         }
 

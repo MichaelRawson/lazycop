@@ -74,7 +74,7 @@ impl<'problem> Tableau<'problem> {
         self.goal.is_empty()
     }
 
-    pub(crate) fn num_open_branches(&self) -> u32 {
+    pub(crate) fn num_open_branches(&self) -> u16 {
         self.goal.num_open_branches()
     }
 
