@@ -87,6 +87,7 @@ impl Goal {
                     constraints,
                     terms,
                     &self.literals,
+                    true,
                 );
                 let consequence = some(self.stack.last_mut())
                     .equality_reduction(
@@ -99,11 +100,31 @@ impl Goal {
                     );
                 self.stack.push(consequence);
             }
+            Rule::EqualityReductionReflexivity(reduction) => {
+                let mut consequence = some(self.stack.last_mut())
+                    .equality_reduction(
+                        record,
+                        &problem.signature(),
+                        terms,
+                        &mut self.literals,
+                        constraints,
+                        reduction,
+                    );
+                consequence.reflexivity(
+                    record,
+                    &problem.signature(),
+                    terms,
+                    &self.literals,
+                    constraints,
+                );
+                self.close_branches();
+            }
             Rule::LazyPredicateExtension(extension) => {
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
+                    true,
                 );
                 let (extension, consequence) = some(self.stack.last_mut())
                     .lazy_predicate_extension(
@@ -119,6 +140,7 @@ impl Goal {
                     constraints,
                     terms,
                     &self.literals,
+                    false,
                 );
                 self.stack.push(consequence);
                 self.close_branches();
@@ -128,6 +150,7 @@ impl Goal {
                     constraints,
                     terms,
                     &self.literals,
+                    true,
                 );
                 let extension = some(self.stack.last_mut())
                     .strict_predicate_extension(
@@ -146,6 +169,7 @@ impl Goal {
                     constraints,
                     terms,
                     &self.literals,
+                    true,
                 );
                 let (extension, consequence) = some(self.stack.last_mut())
                     .strict_function_extension(
@@ -161,6 +185,7 @@ impl Goal {
                     constraints,
                     terms,
                     &self.literals,
+                    false,
                 );
                 self.stack.push(consequence);
             }
@@ -169,6 +194,7 @@ impl Goal {
                     constraints,
                     terms,
                     &self.literals,
+                    true,
                 );
                 let (extension, consequence) = some(self.stack.last_mut())
                     .lazy_function_extension(
@@ -184,6 +210,7 @@ impl Goal {
                     constraints,
                     terms,
                     &self.literals,
+                    false,
                 );
                 self.stack.push(consequence);
             }
@@ -192,6 +219,7 @@ impl Goal {
                     constraints,
                     terms,
                     &self.literals,
+                    true,
                 );
                 let (extension, consequence) = some(self.stack.last_mut())
                     .variable_extension(
@@ -207,6 +235,7 @@ impl Goal {
                     constraints,
                     terms,
                     &self.literals,
+                    false,
                 );
                 self.stack.push(consequence);
             }
@@ -233,13 +262,10 @@ impl Goal {
         constraints: &mut Constraints,
         terms: &Terms,
         literals: &Literals,
+        strong: bool,
     ) {
         let current =
             &self.literals[some(self.stack.last()).current_literal()];
-        if !current.polarity && current.is_equality() {
-            current.add_reflexivity_constraints(constraints);
-        }
-
         for path in self
             .path_literals()
             .map(|id| &literals[id])
@@ -248,17 +274,22 @@ impl Goal {
             current.add_disequation_constraints(constraints, terms, &path);
         }
 
-        for reduction in self
-            .reduction_literals()
-            .map(|id| &literals[id])
-            .filter(|reduction| reduction.polarity != current.polarity)
-            .filter(|reduction| reduction.is_predicate())
-        {
-            current.add_disequation_constraints(
-                constraints,
-                terms,
-                &reduction,
-            );
+        if strong {
+            if !current.polarity && current.is_equality() {
+                current.add_reflexivity_constraints(constraints);
+            }
+
+            for reduction in self
+                .reduction_literals()
+                .map(|id| &literals[id])
+                .filter(|reduction| reduction.polarity != current.polarity)
+            {
+                current.add_disequation_constraints(
+                    constraints,
+                    terms,
+                    &reduction,
+                );
+            }
         }
     }
 
@@ -348,7 +379,14 @@ impl Goal {
         terms: &Terms,
         literal: &Literal,
     ) {
-        let mut add_reduction = move |literal, target, from| {
+        let mut add_reduction = move |literal, target, from, reflexivity| {
+            let rule_fn = if reflexivity {
+                Rule::EqualityReductionReflexivity
+            }
+            else {
+                Rule::EqualityReduction
+            };
+
             if terms.is_variable(from)
                 || terms.symbol(from) == terms.symbol(target)
             {
@@ -357,11 +395,11 @@ impl Goal {
                     target,
                     from,
                 };
-                let rule = Rule::EqualityReduction(reduction);
-                possible.extend(once(rule));
+                possible.extend(once(rule_fn(reduction)));
             }
         };
 
+        let possible_reflexivity = !literal.polarity && literal.is_equality();
         for id in self.reduction_literals() {
             let reduction = &self.literals[id];
             if !reduction.polarity || !reduction.is_equality() {
@@ -369,9 +407,16 @@ impl Goal {
             }
             let (left, right) = reduction.get_equality();
             literal.subterms(symbols, terms, &mut |target| {
-                add_reduction(id, target, left);
-                add_reduction(id, target, right);
+                add_reduction(id, target, left, false);
+                add_reduction(id, target, right, false);
             });
+            if possible_reflexivity {
+                let (target1, target2) = literal.get_equality();
+                add_reduction(id, target1, left, true);
+                add_reduction(id, target2, left, true);
+                add_reduction(id, target1, right, true);
+                add_reduction(id, target2, right, true);
+            }
         }
     }
 

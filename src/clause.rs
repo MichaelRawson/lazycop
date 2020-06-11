@@ -271,13 +271,13 @@ impl Clause {
         constraints.assert_eq(target, from);
         constraints.assert_gt(from, fresh);
 
+        literals.push(Literal::disequation(fresh, to));
         literals.push(literals[self.current].subst(
             problem.signature(),
             terms,
             target,
             fresh,
         ));
-        literals.push(Literal::disequation(fresh, to));
         let end = literals.len();
         let consequence = Self::new(start, end);
 
@@ -319,13 +319,6 @@ impl Clause {
         constraints.assert_neq(from, to);
         constraints.assert_gt(placeholder, fresh);
 
-        literals.push(literals[self.current].subst(
-            problem.signature(),
-            terms,
-            target,
-            fresh,
-        ));
-        literals.push(Literal::disequation(fresh, to));
         let ss = terms
             .arguments(problem.signature(), placeholder)
             .map(|s| terms.resolve(s));
@@ -335,6 +328,13 @@ impl Clause {
         for (s, t) in ss.zip(ts) {
             literals.push(Literal::disequation(s, t));
         }
+        literals.push(Literal::disequation(fresh, to));
+        literals.push(literals[self.current].subst(
+            problem.signature(),
+            terms,
+            target,
+            fresh,
+        ));
         let end = literals.len();
         let consequence = Self::new(start, end);
 
@@ -371,13 +371,13 @@ impl Clause {
 
         let start = literals.len();
         let fresh = terms.add_variable();
+        literals.push(Literal::disequation(to, fresh));
         literals.push(literals[self.current].subst(
             problem.signature(),
             terms,
             target,
             fresh,
         ));
-        literals.push(Literal::disequation(to, fresh));
         let end = literals.len();
         let consequence = Self::new(start, end);
 

@@ -103,6 +103,11 @@ impl<'problem> Tableau<'problem> {
             &self.terms,
             &mut self.bindings,
             self.constraints.drain_equations(),
+        ) && self.ordering_solver.simplify(
+            self.problem.signature(),
+            &self.terms,
+            &self.bindings,
+            self.constraints.drain_orderings(),
         ) && self.disequation_solver.simplify(
             self.problem.signature(),
             &self.terms,
@@ -113,11 +118,6 @@ impl<'problem> Tableau<'problem> {
             &self.terms,
             &self.bindings,
             self.constraints.drain_symmetric_disequations(),
-        ) && self.ordering_solver.simplify(
-            self.problem.signature(),
-            &self.terms,
-            &self.bindings,
-            self.constraints.drain_orderings(),
         )
     }
 
@@ -127,6 +127,15 @@ impl<'problem> Tableau<'problem> {
             &self.terms,
             &mut self.bindings,
             self.constraints.drain_equations(),
+        ) && self.ordering_solver.simplify(
+            self.problem.signature(),
+            &self.terms,
+            &self.bindings,
+            self.constraints.drain_orderings(),
+        ) && self.ordering_solver.check(
+            self.problem.signature(),
+            &self.terms,
+            &self.bindings,
         ) && self.disequation_solver.simplify(
             self.problem.signature(),
             &self.terms,
@@ -137,16 +146,7 @@ impl<'problem> Tableau<'problem> {
             &self.terms,
             &self.bindings,
             self.constraints.drain_symmetric_disequations(),
-        ) && self.ordering_solver.simplify(
-            self.problem.signature(),
-            &self.terms,
-            &self.bindings,
-            self.constraints.drain_orderings(),
         ) && self.disequation_solver.check(
-            self.problem.signature(),
-            &self.terms,
-            &self.bindings,
-        ) && self.ordering_solver.check(
             self.problem.signature(),
             &self.terms,
             &self.bindings,
