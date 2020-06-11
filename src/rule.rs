@@ -37,5 +37,6 @@ pub(crate) enum Rule {
     StrictPredicateExtension(PredicateExtension),
     LazyPredicateExtension(PredicateExtension),
     VariableExtension(EqualityExtension),
+    StrictFunctionExtension(EqualityExtension),
     LazyFunctionExtension(EqualityExtension),
 }

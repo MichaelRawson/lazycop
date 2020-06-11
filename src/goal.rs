@@ -164,6 +164,29 @@ impl Goal {
                 );
                 self.stack.push(consequence);
             }
+            Rule::StrictFunctionExtension(extension) => {
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
+                let (extension, consequence) = some(self.stack.last_mut())
+                    .strict_function_extension(
+                        record,
+                        problem,
+                        terms,
+                        &mut self.literals,
+                        constraints,
+                        extension,
+                    );
+                self.stack.push(extension);
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
+                self.stack.push(consequence);
+            }
             Rule::LazyFunctionExtension(extension) => {
                 self.add_regularity_constraints(
                     constraints,
@@ -368,12 +391,14 @@ impl Goal {
             );
 
             let symbol = terms.symbol(target);
-            possible.extend(
-                problem
-                    .query_function_equalities(symbol)
-                    .map(|occurrence| EqualityExtension { target, occurrence })
-                    .map(Rule::LazyFunctionExtension),
-            );
+            let function_extensions = problem
+                .query_function_equalities(symbol)
+                .map(|occurrence| EqualityExtension { target, occurrence });
+            for extension in function_extensions {
+                possible.extend(once(Rule::LazyFunctionExtension(extension)));
+                possible
+                    .extend(once(Rule::StrictFunctionExtension(extension)));
+            }
         });
     }
 

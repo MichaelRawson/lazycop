@@ -294,6 +294,51 @@ impl Clause {
         (extension, consequence)
     }
 
+    pub(crate) fn strict_function_extension<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        constraints: &mut Constraints,
+        extension: EqualityExtension,
+    ) -> (Self, Self) {
+        let target = extension.target;
+        let (extension, from, to) = Self::equality_extension(
+            record,
+            problem,
+            terms,
+            literals,
+            constraints,
+            extension,
+        );
+        let start = literals.len();
+        let fresh = terms.add_variable();
+        constraints.assert_eq(target, from);
+        constraints.assert_gt(from, fresh);
+
+        literals.push(literals[self.current].subst(
+            problem.signature(),
+            terms,
+            target,
+            fresh,
+        ));
+        literals.push(Literal::disequation(fresh, to));
+        let end = literals.len();
+        let consequence = Self::new(start, end);
+
+        record.inference(
+            problem.signature(),
+            terms,
+            literals,
+            "strict_function_extension",
+            once((target, from)),
+            None,
+            &[self.closed(), extension.closed(), consequence],
+        );
+        (extension, consequence)
+    }
+
     pub(crate) fn lazy_function_extension<R: Record>(
         &mut self,
         record: &mut R,
@@ -317,6 +362,7 @@ impl Clause {
         let placeholder =
             terms.fresh_function(problem.signature(), terms.symbol(from));
         constraints.assert_eq(target, placeholder);
+        constraints.assert_neq(from, to);
         constraints.assert_gt(placeholder, fresh);
 
         literals.push(literals[self.current].subst(
