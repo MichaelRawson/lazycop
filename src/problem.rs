@@ -94,7 +94,6 @@ impl Problem {
     }
 }
 
-type FunctionKey = (Id<Symbol>, Vec<Id<Term>>);
 #[derive(Default)]
 pub(crate) struct ProblemBuilder {
     problem: Problem,
@@ -104,7 +103,6 @@ pub(crate) struct ProblemBuilder {
     terms: Terms,
     symbols: FnvHashMap<(String, u32), Id<Symbol>>,
     variable_map: FnvHashMap<String, Id<Term>>,
-    function_map: FnvHashMap<FunctionKey, Id<Term>>,
     saved_terms: Vec<Id<Term>>,
     saved_literals: Literals,
     contains_negative_literal: bool,
@@ -143,16 +141,11 @@ impl ProblemBuilder {
             .symbols
             .entry((name.clone(), arity))
             .or_insert_with(|| symbols.add(arity, name));
-
         let args = self
             .saved_terms
             .split_off(self.saved_terms.len() - (arity as usize));
-        let terms = &mut self.terms;
-        let id = *self
-            .function_map
-            .entry((symbol, args.clone()))
-            .or_insert_with(|| terms.add_function(symbol, &args));
-        self.saved_terms.push(id);
+
+        self.saved_terms.push(self.terms.add_function(symbol, &args));
     }
 
     pub(crate) fn predicate(&mut self, polarity: bool) {
@@ -197,7 +190,6 @@ impl ProblemBuilder {
     pub(crate) fn clause(&mut self, conjecture: bool) {
         let terms = mem::take(&mut self.terms);
         self.variable_map.clear();
-        self.function_map.clear();
         let literals = mem::take(&mut self.saved_literals);
 
         if literals.is_empty() {

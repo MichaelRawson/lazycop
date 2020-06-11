@@ -72,12 +72,11 @@ impl EquationSolver {
     ) -> bool {
         let (left, lview) = self.lookup(symbols, terms, left);
         let (right, rview) = self.lookup(symbols, terms, right);
-        if left == right {
-            return true;
-        }
         match (lview, rview) {
             (TermView::Variable(x), TermView::Variable(y)) => {
-                self.alias(x, y);
+                if x != y {
+                    self.alias(x, y);
+                }
                 true
             }
             (TermView::Variable(x), _) => {

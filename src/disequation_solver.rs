@@ -179,10 +179,17 @@ impl DisequationSolver {
     ) -> bool {
         let (left, lview) = bindings.view(symbols, terms, left);
         let (right, rview) = bindings.view(symbols, terms, right);
-        if left == right {
-            return false;
-        }
         match (lview, rview) {
+            (TermView::Variable(x), TermView::Variable(y)) => {
+                if x == y {
+                    return false;
+                }
+                let variable = x;
+                let term = right;
+                let atomic = AtomicDisequation { variable, term };
+                self.atomic.push(atomic);
+                false
+            }
             (TermView::Variable(variable), _)
                 if !bindings.occurs(symbols, terms, variable, right) =>
             {
