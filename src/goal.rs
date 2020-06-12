@@ -90,7 +90,7 @@ impl Goal {
                     constraints,
                     reduction,
                 );
-                self.update_validity(reduction.literal);
+                self.reduction_validity(reduction.literal);
                 self.close_branches();
             }
             Rule::LREqualityReduction(reduction)
@@ -110,8 +110,8 @@ impl Goal {
                         reduction,
                         rule.lr(),
                     );
-                self.update_validity(reduction.literal);
                 self.push(consequence);
+                self.reduction_validity(reduction.literal);
             }
             Rule::LRSubtermReduction(reduction)
             | Rule::RLSubtermReduction(reduction) => {
@@ -130,8 +130,8 @@ impl Goal {
                         reduction,
                         rule.lr(),
                     );
-                self.update_validity(reduction.literal);
                 self.push(consequence);
+                self.reduction_validity(reduction.literal);
             }
             Rule::LazyPredicateExtension(extension) => {
                 self.add_regularity_constraints(
@@ -149,6 +149,7 @@ impl Goal {
                         extension,
                     );
                 self.push(extension);
+                self.extension_validity();
                 self.add_regularity_constraints(
                     constraints,
                     terms,
@@ -191,6 +192,7 @@ impl Goal {
                         extension,
                     );
                 self.push(extension);
+                self.extension_validity();
                 self.add_regularity_constraints(
                     constraints,
                     terms,
@@ -214,6 +216,7 @@ impl Goal {
                         extension,
                     );
                 self.push(extension);
+                self.extension_validity();
                 self.add_regularity_constraints(
                     constraints,
                     terms,
@@ -237,6 +240,7 @@ impl Goal {
                         extension,
                     );
                 self.push(extension);
+                self.extension_validity();
                 self.add_regularity_constraints(
                     constraints,
                     terms,
@@ -262,6 +266,7 @@ impl Goal {
                         rule.lr(),
                     );
                 self.push(extension);
+                self.extension_validity();
                 self.add_regularity_constraints(
                     constraints,
                     terms,
@@ -287,6 +292,7 @@ impl Goal {
                         rule.lr(),
                     );
                 self.push(extension);
+                self.extension_validity();
                 self.add_regularity_constraints(
                     constraints,
                     terms,
@@ -305,7 +311,14 @@ impl Goal {
         self.lemmata[id.transmute()].clear();
     }
 
-    fn update_validity(&mut self, reduction: Id<Literal>) {
+    fn extension_validity(&mut self) {
+        self.valid.resize(self.literals.len().transmute());
+        let valid_in = self.stack.len() + Offset::new(-1);
+        let literal = some(self.stack.last()).current_literal();
+        self.valid[literal.transmute()] = valid_in;
+    }
+
+    fn reduction_validity(&mut self, reduction: Id<Literal>) {
         self.valid.resize(self.literals.len().transmute());
         let valid_in = self
             .stack
