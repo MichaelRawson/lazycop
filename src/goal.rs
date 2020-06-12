@@ -8,9 +8,13 @@ use std::iter::once;
 pub(crate) struct Goal {
     literals: Literals,
     stack: Block<Clause>,
+    valid: Block<Id<Clause>>,
+    lemmata: Block<Vec<Id<Literal>>>,
 
     save_literals: Id<Literal>,
     save_stack: Block<Clause>,
+    save_valid: Block<Id<Clause>>,
+    save_lemmata: Block<Vec<Id<Literal>>>,
 }
 
 impl Goal {
@@ -21,16 +25,22 @@ impl Goal {
     pub(crate) fn clear(&mut self) {
         self.literals.clear();
         self.stack.clear();
+        self.valid.clear();
+        self.lemmata.clear();
     }
 
     pub(crate) fn save(&mut self) {
         self.save_literals = self.literals.len();
         self.save_stack.copy_from(&self.stack);
+        self.save_valid.copy_from(&self.valid);
+        self.save_lemmata.copy_from(&self.lemmata);
     }
 
     pub(crate) fn restore(&mut self) {
         self.literals.truncate(self.save_literals);
         self.stack.copy_from(&self.save_stack);
+        self.valid.copy_from(&self.save_valid);
+        self.lemmata.copy_from(&self.save_lemmata);
     }
 
     pub(crate) fn num_open_branches(&self) -> u16 {
@@ -51,14 +61,15 @@ impl Goal {
     ) {
         match *rule {
             Rule::Start(start) => {
-                self.stack.push(Clause::start(
+                let start = Clause::start(
                     record,
                     problem,
                     terms,
                     &mut self.literals,
                     constraints,
                     start,
-                ));
+                );
+                self.push(start);
             }
             Rule::Reflexivity => {
                 some(self.stack.last_mut()).reflexivity(
@@ -79,6 +90,7 @@ impl Goal {
                     constraints,
                     reduction,
                 );
+                self.update_validity(reduction.literal);
                 self.close_branches();
             }
             Rule::LREqualityReduction(reduction)
@@ -98,7 +110,8 @@ impl Goal {
                         reduction,
                         rule.lr(),
                     );
-                self.stack.push(consequence);
+                self.update_validity(reduction.literal);
+                self.push(consequence);
             }
             Rule::LRSubtermReduction(reduction)
             | Rule::RLSubtermReduction(reduction) => {
@@ -117,7 +130,8 @@ impl Goal {
                         reduction,
                         rule.lr(),
                     );
-                self.stack.push(consequence);
+                self.update_validity(reduction.literal);
+                self.push(consequence);
             }
             Rule::LazyPredicateExtension(extension) => {
                 self.add_regularity_constraints(
@@ -134,13 +148,13 @@ impl Goal {
                         constraints,
                         extension,
                     );
-                self.stack.push(extension);
+                self.push(extension);
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
-                self.stack.push(consequence);
+                self.push(consequence);
                 self.close_branches();
             }
             Rule::StrictPredicateExtension(extension) => {
@@ -158,7 +172,7 @@ impl Goal {
                         constraints,
                         extension,
                     );
-                self.stack.push(extension);
+                self.push(extension);
                 self.close_branches();
             }
             Rule::StrictFunctionExtension(extension) => {
@@ -176,13 +190,13 @@ impl Goal {
                         constraints,
                         extension,
                     );
-                self.stack.push(extension);
+                self.push(extension);
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
-                self.stack.push(consequence);
+                self.push(consequence);
             }
             Rule::LazyFunctionExtension(extension) => {
                 self.add_regularity_constraints(
@@ -199,13 +213,13 @@ impl Goal {
                         constraints,
                         extension,
                     );
-                self.stack.push(extension);
+                self.push(extension);
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
-                self.stack.push(consequence);
+                self.push(consequence);
             }
             Rule::VariableExtension(extension) => {
                 self.add_regularity_constraints(
@@ -222,13 +236,13 @@ impl Goal {
                         constraints,
                         extension,
                     );
-                self.stack.push(extension);
+                self.push(extension);
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
-                self.stack.push(consequence);
+                self.push(consequence);
             }
             Rule::LRStrictSubtermExtension(extension)
             | Rule::RLStrictSubtermExtension(extension) => {
@@ -247,13 +261,13 @@ impl Goal {
                         extension,
                         rule.lr(),
                     );
-                self.stack.push(extension);
+                self.push(extension);
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
-                self.stack.push(consequence);
+                self.push(consequence);
             }
             Rule::LRLazySubtermExtension(extension)
             | Rule::RLLazySubtermExtension(extension) => {
@@ -272,26 +286,59 @@ impl Goal {
                         extension,
                         rule.lr(),
                     );
-                self.stack.push(extension);
+                self.push(extension);
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
-                self.stack.push(consequence);
+                self.push(consequence);
             }
         }
     }
 
+    fn push(&mut self, clause: Clause) {
+        let id = self.stack.push(clause);
+        if self.stack.len().transmute() > self.lemmata.len() {
+            self.lemmata.resize(self.stack.len().transmute());
+        }
+        self.lemmata[id.transmute()].clear();
+    }
+
+    fn update_validity(&mut self, reduction: Id<Literal>) {
+        self.valid.resize(self.literals.len().transmute());
+        let valid_in = self
+            .stack
+            .range()
+            .find(|id| self.stack[*id].current_literal() == reduction)
+            .map(|id| id + Offset::new(1))
+            .unwrap_or(self.valid[reduction.transmute()]);
+
+        for affected in Range::new(valid_in, self.stack.len()).rev().skip(1) {
+            let literal = self.stack[affected.transmute()].current_literal();
+            let index = literal.transmute();
+            let existing = self.valid[index];
+            self.valid[index] = std::cmp::max(existing, valid_in);
+        }
+    }
+
     fn close_branches(&mut self) {
+        self.valid.resize(self.literals.len().transmute());
         let last = some(self.stack.last());
         if !last.is_empty() {
             return;
         }
         self.stack.pop();
-        while let Some(last) = self.stack.last_mut() {
-            last.close_literal();
-            if !last.is_empty() {
+        while let Some(parent) = self.stack.last_mut() {
+            let id = parent.close_literal();
+            let valid_in = self.valid[id.transmute()];
+            let mut lemma = self.literals[id];
+            lemma.polarity = !lemma.polarity;
+            let lemma = self.literals.push(lemma);
+            self.valid.push(valid_in);
+            self.lemmata[valid_in.transmute()].push(lemma);
+
+            if !parent.is_empty() {
                 return;
             }
             self.stack.pop();
@@ -585,7 +632,11 @@ impl Goal {
     }
 
     fn reduction_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
-        self.path_literals()
+        self.path_literals().chain(
+            self.stack.range().flat_map(move |id| {
+                self.lemmata[id.transmute()].iter().copied()
+            }),
+        )
     }
 
     fn path_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
