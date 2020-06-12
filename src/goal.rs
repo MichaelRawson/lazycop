@@ -35,9 +35,8 @@ impl Goal {
 
     pub(crate) fn num_open_branches(&self) -> u16 {
         self.stack
-            .slice()
-            .iter()
-            .map(|clause| Range::len(clause.remaining()) as u16)
+            .range()
+            .map(|id| Range::len(self.stack[id].remaining()) as u16)
             .sum::<u16>()
             + 1
     }
@@ -525,16 +524,15 @@ impl Goal {
         literal: &Literal,
     ) {
         let (left, right) = literal.get_equality();
-        self.possible_subterm_extensions_one_sided(
+        Self::possible_subterm_extensions_one_sided(
             possible, problem, terms, left, true,
         );
-        self.possible_subterm_extensions_one_sided(
+        Self::possible_subterm_extensions_one_sided(
             possible, problem, terms, right, false,
         );
     }
 
     fn possible_subterm_extensions_one_sided<E: Extend<Rule>>(
-        &self,
         possible: &mut E,
         problem: &Problem,
         terms: &Terms,
@@ -592,10 +590,9 @@ impl Goal {
 
     fn path_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
         self.stack
-            .slice()
-            .iter()
+            .range()
             .rev()
             .skip(1)
-            .map(|clause| clause.current_literal())
+            .map(move |id| self.stack[id].current_literal())
     }
 }

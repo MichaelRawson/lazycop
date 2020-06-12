@@ -22,14 +22,6 @@ impl<T> Block<T> {
         self.items.len() == 1
     }
 
-    pub(crate) fn slice(&self) -> &[T] {
-        unsafe { self.items.get_unchecked(1..) }
-    }
-
-    pub(crate) fn slice_mut(&mut self) -> &mut [T] {
-        unsafe { self.items.get_unchecked_mut(1..) }
-    }
-
     pub(crate) fn last(&self) -> Option<&T> {
         self.slice().last()
     }
@@ -54,6 +46,16 @@ impl<T> Block<T> {
 
     pub(crate) fn truncate(&mut self, len: Id<T>) {
         self.items.truncate(len.as_usize());
+    }
+
+    fn slice(&self) -> &[T] {
+        debug_assert!(!self.items.is_empty(), "should never be empty");
+        unsafe { self.items.get_unchecked(1..) }
+    }
+
+    fn slice_mut(&mut self) -> &mut [T] {
+        debug_assert!(!self.items.is_empty(), "should never be empty");
+        unsafe { self.items.get_unchecked_mut(1..) }
     }
 }
 
@@ -87,7 +89,7 @@ impl<T> Index<Id<T>> for Block<T> {
 
     fn index(&self, id: Id<T>) -> &Self::Output {
         let index = id.as_usize();
-        debug_assert!(index < self.items.len(), "out of range");
+        debug_assert!(index > 0 && index < self.items.len(), "out of range");
         unsafe { self.items.get_unchecked(index) }
     }
 }
@@ -95,7 +97,7 @@ impl<T> Index<Id<T>> for Block<T> {
 impl<T> IndexMut<Id<T>> for Block<T> {
     fn index_mut(&mut self, id: Id<T>) -> &mut Self::Output {
         let index = id.as_usize();
-        debug_assert!(index < self.items.len(), "out of range");
+        debug_assert!(index > 0 && index < self.items.len(), "out of range");
         unsafe { self.items.get_unchecked_mut(index) }
     }
 }

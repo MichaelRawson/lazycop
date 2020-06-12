@@ -119,11 +119,11 @@ impl Rules {
         parent: Option<Id<RuleList>>,
         rule: Rule,
     ) -> Id<RuleList> {
-        let count = 0;
         if let Some(parent) = parent {
             self.tree[parent].count += 1;
         }
 
+        let count = 1;
         let list = RuleList {
             parent,
             count,
@@ -138,17 +138,15 @@ impl Rules {
     }
 
     pub(crate) fn mark_done(&mut self, done: Id<RuleList>) {
-        self.tree[done].count += 1;
         let mut current = Some(done);
-
         while let Some(id) = current {
-            let list = &mut self.tree[id];
-            list.count -= 1;
-            if list.count > 0 {
+            let leaf = &mut self.tree[id];
+            leaf.count -= 1;
+            if leaf.count > 0 {
                 break;
             }
             self.free.push(id);
-            current = list.parent;
+            current = leaf.parent;
         }
     }
 }
