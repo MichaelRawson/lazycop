@@ -106,27 +106,33 @@ impl Terms {
         match self.view(symbols, term) {
             TermView::Variable(_) => term,
             TermView::Function(symbol, args) => {
+                let mut changed = None;
+                for arg in args {
+                    let subterm = self.resolve(arg);
+                    let result = self.subst(symbols, subterm, from, to);
+                    if result != subterm {
+                        changed = Some((arg, result));
+                    }
+                }
+                let (changed, result) = if let Some((arg, result)) = changed {
+                    (arg, result)
+                }
+                else {
+                    return term;
+                };
+
                 let symbol = Some(symbol);
                 let start = self.terms.len();
                 self.terms.push(Term { symbol });
                 for arg in args {
-                    self.add_reference(self.resolve(arg));
-                }
-                let new_args =
-                    Range::new(start + Offset::new(1), self.terms.len());
-
-                for (new, old) in new_args.zip(args) {
-                    let subterm = self.resolve(old);
-                    let result = self.subst(symbols, subterm, from, to);
-                    if result != subterm {
-                        let offset = result - new;
-                        let term = Term { offset };
-                        self.terms[new] = term;
-                        return start;
+                    if arg == changed {
+                        self.add_reference(result);
+                    }
+                    else {
+                        self.add_reference(self.resolve(arg));
                     }
                 }
-                self.terms.truncate(start);
-                term
+                start
             }
         }
     }

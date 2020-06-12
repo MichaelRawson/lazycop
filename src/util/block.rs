@@ -52,14 +52,6 @@ impl<T> Block<T> {
         self.items.pop()
     }
 
-    pub(crate) fn insert(&mut self, index: Id<T>, value: T) {
-        self.items.insert(index.as_usize(), value);
-    }
-
-    pub(crate) fn remove(&mut self, index: Id<T>) -> T {
-        self.items.remove(index.as_usize())
-    }
-
     pub(crate) fn truncate(&mut self, len: Id<T>) {
         self.items.truncate(len.as_usize());
     }

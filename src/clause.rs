@@ -469,14 +469,16 @@ impl Clause {
         clause: Id<ProblemClause>,
         literal: Id<Literal>,
     ) -> Self {
-        let front = literals.len();
         let literal_offset = literals.offset();
         let extension =
             Self::copy(record, problem, terms, literals, constraints, clause);
 
         let matching = literal + literal_offset;
-        let mate = literals.remove(matching);
-        literals.insert(front, mate);
+        let mate = literals[matching];
+        for index in Range::new(extension.current, matching).rev() {
+            literals[index + Offset::new(1)] = literals[index];
+        }
+        literals[extension.current] = mate;
         extension
     }
 
