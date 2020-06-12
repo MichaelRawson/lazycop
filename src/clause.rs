@@ -117,7 +117,7 @@ impl Clause {
             symbols,
             terms,
             literals,
-            "predicate_reduction",
+            "predicate_contradiction",
             assertions.clone(),
             Some(q),
             &[*self],
@@ -127,6 +127,7 @@ impl Clause {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn equality_reduction<R: Record>(
         &mut self,
         record: &mut R,
@@ -135,12 +136,19 @@ impl Clause {
         literals: &mut Literals,
         constraints: &mut Constraints,
         reduction: EqualityReduction,
+        lr: bool,
     ) -> Self {
-        let (left, right) = literals[reduction.literal].get_equality();
         let target = reduction.target;
-        let from = reduction.from;
-        let to = if from == left { right } else { left };
-        let fresh = terms.add_variable();
+        let (left, right) = literals[reduction.literal].get_equality();
+        let (from, to) = if lr { (left, right) } else { (right, left) };
+
+        let (fresh, fresh_constraint) = if terms.is_variable(to) {
+            (to, None)
+        } else {
+            let fresh = terms.add_variable();
+            constraints.assert_eq(to, fresh);
+            (fresh, Some((to, fresh)))
+        };
 
         let start = literals.len();
         literals
@@ -149,14 +157,13 @@ impl Clause {
         let consequence = Self::new(start, end);
 
         constraints.assert_eq(target, from);
-        constraints.assert_eq(to, fresh);
         constraints.assert_gt(from, to);
         record.inference(
             symbols,
             terms,
             literals,
             "equality_reduction",
-            once((target, from)).chain(once((to, fresh))),
+            once((target, from)).chain(fresh_constraint),
             Some(&literals[reduction.literal]),
             &[self.closed(), consequence],
         );
@@ -433,7 +440,6 @@ impl Clause {
         constraints: &mut Constraints,
         extension: EqualityExtension,
     ) -> (Self, Id<Term>, Id<Term>) {
-        let offset = terms.offset();
         let occurrence = problem.get_equality_occurrence(extension.occurrence);
         let extension = Self::extension(
             record,
@@ -444,7 +450,13 @@ impl Clause {
             occurrence.clause,
             occurrence.literal,
         );
-        (extension, occurrence.from + offset, occurrence.to + offset)
+        let (left, right) = literals[extension.current].get_equality();
+        let (from, to) = if occurrence.lr {
+            (left, right)
+        } else {
+            (right, left)
+        };
+        (extension, from, to)
     }
 
     #[allow(clippy::too_many_arguments)]

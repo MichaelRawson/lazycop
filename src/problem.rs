@@ -19,8 +19,7 @@ pub(crate) struct PredicateOccurrence {
 pub(crate) struct EqualityOccurrence {
     pub(crate) clause: Id<ProblemClause>,
     pub(crate) literal: Id<Literal>,
-    pub(crate) from: Id<Term>,
-    pub(crate) to: Id<Term>,
+    pub(crate) lr: bool,
 }
 
 #[derive(Default)]
@@ -183,8 +182,8 @@ impl ProblemBuilder {
         let atom = Atom::Equality(left, right);
         self.saved_literals.push(Literal::new(polarity, atom));
         if polarity {
-            self.add_equality_occurrence(clause, literal, left, right);
-            self.add_equality_occurrence(clause, literal, right, left);
+            self.add_equality_occurrence(clause, literal, left, true);
+            self.add_equality_occurrence(clause, literal, right, false);
         }
     }
 
@@ -227,14 +226,13 @@ impl ProblemBuilder {
         clause: Id<ProblemClause>,
         literal: Id<Literal>,
         from: Id<Term>,
-        to: Id<Term>,
+        lr: bool,
     ) {
         let occurrence =
             self.problem.equality_occurrences.push(EqualityOccurrence {
                 clause,
                 literal,
-                from,
-                to,
+                lr,
             });
         match self.terms.view(&self.problem.symbols, from) {
             TermView::Variable(_) => {

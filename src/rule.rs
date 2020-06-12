@@ -19,7 +19,6 @@ pub(crate) struct PredicateExtension {
 pub(crate) struct EqualityReduction {
     pub(crate) literal: Id<Literal>,
     pub(crate) target: Id<Term>,
-    pub(crate) from: Id<Term>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -33,8 +32,8 @@ pub(crate) enum Rule {
     Start(Start),
     Reflexivity,
     PredicateReduction(PredicateReduction),
-    EqualityReduction(EqualityReduction),
-    EqualityReductionReflexivity(EqualityReduction),
+    LREqualityReduction(EqualityReduction),
+    RLEqualityReduction(EqualityReduction),
     StrictPredicateExtension(PredicateExtension),
     LazyPredicateExtension(PredicateExtension),
     StrictFunctionExtension(EqualityExtension),
@@ -43,17 +42,24 @@ pub(crate) enum Rule {
 }
 
 impl Rule {
+    pub(crate) fn lr(&self) -> bool {
+        match self {
+            Rule::LREqualityReduction(_) => true,
+            Rule::RLEqualityReduction(_) => false,
+            _ => unreachable(),
+        }
+    }
+
     pub(crate) fn precedence(&self) -> u16 {
         match self {
             Rule::Start(_) => 0,
-            Rule::Reflexivity => 1,
-            Rule::PredicateReduction(_) => 1,
-            Rule::EqualityReductionReflexivity(_) => 2,
-            Rule::EqualityReduction(_) => 2,
-            Rule::StrictPredicateExtension(_) => 3,
-            Rule::StrictFunctionExtension(_) => 3,
-            Rule::LazyPredicateExtension(_) => 4,
-            Rule::LazyFunctionExtension(_) => 4,
+            Rule::Reflexivity
+            | Rule::PredicateReduction(_) => 1,
+            Rule::LREqualityReduction(_) | Rule::RLEqualityReduction(_) => 2,
+            Rule::StrictPredicateExtension(_)
+            | Rule::StrictFunctionExtension(_) => 3,
+            Rule::LazyPredicateExtension(_)
+            | Rule::LazyFunctionExtension(_) => 4,
             Rule::VariableExtension(_) => 5,
         }
     }
