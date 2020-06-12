@@ -6,8 +6,9 @@ edition = "2018"
 
 [dependencies]
 fnv = "1.0"
+num_cpus = "1.13"
+parking_lot = "0.10"
 tptp = "0.23"
 
 [profile.release]
-debug = true
 panic = "abort"
