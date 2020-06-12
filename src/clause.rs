@@ -117,7 +117,7 @@ impl Clause {
             symbols,
             terms,
             literals,
-            "predicate_contradiction",
+            "predicate_reduction",
             assertions.clone(),
             Some(q),
             &[*self],
@@ -163,6 +163,50 @@ impl Clause {
             terms,
             literals,
             "equality_reduction",
+            once((target, from)).chain(fresh_constraint),
+            Some(&literals[reduction.literal]),
+            &[self.closed(), consequence],
+        );
+        consequence
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn subterm_reduction<R: Record>(
+        &mut self,
+        record: &mut R,
+        symbols: &Symbols,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        constraints: &mut Constraints,
+        reduction: EqualityReduction,
+        lr: bool,
+    ) -> Self {
+        let target = reduction.target;
+        let (left, right) = literals[self.current].get_equality();
+        let (from, to) = if lr { (left, right) } else { (right, left) };
+
+        let (fresh, fresh_constraint) = if terms.is_variable(to) {
+            (to, None)
+        } else {
+            let fresh = terms.add_variable();
+            constraints.assert_eq(to, fresh);
+            (fresh, Some((to, fresh)))
+        };
+
+        let start = literals.len();
+        literals.push(
+            literals[reduction.literal].subst(symbols, terms, target, fresh),
+        );
+        let end = literals.len();
+        let consequence = Self::new(start, end);
+
+        constraints.assert_eq(target, from);
+        constraints.assert_gt(from, to);
+        record.inference(
+            symbols,
+            terms,
+            literals,
+            "subterm_reduction",
             once((target, from)).chain(fresh_constraint),
             Some(&literals[reduction.literal]),
             &[self.closed(), consequence],
@@ -323,7 +367,7 @@ impl Clause {
         let placeholder =
             terms.fresh_function(problem.signature(), terms.symbol(from));
         constraints.assert_eq(target, placeholder);
-        constraints.assert_neq(from, to);
+        constraints.assert_neq(from, target);
         constraints.assert_gt(placeholder, fresh);
 
         let ss = terms
@@ -403,6 +447,126 @@ impl Clause {
         (extension, consequence)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn lazy_subterm_extension<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        constraints: &mut Constraints,
+        extension: SubtermExtension,
+        lr: bool,
+    ) -> (Self, Self) {
+        let (left, right) = literals[self.current].get_equality();
+        let (from, to) = if lr { (left, right) } else { (right, left) };
+        let (extension, target) = Self::subterm_extension(
+            record,
+            problem,
+            terms,
+            literals,
+            constraints,
+            extension,
+        );
+        let (fresh, fresh_constraint) = if terms.is_variable(to) {
+            (to, None)
+        } else {
+            let fresh = terms.add_variable();
+            constraints.assert_eq(to, fresh);
+            (fresh, Some((to, fresh)))
+        };
+
+        let placeholder =
+            terms.fresh_function(problem.signature(), terms.symbol(target));
+        constraints.assert_eq(placeholder, from);
+        constraints.assert_gt(from, to);
+        constraints.assert_neq(target, from);
+
+        let start = literals.len();
+        let ss = terms
+            .arguments(problem.signature(), placeholder)
+            .map(|s| terms.resolve(s));
+        let ts = terms
+            .arguments(problem.signature(), target)
+            .map(|t| terms.resolve(t));
+        for (s, t) in ss.zip(ts) {
+            literals.push(Literal::disequation(s, t));
+        }
+        literals.push(literals[extension.current].subst(
+            problem.signature(),
+            terms,
+            target,
+            fresh,
+        ));
+        let end = literals.len();
+        let consequence = Self::new(start, end);
+
+        record.inference(
+            problem.signature(),
+            terms,
+            literals,
+            "lazy_subterm_extension",
+            once((placeholder, from)).chain(fresh_constraint),
+            None,
+            &[self.closed(), extension.closed(), consequence],
+        );
+        (extension, consequence)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn strict_subterm_extension<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        constraints: &mut Constraints,
+        extension: SubtermExtension,
+        lr: bool,
+    ) -> (Self, Self) {
+        let (left, right) = literals[self.current].get_equality();
+        let (from, to) = if lr { (left, right) } else { (right, left) };
+        let (extension, target) = Self::subterm_extension(
+            record,
+            problem,
+            terms,
+            literals,
+            constraints,
+            extension,
+        );
+        let (fresh, fresh_constraint) = if terms.is_variable(to) {
+            (to, None)
+        } else {
+            let fresh = terms.add_variable();
+            constraints.assert_eq(to, fresh);
+            (fresh, Some((to, fresh)))
+        };
+
+        constraints.assert_eq(target, from);
+        constraints.assert_gt(from, to);
+
+        let start = literals.len();
+        literals.push(literals[extension.current].subst(
+            problem.signature(),
+            terms,
+            target,
+            fresh,
+        ));
+        let end = literals.len();
+        let consequence = Self::new(start, end);
+
+        record.inference(
+            problem.signature(),
+            terms,
+            literals,
+            "strict_subterm_extension",
+            once((target, from)).chain(fresh_constraint),
+            None,
+            &[self.closed(), extension.closed(), consequence],
+        );
+        (extension, consequence)
+    }
+
     fn predicate_extension<R: Record>(
         self,
         record: &mut R,
@@ -457,6 +621,28 @@ impl Clause {
             (right, left)
         };
         (extension, from, to)
+    }
+
+    fn subterm_extension<R: Record>(
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        constraints: &mut Constraints,
+        extension: SubtermExtension,
+    ) -> (Self, Id<Term>) {
+        let occurrence = problem.get_subterm_occurrence(extension.occurrence);
+        let target = occurrence.subterm + terms.offset();
+        let extension = Self::extension(
+            record,
+            problem,
+            terms,
+            literals,
+            constraints,
+            occurrence.clause,
+            occurrence.literal,
+        );
+        (extension, target)
     }
 
     #[allow(clippy::too_many_arguments)]

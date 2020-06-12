@@ -101,6 +101,25 @@ impl Goal {
                     );
                 self.stack.push(consequence);
             }
+            Rule::LRSubtermReduction(reduction)
+            | Rule::RLSubtermReduction(reduction) => {
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
+                let consequence = some(self.stack.last_mut())
+                    .subterm_reduction(
+                        record,
+                        &problem.signature(),
+                        terms,
+                        &mut self.literals,
+                        constraints,
+                        reduction,
+                        rule.lr(),
+                    );
+                self.stack.push(consequence);
+            }
             Rule::LazyPredicateExtension(extension) => {
                 self.add_regularity_constraints(
                     constraints,
@@ -212,6 +231,56 @@ impl Goal {
                 );
                 self.stack.push(consequence);
             }
+            Rule::LRStrictSubtermExtension(extension)
+            | Rule::RLStrictSubtermExtension(extension) => {
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
+                let (extension, consequence) = some(self.stack.last_mut())
+                    .strict_subterm_extension(
+                        record,
+                        problem,
+                        terms,
+                        &mut self.literals,
+                        constraints,
+                        extension,
+                        rule.lr(),
+                    );
+                self.stack.push(extension);
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
+                self.stack.push(consequence);
+            }
+            Rule::LRLazySubtermExtension(extension)
+            | Rule::RLLazySubtermExtension(extension) => {
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
+                let (extension, consequence) = some(self.stack.last_mut())
+                    .lazy_subterm_extension(
+                        record,
+                        problem,
+                        terms,
+                        &mut self.literals,
+                        constraints,
+                        extension,
+                        rule.lr(),
+                    );
+                self.stack.push(extension);
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
+                self.stack.push(consequence);
+            }
         }
     }
 
@@ -278,7 +347,7 @@ impl Goal {
         if literal.is_predicate() {
             self.possible_predicate_rules(possible, problem, terms, literal);
         } else if literal.is_equality() {
-            self.possible_equality_rules(possible, literal);
+            self.possible_equality_rules(possible, problem, terms, literal);
         }
         self.possible_equality_reduction_rules(
             possible,
@@ -360,35 +429,17 @@ impl Goal {
             }
             let (left, right) = reduction.get_equality();
             literal.subterms(symbols, terms, &mut |target| {
-                possible.extend(Self::possible_equality_reduction_rule(
-                    terms, id, target, left, true,
-                ));
-                possible.extend(Self::possible_equality_reduction_rule(
-                    terms, id, target, right, false,
-                ));
+                possible.extend(
+                    Self::possible_equality_reduction(terms, id, target, left)
+                        .map(Rule::LREqualityReduction),
+                );
+                possible.extend(
+                    Self::possible_equality_reduction(
+                        terms, id, target, right,
+                    )
+                    .map(Rule::RLEqualityReduction),
+                );
             });
-        }
-    }
-
-    fn possible_equality_reduction_rule(
-        terms: &Terms,
-        literal: Id<Literal>,
-        target: Id<Term>,
-        from: Id<Term>,
-        lr: bool,
-    ) -> Option<Rule> {
-        if terms.is_variable(from)
-            || terms.symbol(from) == terms.symbol(target)
-        {
-            let rule_fn = if lr {
-                Rule::LREqualityReduction
-            } else {
-                Rule::RLEqualityReduction
-            };
-            let reduction = EqualityReduction { literal, target };
-            Some(rule_fn(reduction))
-        } else {
-            None
         }
     }
 
@@ -422,10 +473,116 @@ impl Goal {
     fn possible_equality_rules<E: Extend<Rule>>(
         &self,
         possible: &mut E,
+        problem: &Problem,
+        terms: &Terms,
         literal: &Literal,
     ) {
         if !literal.polarity {
             possible.extend(once(Rule::Reflexivity));
+        } else {
+            self.possible_subterm_reductions(
+                possible,
+                problem.signature(),
+                terms,
+                literal,
+            );
+            self.possible_subterm_extensions(
+                possible, problem, terms, literal,
+            );
+        }
+    }
+
+    fn possible_subterm_reductions<E: Extend<Rule>>(
+        &self,
+        possible: &mut E,
+        symbols: &Symbols,
+        terms: &Terms,
+        literal: &Literal,
+    ) {
+        let (left, right) = literal.get_equality();
+        for id in self.reduction_literals() {
+            let reduction = &self.literals[id];
+            reduction.subterms(symbols, terms, &mut |target| {
+                possible.extend(
+                    Self::possible_equality_reduction(terms, id, target, left)
+                        .map(Rule::LRSubtermReduction),
+                );
+                possible.extend(
+                    Self::possible_equality_reduction(
+                        terms, id, target, right,
+                    )
+                    .map(Rule::RLSubtermReduction),
+                );
+            });
+        }
+    }
+
+    fn possible_subterm_extensions<E: Extend<Rule>>(
+        &self,
+        possible: &mut E,
+        problem: &Problem,
+        terms: &Terms,
+        literal: &Literal,
+    ) {
+        let (left, right) = literal.get_equality();
+        self.possible_subterm_extensions_one_sided(
+            possible, problem, terms, left, true,
+        );
+        self.possible_subterm_extensions_one_sided(
+            possible, problem, terms, right, false,
+        );
+    }
+
+    fn possible_subterm_extensions_one_sided<E: Extend<Rule>>(
+        &self,
+        possible: &mut E,
+        problem: &Problem,
+        terms: &Terms,
+        from: Id<Term>,
+        lr: bool,
+    ) {
+        if terms.is_variable(from) {
+            for occurrence in problem.query_all_subterms() {
+                Self::possible_subterm_extensions_single(
+                    possible, occurrence, lr,
+                );
+            }
+        } else {
+            for occurrence in problem.query_subterms(terms.symbol(from)) {
+                Self::possible_subterm_extensions_single(
+                    possible, occurrence, lr,
+                );
+            }
+        }
+    }
+
+    fn possible_subterm_extensions_single<E: Extend<Rule>>(
+        possible: &mut E,
+        occurrence: Id<SubtermOccurrence>,
+        lr: bool,
+    ) {
+        let extension = SubtermExtension { occurrence };
+        if lr {
+            possible.extend(once(Rule::LRStrictSubtermExtension(extension)));
+            possible.extend(once(Rule::LRLazySubtermExtension(extension)));
+        } else {
+            possible.extend(once(Rule::RLStrictSubtermExtension(extension)));
+            possible.extend(once(Rule::RLLazySubtermExtension(extension)));
+        }
+    }
+
+    fn possible_equality_reduction(
+        terms: &Terms,
+        literal: Id<Literal>,
+        target: Id<Term>,
+        from: Id<Term>,
+    ) -> Option<EqualityReduction> {
+        if terms.is_variable(from)
+            || terms.symbol(from) == terms.symbol(target)
+        {
+            Some(EqualityReduction { literal, target })
+        } else {
+            None
         }
     }
 

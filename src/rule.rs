@@ -28,24 +28,41 @@ pub(crate) struct EqualityExtension {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct SubtermExtension {
+    pub(crate) occurrence: Id<SubtermOccurrence>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Rule {
     Start(Start),
     Reflexivity,
     PredicateReduction(PredicateReduction),
     LREqualityReduction(EqualityReduction),
     RLEqualityReduction(EqualityReduction),
+    LRSubtermReduction(EqualityReduction),
+    RLSubtermReduction(EqualityReduction),
     StrictPredicateExtension(PredicateExtension),
     LazyPredicateExtension(PredicateExtension),
     StrictFunctionExtension(EqualityExtension),
     LazyFunctionExtension(EqualityExtension),
     VariableExtension(EqualityExtension),
+    LRLazySubtermExtension(SubtermExtension),
+    RLLazySubtermExtension(SubtermExtension),
+    LRStrictSubtermExtension(SubtermExtension),
+    RLStrictSubtermExtension(SubtermExtension),
 }
 
 impl Rule {
     pub(crate) fn lr(&self) -> bool {
         match self {
-            Rule::LREqualityReduction(_) => true,
-            Rule::RLEqualityReduction(_) => false,
+            Rule::LREqualityReduction(_)
+            | Rule::LRSubtermReduction(_)
+            | Rule::LRLazySubtermExtension(_)
+            | Rule::LRStrictSubtermExtension(_) => true,
+            Rule::RLEqualityReduction(_)
+            | Rule::RLSubtermReduction(_)
+            | Rule::RLLazySubtermExtension(_)
+            | Rule::RLStrictSubtermExtension(_) => false,
             _ => unreachable(),
         }
     }
@@ -53,14 +70,20 @@ impl Rule {
     pub(crate) fn precedence(&self) -> u16 {
         match self {
             Rule::Start(_) => 0,
-            Rule::Reflexivity
-            | Rule::PredicateReduction(_) => 1,
-            Rule::LREqualityReduction(_) | Rule::RLEqualityReduction(_) => 2,
+            Rule::Reflexivity | Rule::PredicateReduction(_) => 1,
+            Rule::LREqualityReduction(_)
+            | Rule::RLEqualityReduction(_)
+            | Rule::LRSubtermReduction(_)
+            | Rule::RLSubtermReduction(_) => 2,
             Rule::StrictPredicateExtension(_)
             | Rule::StrictFunctionExtension(_) => 3,
             Rule::LazyPredicateExtension(_)
             | Rule::LazyFunctionExtension(_) => 4,
             Rule::VariableExtension(_) => 5,
+            Rule::LRStrictSubtermExtension(_)
+            | Rule::RLStrictSubtermExtension(_) => 6,
+            Rule::LRLazySubtermExtension(_)
+            | Rule::RLLazySubtermExtension(_) => 7,
         }
     }
 }

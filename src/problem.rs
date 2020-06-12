@@ -22,6 +22,12 @@ pub(crate) struct EqualityOccurrence {
     pub(crate) lr: bool,
 }
 
+pub(crate) struct SubtermOccurrence {
+    pub(crate) clause: Id<ProblemClause>,
+    pub(crate) literal: Id<Literal>,
+    pub(crate) subterm: Id<Term>,
+}
+
 #[derive(Default)]
 pub(crate) struct Problem {
     symbols: Symbols,
@@ -31,9 +37,11 @@ pub(crate) struct Problem {
 
     predicate_occurrences: Block<PredicateOccurrence>,
     equality_occurrences: Block<EqualityOccurrence>,
+    subterm_occurrences: Block<SubtermOccurrence>,
     predicates: [Block<Vec<Id<PredicateOccurrence>>>; 2],
     variable_equalities: Vec<Id<EqualityOccurrence>>,
     function_equalities: Block<Vec<Id<EqualityOccurrence>>>,
+    symbol_subterms: Block<Vec<Id<SubtermOccurrence>>>,
 }
 
 impl Problem {
@@ -69,6 +77,13 @@ impl Problem {
         &self.equality_occurrences[id]
     }
 
+    pub(crate) fn get_subterm_occurrence(
+        &self,
+        id: Id<SubtermOccurrence>,
+    ) -> &SubtermOccurrence {
+        &self.subterm_occurrences[id]
+    }
+
     pub(crate) fn query_predicates(
         &self,
         polarity: bool,
@@ -90,6 +105,21 @@ impl Problem {
         symbol: Id<Symbol>,
     ) -> impl Iterator<Item = Id<EqualityOccurrence>> + '_ {
         self.function_equalities[symbol.transmute()].iter().copied()
+    }
+
+    pub(crate) fn query_all_subterms(
+        &self,
+    ) -> impl Iterator<Item = Id<SubtermOccurrence>> + '_ {
+        self.symbol_subterms
+            .range()
+            .flat_map(move |id| self.symbol_subterms[id].iter().copied())
+    }
+
+    pub(crate) fn query_subterms(
+        &self,
+        symbol: Id<Symbol>,
+    ) -> impl Iterator<Item = Id<SubtermOccurrence>> + '_ {
+        self.symbol_subterms[symbol.transmute()].iter().copied()
     }
 }
 
@@ -154,19 +184,23 @@ impl ProblemBuilder {
         let term = self.pop_term();
         let atom = Atom::Predicate(term);
         let symbol = atom.get_predicate_symbol(&self.terms);
-
         let clause = self.problem.clauses.len();
         let literal = self.saved_literals.len();
+
+        for arg in self.terms.arguments(&self.problem.symbols, term) {
+            let subterm = self.terms.resolve(arg);
+            self.add_subterm_occurrences(clause, literal, subterm);
+        }
+
         let occurrence = self
             .problem
             .predicate_occurrences
             .push(PredicateOccurrence { clause, literal });
-
-        self.saved_literals.push(Literal::new(polarity, atom));
         let polarity_positions =
             &mut self.problem.predicates[polarity as usize];
         polarity_positions.resize((self.problem.symbols.len()).transmute());
         polarity_positions[symbol.transmute()].push(occurrence);
+        self.saved_literals.push(Literal::new(polarity, atom));
     }
 
     pub(crate) fn equality(&mut self, polarity: bool) {
@@ -179,12 +213,15 @@ impl ProblemBuilder {
         let clause = self.problem.clauses.len();
         let literal = self.saved_literals.len();
 
-        let atom = Atom::Equality(left, right);
-        self.saved_literals.push(Literal::new(polarity, atom));
         if polarity {
             self.add_equality_occurrence(clause, literal, left, true);
             self.add_equality_occurrence(clause, literal, right, false);
         }
+        self.add_subterm_occurrences(clause, literal, left);
+        self.add_subterm_occurrences(clause, literal, right);
+
+        let atom = Atom::Equality(left, right);
+        self.saved_literals.push(Literal::new(polarity, atom));
     }
 
     pub(crate) fn clause(&mut self, conjecture: bool) {
@@ -241,11 +278,33 @@ impl ProblemBuilder {
             TermView::Function(f, _) => {
                 self.problem
                     .function_equalities
-                    .resize((self.problem.symbols.len()).transmute());
+                    .resize(self.problem.symbols.len().transmute());
                 self.problem.function_equalities[f.transmute()]
                     .push(occurrence);
             }
         }
+    }
+
+    fn add_subterm_occurrences(
+        &mut self,
+        clause: Id<ProblemClause>,
+        literal: Id<Literal>,
+        term: Id<Term>,
+    ) {
+        let terms = &self.terms;
+        let symbols = &self.problem.symbols;
+        let subterm_occurrences = &mut self.problem.subterm_occurrences;
+        let symbol_subterms = &mut self.problem.symbol_subterms;
+        terms.subterms(symbols, term, &mut |subterm| {
+            let symbol = terms.symbol(subterm);
+            let occurrence = subterm_occurrences.push(SubtermOccurrence {
+                clause,
+                literal,
+                subterm,
+            });
+            symbol_subterms.resize(symbols.len().transmute());
+            symbol_subterms[symbol.transmute()].push(occurrence);
+        });
     }
 
     fn pop_term(&mut self) -> Id<Term> {

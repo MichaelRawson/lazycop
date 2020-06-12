@@ -116,8 +116,7 @@ impl Terms {
                 }
                 let (changed, result) = if let Some((arg, result)) = changed {
                     (arg, result)
-                }
-                else {
+                } else {
                     return term;
                 };
 
@@ -127,8 +126,7 @@ impl Terms {
                 for arg in args {
                     if arg == changed {
                         self.add_reference(result);
-                    }
-                    else {
+                    } else {
                         self.add_reference(self.resolve(arg));
                     }
                 }
