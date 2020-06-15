@@ -367,31 +367,42 @@ impl Goal {
         let current =
             &self.literals[some(self.stack.last()).current_literal()];
 
-        if !current.polarity && current.is_equality() {
+        if current.is_predicate() {
+            for path in self
+                .path_literals()
+                .map(|id| &literals[id])
+                .filter(|path| path.polarity == current.polarity)
+            {
+                current.add_disequation_constraints(constraints, terms, &path);
+            }
+
+            for reduction in self
+                .reduction_literals()
+                .map(|id| &literals[id])
+                .filter(|reduction| reduction.polarity != current.polarity)
+            {
+                current.add_disequation_constraints(
+                    constraints,
+                    terms,
+                    &reduction,
+                );
+            }
+        }
+        else if current.is_equality() && current.polarity {
+            for reduction in self
+                .reduction_literals()
+                .map(|id| &literals[id])
+                .filter(|reduction| reduction.polarity)
+            {
+                current.add_disequation_constraints(
+                    constraints,
+                    terms,
+                    &reduction,
+                );
+            }
+        }
+        else if current.is_equality() && !current.polarity {
             current.add_reflexivity_constraints(constraints);
-        }
-
-        let current =
-            &self.literals[some(self.stack.last()).current_literal()];
-        for path in self
-            .path_literals()
-            .map(|id| &literals[id])
-            .filter(|path| path.polarity == current.polarity)
-        {
-            current.add_disequation_constraints(constraints, terms, &path);
-        }
-
-        for reduction in self
-            .reduction_literals()
-            .map(|id| &literals[id])
-            .filter(|reduction| reduction.polarity != current.polarity)
-            .filter(|reduction| reduction.is_predicate())
-        {
-            current.add_disequation_constraints(
-                constraints,
-                terms,
-                &reduction,
-            );
         }
     }
 
