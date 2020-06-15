@@ -1,0 +1,16 @@
+#!/bin/sh
+
+here=`dirname $0`
+form=`grep -m 1 "^% SPC *: [A-Z0-9_]*$" $1 | sed 's/% SPC *: //' | cut -d '_' -f 1`
+
+cd $here
+if test -z $form || test $form = "CNF"
+then
+	exec $here/vampire -t 0 --mode clausify $1 -updr off -nm 2 -erd input_only -icip on | $here/lazycop
+elif test $form = "FOF"
+then
+	exec $here/vampire -t 0 --mode clausify $1 -updr off -nm 2 -erd input_only -icip on | $here/lazycop | sed 's/SZS status Unsatisfiable/SZS status Theorem/'
+else
+	echo "% SZS status Inappropriate"
+	exit 1
+fi

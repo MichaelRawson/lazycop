@@ -231,7 +231,7 @@ impl ProblemBuilder {
 
         if literals.is_empty() {
             szs::unsatisfiable();
-            szs::begin_refutation();
+            szs::begin_incomplete_proof();
             let mut record = tstp::TSTP::default();
             record.axiom(
                 &self.problem.symbols,
@@ -239,7 +239,7 @@ impl ProblemBuilder {
                 &literals,
                 Clause::new(Id::default(), Id::default()),
             );
-            szs::end_refutation();
+            szs::end_incomplete_proof();
             exit::success()
         }
 

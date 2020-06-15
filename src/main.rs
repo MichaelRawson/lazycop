@@ -27,7 +27,7 @@ fn main() {
 
     if let Some(proof) = search::Search::new(&problem).go() {
         io::szs::unsatisfiable();
-        io::szs::begin_refutation();
+        io::szs::begin_incomplete_proof();
         let mut record = io::tstp::TSTP::default();
         let mut tableau = tableau::Tableau::new(&problem);
         for rule in proof {
@@ -36,10 +36,10 @@ fn main() {
         assert!(tableau.is_closed());
         assert!(tableau.solve_constraints());
         tableau.record_unification(&mut record);
-        io::szs::end_refutation();
+        io::szs::end_incomplete_proof();
         io::exit::success()
     } else {
-        io::szs::incomplete();
+        io::szs::unknown();
         io::exit::failure()
     }
 }

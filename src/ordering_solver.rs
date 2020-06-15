@@ -141,6 +141,7 @@ impl OrderingSolver {
     ) -> bool {
         self.remaining
             .iter()
+            .rev()
             .copied()
             .filter_map(|(left, right)| {
                 lpo(symbols, terms, bindings, left, right)

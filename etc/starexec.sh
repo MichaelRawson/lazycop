@@ -6,6 +6,6 @@ RUSTFLAGS="-C codegen-units=1 -C lto -C debuginfo=0 -C target-feature=avx" cargo
 cp /usr/bin/vampire bin/
 strip target/x86_64-unknown-linux-musl/release/lazycop
 cp target/x86_64-unknown-linux-musl/release/lazycop bin/
-cp starexec_run_default bin/
+cp etc/starexec_run_default bin/
 zip lazycop.zip -r bin/
 rm -rf bin/

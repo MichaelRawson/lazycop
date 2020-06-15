@@ -57,8 +57,7 @@ fn dequeue(attempt: &Mutex<Attempt>) -> Option<Id<RuleList>> {
             return Some(id);
         } else if attempt.in_flight == 0 {
             return None;
-        }
-        else {
+        } else {
             std::mem::drop(attempt);
             std::thread::yield_now();
         }

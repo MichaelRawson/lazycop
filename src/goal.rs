@@ -387,8 +387,7 @@ impl Goal {
                     &reduction,
                 );
             }
-        }
-        else if current.is_equality() && current.polarity {
+        } else if current.is_equality() && current.polarity {
             for reduction in self
                 .reduction_literals()
                 .map(|id| &literals[id])
@@ -400,8 +399,7 @@ impl Goal {
                     &reduction,
                 );
             }
-        }
-        else if current.is_equality() && !current.polarity {
+        } else if current.is_equality() && !current.polarity {
             current.add_reflexivity_constraints(constraints);
         }
     }
