@@ -126,7 +126,7 @@ impl Problem {
 #[derive(Default)]
 pub(crate) struct ProblemBuilder {
     problem: Problem,
-    positive_clauses: Vec<Id<ProblemClause>>,
+    negative_clauses: Vec<Id<ProblemClause>>,
     axiom_clauses: Vec<Id<ProblemClause>>,
     conjecture_clauses: Vec<Id<ProblemClause>>,
     terms: Terms,
@@ -134,7 +134,7 @@ pub(crate) struct ProblemBuilder {
     variable_map: FnvHashMap<String, Id<Term>>,
     saved_terms: Vec<Id<Term>>,
     saved_literals: Literals,
-    contains_negative_literal: bool,
+    contains_positive_literal: bool,
 }
 
 impl ProblemBuilder {
@@ -148,7 +148,7 @@ impl ProblemBuilder {
 
         if self.axiom_clauses.is_empty() || self.conjecture_clauses.is_empty()
         {
-            self.problem.start = self.positive_clauses;
+            self.problem.start = self.negative_clauses;
         } else {
             self.problem.start = self.conjecture_clauses;
         }
@@ -179,8 +179,8 @@ impl ProblemBuilder {
     }
 
     pub(crate) fn predicate(&mut self, polarity: bool) {
-        self.contains_negative_literal =
-            self.contains_negative_literal || !polarity;
+        self.contains_positive_literal =
+            self.contains_positive_literal || polarity;
         let term = self.pop_term();
         let atom = Atom::Predicate(term);
         let symbol = atom.get_predicate_symbol(&self.terms);
@@ -205,8 +205,8 @@ impl ProblemBuilder {
 
     pub(crate) fn equality(&mut self, polarity: bool) {
         self.problem.equalities_present = true;
-        self.contains_negative_literal =
-            self.contains_negative_literal || !polarity;
+        self.contains_positive_literal =
+            self.contains_positive_literal || polarity;
         let right = self.pop_term();
         let left = self.pop_term();
 
@@ -251,10 +251,10 @@ impl ProblemBuilder {
             self.axiom_clauses.push(problem_clause);
         }
 
-        let is_positive_clause = !self.contains_negative_literal;
-        self.contains_negative_literal = false;
-        if is_positive_clause {
-            self.positive_clauses.push(problem_clause);
+        let is_negative_clause = !self.contains_positive_literal;
+        self.contains_positive_literal = false;
+        if is_negative_clause {
+            self.negative_clauses.push(problem_clause);
         }
     }
 
