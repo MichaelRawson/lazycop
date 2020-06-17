@@ -22,7 +22,7 @@ As well as these predicate refinements, lazyCoP implements some obvious modifica
  - reflexive regularity: if `s != t` is a literal in the tableau and `s`, `t` are identical, it must be closed immediately
  - symmetric path regularity: neither `s = t` nor `t = s` may appear in a path if `s = t` does
  - strong equality regularity: a branch cannot be extended by an equality if said equality is available by path or lemma
- - superposition-style ordering constraints: if `s[p] = u` is the target of a paramodulation, `s[p] > u`
+ - superposition-style ordering constraints: if `s[p] = t` is the target of a paramodulation, `s[p] > t`
 
 One practical issue with the lazy paramodulation calculus is that proofs may be significantly longer, particularly if "lazy" steps could in fact be "strict".
 lazyCoP avoids this by implementing both lazy and strict versions of all lazy inferences.

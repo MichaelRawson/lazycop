@@ -232,7 +232,7 @@ impl Clause {
         constraints: &mut Constraints,
         extension: PredicateExtension,
     ) -> Self {
-        let mut extension = self.predicate_extension(
+        let mut extension = Self::predicate_extension(
             record,
             problem,
             terms,
@@ -268,7 +268,7 @@ impl Clause {
         constraints: &mut Constraints,
         extension: PredicateExtension,
     ) -> (Self, Self) {
-        let extension = self.predicate_extension(
+        let extension = Self::predicate_extension(
             record,
             problem,
             terms,
@@ -582,7 +582,6 @@ impl Clause {
     }
 
     fn predicate_extension<R: Record>(
-        self,
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
@@ -592,7 +591,7 @@ impl Clause {
     ) -> Self {
         let occurrence =
             problem.get_predicate_occurrence(extension.occurrence);
-        let extension = Self::extension(
+        Self::extension(
             record,
             problem,
             terms,
@@ -600,14 +599,7 @@ impl Clause {
             constraints,
             occurrence.clause,
             occurrence.literal,
-        );
-        extension.add_strong_connection_constraints(
-            constraints,
-            terms,
-            literals,
-            &literals[self.current],
-        );
-        extension
+        )
     }
 
     fn equality_extension<R: Record>(
@@ -628,6 +620,7 @@ impl Clause {
             occurrence.clause,
             occurrence.literal,
         );
+
         let (left, right) = literals[extension.current].get_equality();
         let (from, to) = if occurrence.lr {
             (left, right)
@@ -706,20 +699,6 @@ impl Clause {
 
         record.axiom(problem.signature(), terms, literals, clause);
         clause
-    }
-
-    fn add_strong_connection_constraints(
-        self,
-        constraints: &mut Constraints,
-        terms: &Terms,
-        literals: &Literals,
-        mate: &Literal,
-    ) {
-        for literal in self.open().skip(1).map(|id| &literals[id]) {
-            if mate.polarity != literal.polarity {
-                mate.add_disequation_constraints(constraints, terms, &literal);
-            }
-        }
     }
 
     fn add_tautology_constraints(
