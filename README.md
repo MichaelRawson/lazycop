@@ -22,7 +22,8 @@ As well as these predicate refinements, lazyCoP implements some obvious modifica
  - reflexive regularity: if `s != t` is a literal in the tableau and `s`, `t` are identical, it must be closed immediately
  - symmetric path regularity: neither `s = t` nor `t = s` may appear in a path if `s = t` does
  - strong equality regularity: a branch cannot be extended by an equality if said equality is available by path or lemma
-  
+ - superposition-style ordering constraints: if `s[p] = u` is the target of a paramodulation, `s[p] > u`
+
 One practical issue with the lazy paramodulation calculus is that proofs may be significantly longer, particularly if "lazy" steps could in fact be "strict".
 lazyCoP avoids this by implementing both lazy and strict versions of all lazy inferences.
 The resulting duplication is eliminated by refinement: lazy inferences are not permitted to simulate strict rule application.
@@ -30,12 +31,12 @@ The resulting duplication is eliminated by refinement: lazy inferences are not p
 The term ordering employed is the lexicographic path ordering.
 For symbol precedence, `f > g` iff either `f` has a larger arity than `g`, or the two have equal arity but `f` appears later in the problem than `g`.
 
-[1] Paskevich, Andrei. "Connection tableaux with lazy paramodulation." Journal of Automated Reasoning 40.2-3 (2008): 179-194.
+## Completeness
+Paskevich claims [1] that the pure lazy paramodulation calculus is complete, but leaves demonstrating the completeness of refinements such as path regularity as future work.
+lazyCoP implements a number of refinements of the calculus, all of which improve prover performance and appear to preserve completeness, at least empirically.
+However, we are suspicious of the refinements' effect on completeness, particularly of superposition-style ordering constraints.
 
-## Implementation
-The system explores via A* search at the tableaux level: the heuristic function is the number of open branches.
-Unification, term orderings, and refinements are all implemented via constraints (equality, ordering, and disequation constraints respectively), which are generated during rule application and subsequently checked before a tableau is enqueued.
-The prover spawns a number of worker threads which each dequeue, expand and enqueue nodes repeatedly.
+We are very interested in any true statements for which lazyCoP either terminates, or fails to find an "easy" proof.
 
 ## License
 lazyCoP is MIT licensed. At the time of writing, we believe this to be compatible with all direct dependencies.
@@ -304,3 +305,5 @@ cnf(c52, plain,
 
 % SZS output end IncompleteProof
 ```
+
+[1] Paskevich, Andrei. "Connection tableaux with lazy paramodulation." Journal of Automated Reasoning 40.2-3 (2008): 179-194.
