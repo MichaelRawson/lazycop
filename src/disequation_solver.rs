@@ -117,9 +117,13 @@ impl DisequationSolver {
         terms: &Terms,
         bindings: &Bindings,
     ) -> bool {
-        self.solved.range().rev().map(|id| self.solved[id]).all(|solved| {
-            self.check_solved_disequation(symbols, terms, bindings, solved)
-        })
+        self.solved
+            .range()
+            .rev()
+            .map(|id| self.solved[id])
+            .all(|solved| {
+                self.check_solved_disequation(symbols, terms, bindings, solved)
+            })
     }
 
     fn check_solved_disequation(

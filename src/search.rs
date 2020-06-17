@@ -165,7 +165,7 @@ impl Search {
             handles.push(handle);
         }
         for handle in handles.drain(..) {
-            handle.join().expect("thread crashed");
+            handle.join().unwrap_or_else(|_| panic!("thread crashed"));
         }
         self.attempt.lock().proof.clone()
     }
