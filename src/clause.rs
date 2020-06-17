@@ -151,8 +151,13 @@ impl Clause {
         };
 
         let start = literals.len();
-        literals
-            .push(literals[self.current].subst(symbols, terms, target, fresh));
+        literals.push(literals[self.current].subst(
+            symbols,
+            terms,
+            constraints,
+            target,
+            fresh,
+        ));
         let end = literals.len();
         let consequence = Self::new(start, end);
 
@@ -194,9 +199,13 @@ impl Clause {
         };
 
         let start = literals.len();
-        literals.push(
-            literals[reduction.literal].subst(symbols, terms, target, fresh),
-        );
+        literals.push(literals[reduction.literal].subst(
+            symbols,
+            terms,
+            constraints,
+            target,
+            fresh,
+        ));
         let end = literals.len();
         let consequence = Self::new(start, end);
 
@@ -326,6 +335,7 @@ impl Clause {
         literals.push(literals[self.current].subst(
             problem.signature(),
             terms,
+            constraints,
             target,
             fresh,
         ));
@@ -383,6 +393,7 @@ impl Clause {
         literals.push(literals[self.current].subst(
             problem.signature(),
             terms,
+            constraints,
             target,
             fresh,
         ));
@@ -426,6 +437,7 @@ impl Clause {
         literals.push(literals[self.current].subst(
             problem.signature(),
             terms,
+            constraints,
             target,
             fresh,
         ));
@@ -495,6 +507,7 @@ impl Clause {
         literals.push(literals[extension.current].subst(
             problem.signature(),
             terms,
+            constraints,
             target,
             fresh,
         ));
@@ -549,6 +562,7 @@ impl Clause {
         literals.push(literals[extension.current].subst(
             problem.signature(),
             terms,
+            constraints,
             target,
             fresh,
         ));

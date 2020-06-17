@@ -81,6 +81,7 @@ impl Atom {
         &self,
         symbols: &Symbols,
         terms: &mut Terms,
+        constraints: &mut Constraints,
         from: Id<Term>,
         to: Id<Term>,
     ) -> Self {
@@ -88,10 +89,16 @@ impl Atom {
             Atom::Predicate(p) => {
                 Atom::Predicate(terms.subst(symbols, *p, from, to))
             }
-            Atom::Equality(left, right) => Atom::Equality(
-                terms.subst(symbols, *left, from, to),
-                terms.subst(symbols, *right, from, to),
-            ),
+            Atom::Equality(left, right) => {
+                let subst = terms.subst(symbols, *left, from, to);
+                if subst != *left {
+                    constraints.assert_gt(*left, *right);
+                    return Atom::Equality(subst, *right);
+                }
+                constraints.assert_gt(*right, *left);
+                let subst = terms.subst(symbols, *right, from, to);
+                Atom::Equality(*left, subst)
+            }
         }
     }
 
