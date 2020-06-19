@@ -17,6 +17,20 @@ pub(crate) struct Goal {
     save_lemmata: Block<Vec<Id<Literal>>>,
 }
 
+fn copy_lemmata(
+    range: Range<Clause>,
+    from: &Block<Vec<Id<Literal>>>,
+    to: &mut Block<Vec<Id<Literal>>>,
+) {
+    if to.len() < from.len() {
+        to.resize(from.len());
+    }
+    for id in range {
+        let id = id.transmute();
+        to[id].clone_from(&from[id]);
+    }
+}
+
 impl Goal {
     pub(crate) fn is_empty(&self) -> bool {
         self.stack.is_empty()
@@ -26,21 +40,28 @@ impl Goal {
         self.literals.clear();
         self.stack.clear();
         self.valid.clear();
-        self.lemmata.clear();
     }
 
     pub(crate) fn save(&mut self) {
         self.save_literals = self.literals.len();
         self.save_stack.copy_from(&self.stack);
         self.save_valid.copy_from(&self.valid);
-        self.save_lemmata.copy_from(&self.lemmata);
+        copy_lemmata(
+            self.stack.range(),
+            &self.lemmata,
+            &mut self.save_lemmata,
+        );
     }
 
     pub(crate) fn restore(&mut self) {
         self.literals.truncate(self.save_literals);
         self.stack.copy_from(&self.save_stack);
         self.valid.copy_from(&self.save_valid);
-        self.lemmata.copy_from(&self.save_lemmata);
+        copy_lemmata(
+            self.stack.range(),
+            &self.save_lemmata,
+            &mut self.lemmata,
+        );
     }
 
     pub(crate) fn num_open_branches(&self) -> u16 {
@@ -410,6 +431,16 @@ impl Goal {
         problem: &Problem,
         terms: &Terms,
     ) {
+        if self.stack.is_empty() {
+            possible.extend(
+                problem
+                    .start_clauses()
+                    .map(|clause| Start { clause })
+                    .map(Rule::Start),
+            );
+            return;
+        }
+
         let clause = some(self.stack.last());
         let literal = &self.literals[clause.current_literal()];
         if literal.is_predicate() {

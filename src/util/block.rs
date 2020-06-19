@@ -59,7 +59,7 @@ impl<T> Block<T> {
     }
 }
 
-impl<T: Clone> Block<T> {
+impl<T: Copy> Block<T> {
     pub(crate) fn extend(&mut self, other: &Self) {
         self.items.extend_from_slice(&other.slice());
     }

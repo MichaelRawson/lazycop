@@ -103,9 +103,8 @@ pub(crate) struct Rules {
 impl Rules {
     pub(crate) fn get_list(
         &self,
-        leaf: Id<RuleList>,
+        mut current: Option<Id<RuleList>>,
     ) -> impl Iterator<Item = Rule> + '_ {
-        let mut current = Some(leaf);
         std::iter::from_fn(move || {
             let list = &self.tree[current?];
             let rule = Some(list.rule);
@@ -137,8 +136,7 @@ impl Rules {
         }
     }
 
-    pub(crate) fn mark_done(&mut self, done: Id<RuleList>) {
-        let mut current = Some(done);
+    pub(crate) fn mark_done(&mut self, mut current: Option<Id<RuleList>>) {
         while let Some(id) = current {
             let leaf = &mut self.tree[id];
             leaf.count -= 1;

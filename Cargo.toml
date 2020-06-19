@@ -6,6 +6,7 @@ edition = "2018"
 license = "MIT"
 
 [dependencies]
+crossbeam-utils = "0.7"
 fnv = "1.0"
 num_cpus = "1.13"
 parking_lot = "0.10"

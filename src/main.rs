@@ -23,9 +23,8 @@ mod util;
 
 fn main() {
     let problem = io::tptp::load_from_stdin();
-    let problem = std::sync::Arc::new(problem);
 
-    if let Some(proof) = search::Search::new(&problem).go() {
+    if let Some(proof) = search::search(&problem) {
         io::szs::unsatisfiable();
         io::szs::begin_incomplete_proof();
         let mut record = io::tstp::TSTP::default();
