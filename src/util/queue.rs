@@ -2,9 +2,9 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Priority {
-    pub(crate) estimate: u16,
-    pub(crate) precedence: u16,
+pub struct Priority {
+    pub estimate: u16,
+    pub precedence: u16,
 }
 
 struct Item<T> {
@@ -32,7 +32,7 @@ impl<T> Ord for Item<T> {
     }
 }
 
-pub(crate) struct Queue<T> {
+pub struct Queue<T> {
     heap: BinaryHeap<Item<T>>,
 }
 
@@ -44,11 +44,11 @@ impl<T> Default for Queue<T> {
 }
 
 impl<T> Queue<T> {
-    pub(crate) fn enqueue(&mut self, item: T, priority: Priority) {
+    pub fn enqueue(&mut self, item: T, priority: Priority) {
         self.heap.push(Item { item, priority });
     }
 
-    pub(crate) fn dequeue(&mut self) -> Option<T> {
+    pub fn dequeue(&mut self) -> Option<T> {
         self.heap.pop().map(|item| item.item)
     }
 }

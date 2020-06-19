@@ -1,16 +1,16 @@
 use crate::prelude::*;
 
-pub(crate) struct Argument;
-pub(crate) struct Variable;
+pub struct Argument;
+pub struct Variable;
 
 #[derive(Clone, Copy)]
-pub(crate) enum TermView {
+pub enum TermView {
     Variable(Id<Variable>),
     Function(Id<Symbol>, Range<Argument>),
 }
 
 #[derive(Clone, Copy)]
-pub(crate) union Term {
+pub union Term {
     symbol: Option<Id<Symbol>>,
     offset: Offset<Term>,
 }
@@ -26,43 +26,47 @@ impl Term {
 }
 
 #[derive(Default)]
-pub(crate) struct Terms {
+pub struct Terms {
     terms: Block<Term>,
     save: Id<Term>,
 }
 
 impl Terms {
-    pub(crate) fn len(&self) -> Id<Term> {
+    pub fn is_empty(&self) -> bool {
+        self.terms.is_empty()
+    }
+
+    pub fn len(&self) -> Id<Term> {
         self.terms.len()
     }
 
-    pub(crate) fn offset(&self) -> Offset<Term> {
+    pub fn offset(&self) -> Offset<Term> {
         self.terms.offset()
     }
 
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.terms.clear();
     }
 
-    pub(crate) fn save(&mut self) {
+    pub fn save(&mut self) {
         self.save = self.terms.len();
     }
 
-    pub(crate) fn restore(&mut self) {
+    pub fn restore(&mut self) {
         self.terms.truncate(self.save);
     }
 
-    pub(crate) fn extend(&mut self, other: &Self) {
+    pub fn extend(&mut self, other: &Self) {
         self.terms.extend(&other.terms);
     }
 
-    pub(crate) fn add_variable(&mut self) -> Id<Term> {
+    pub fn add_variable(&mut self) -> Id<Term> {
         let symbol = None;
         let term = Term { symbol };
         self.terms.push(term)
     }
 
-    pub(crate) fn add_function(
+    pub fn add_function(
         &mut self,
         symbol: Id<Symbol>,
         args: &[Id<Term>],
@@ -75,7 +79,7 @@ impl Terms {
         id
     }
 
-    pub(crate) fn fresh_function(
+    pub fn fresh_function(
         &mut self,
         symbols: &Symbols,
         symbol: Id<Symbol>,
@@ -93,7 +97,7 @@ impl Terms {
         id
     }
 
-    pub(crate) fn subst(
+    pub fn subst(
         &mut self,
         symbols: &Symbols,
         term: Id<Term>,
@@ -135,7 +139,7 @@ impl Terms {
         }
     }
 
-    pub(crate) fn subterms<F: FnMut(Id<Term>)>(
+    pub fn subterms<F: FnMut(Id<Term>)>(
         &self,
         symbols: &Symbols,
         term: Id<Term>,
@@ -149,7 +153,7 @@ impl Terms {
         }
     }
 
-    pub(crate) fn proper_subterms<F: FnMut(Id<Term>)>(
+    pub fn proper_subterms<F: FnMut(Id<Term>)>(
         &self,
         symbols: &Symbols,
         term: Id<Term>,
@@ -162,12 +166,12 @@ impl Terms {
         }
     }
 
-    pub(crate) fn resolve(&self, argument: Id<Argument>) -> Id<Term> {
+    pub fn resolve(&self, argument: Id<Argument>) -> Id<Term> {
         let id = argument.transmute();
         id + self.terms[id].as_offset()
     }
 
-    pub(crate) fn view(&self, symbols: &Symbols, id: Id<Term>) -> TermView {
+    pub fn view(&self, symbols: &Symbols, id: Id<Term>) -> TermView {
         match self.terms[id].as_symbol() {
             Some(symbol) => {
                 let arity = symbols.arity(symbol);
@@ -179,7 +183,7 @@ impl Terms {
         }
     }
 
-    pub(crate) fn arguments(
+    pub fn arguments(
         &self,
         symbols: &Symbols,
         id: Id<Term>,
@@ -190,11 +194,11 @@ impl Terms {
         Range::new_with_len(start, arity)
     }
 
-    pub(crate) fn is_variable(&self, id: Id<Term>) -> bool {
+    pub fn is_variable(&self, id: Id<Term>) -> bool {
         self.terms[id].as_symbol().is_none()
     }
 
-    pub(crate) fn symbol(&self, id: Id<Term>) -> Id<Symbol> {
+    pub fn symbol(&self, id: Id<Term>) -> Id<Symbol> {
         some(self.terms[id].as_symbol())
     }
 

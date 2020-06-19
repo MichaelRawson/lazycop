@@ -6,30 +6,30 @@ use crate::record::Record;
 use fnv::FnvHashMap;
 use std::mem;
 
-pub(crate) struct ProblemClause {
-    pub(crate) literals: Literals,
-    pub(crate) terms: Terms,
+pub struct ProblemClause {
+    pub literals: Literals,
+    pub terms: Terms,
 }
 
-pub(crate) struct PredicateOccurrence {
-    pub(crate) clause: Id<ProblemClause>,
-    pub(crate) literal: Id<Literal>,
+pub struct PredicateOccurrence {
+    pub clause: Id<ProblemClause>,
+    pub literal: Id<Literal>,
 }
 
-pub(crate) struct EqualityOccurrence {
-    pub(crate) clause: Id<ProblemClause>,
-    pub(crate) literal: Id<Literal>,
-    pub(crate) lr: bool,
+pub struct EqualityOccurrence {
+    pub clause: Id<ProblemClause>,
+    pub literal: Id<Literal>,
+    pub lr: bool,
 }
 
-pub(crate) struct SubtermOccurrence {
-    pub(crate) clause: Id<ProblemClause>,
-    pub(crate) literal: Id<Literal>,
-    pub(crate) subterm: Id<Term>,
+pub struct SubtermOccurrence {
+    pub clause: Id<ProblemClause>,
+    pub literal: Id<Literal>,
+    pub subterm: Id<Term>,
 }
 
 #[derive(Default)]
-pub(crate) struct Problem {
+pub struct Problem {
     symbols: Symbols,
     equalities_present: bool,
     clauses: Block<ProblemClause>,
@@ -45,54 +45,54 @@ pub(crate) struct Problem {
 }
 
 impl Problem {
-    pub(crate) fn signature(&self) -> &Symbols {
+    pub fn signature(&self) -> &Symbols {
         &self.symbols
     }
 
-    pub(crate) fn num_clauses(&self) -> usize {
+    pub fn num_clauses(&self) -> usize {
         self.clauses.len().as_usize()
     }
 
-    pub(crate) fn num_start_clauses(&self) -> usize {
+    pub fn num_start_clauses(&self) -> usize {
         self.start.len()
     }
 
-    pub(crate) fn has_equality(&self) -> bool {
+    pub fn has_equality(&self) -> bool {
         self.equalities_present
     }
 
-    pub(crate) fn start_clauses(
+    pub fn start_clauses(
         &self,
     ) -> impl Iterator<Item = Id<ProblemClause>> + '_ {
         self.start.iter().copied()
     }
 
-    pub(crate) fn get_clause(&self, id: Id<ProblemClause>) -> &ProblemClause {
+    pub fn get_clause(&self, id: Id<ProblemClause>) -> &ProblemClause {
         &self.clauses[id]
     }
 
-    pub(crate) fn get_predicate_occurrence(
+    pub fn get_predicate_occurrence(
         &self,
         id: Id<PredicateOccurrence>,
     ) -> &PredicateOccurrence {
         &self.predicate_occurrences[id]
     }
 
-    pub(crate) fn get_equality_occurrence(
+    pub fn get_equality_occurrence(
         &self,
         id: Id<EqualityOccurrence>,
     ) -> &EqualityOccurrence {
         &self.equality_occurrences[id]
     }
 
-    pub(crate) fn get_subterm_occurrence(
+    pub fn get_subterm_occurrence(
         &self,
         id: Id<SubtermOccurrence>,
     ) -> &SubtermOccurrence {
         &self.subterm_occurrences[id]
     }
 
-    pub(crate) fn query_predicates(
+    pub fn query_predicates(
         &self,
         polarity: bool,
         symbol: Id<Symbol>,
@@ -102,20 +102,20 @@ impl Problem {
             .copied()
     }
 
-    pub(crate) fn query_variable_equalities(
+    pub fn query_variable_equalities(
         &self,
     ) -> impl Iterator<Item = Id<EqualityOccurrence>> + '_ {
         self.variable_equalities.iter().copied()
     }
 
-    pub(crate) fn query_function_equalities(
+    pub fn query_function_equalities(
         &self,
         symbol: Id<Symbol>,
     ) -> impl Iterator<Item = Id<EqualityOccurrence>> + '_ {
         self.function_equalities[symbol.transmute()].iter().copied()
     }
 
-    pub(crate) fn query_all_subterms(
+    pub fn query_all_subterms(
         &self,
     ) -> impl Iterator<Item = Id<SubtermOccurrence>> + '_ {
         self.symbol_subterms
@@ -123,7 +123,7 @@ impl Problem {
             .flat_map(move |id| self.symbol_subterms[id].iter().copied())
     }
 
-    pub(crate) fn query_subterms(
+    pub fn query_subterms(
         &self,
         symbol: Id<Symbol>,
     ) -> impl Iterator<Item = Id<SubtermOccurrence>> + '_ {
@@ -132,7 +132,7 @@ impl Problem {
 }
 
 #[derive(Default)]
-pub(crate) struct ProblemBuilder {
+pub struct ProblemBuilder {
     problem: Problem,
     negative_clauses: Vec<Id<ProblemClause>>,
     axiom_clauses: Vec<Id<ProblemClause>>,
@@ -146,7 +146,7 @@ pub(crate) struct ProblemBuilder {
 }
 
 impl ProblemBuilder {
-    pub(crate) fn finish(mut self) -> Problem {
+    pub fn finish(mut self) -> Problem {
         let max_symbol = self.problem.signature().len();
         self.problem.predicates[0].resize(max_symbol.transmute());
         self.problem.predicates[1].resize(max_symbol.transmute());
@@ -163,7 +163,7 @@ impl ProblemBuilder {
         self.problem
     }
 
-    pub(crate) fn variable(&mut self, variable: String) {
+    pub fn variable(&mut self, variable: String) {
         let terms = &mut self.terms;
         let id = *self
             .variable_map
@@ -172,7 +172,7 @@ impl ProblemBuilder {
         self.saved_terms.push(id);
     }
 
-    pub(crate) fn function(&mut self, name: String, arity: u32) {
+    pub fn function(&mut self, name: String, arity: u32) {
         let symbols = &mut self.problem.symbols;
         let symbol = *self
             .symbols
@@ -186,7 +186,7 @@ impl ProblemBuilder {
             .push(self.terms.add_function(symbol, &args));
     }
 
-    pub(crate) fn predicate(&mut self, polarity: bool) {
+    pub fn predicate(&mut self, polarity: bool) {
         self.contains_positive_literal =
             self.contains_positive_literal || polarity;
         let term = self.pop_term();
@@ -211,7 +211,7 @@ impl ProblemBuilder {
         self.saved_literals.push(Literal::new(polarity, atom));
     }
 
-    pub(crate) fn equality(&mut self, polarity: bool) {
+    pub fn equality(&mut self, polarity: bool) {
         self.problem.equalities_present = true;
         self.contains_positive_literal =
             self.contains_positive_literal || polarity;
@@ -232,7 +232,7 @@ impl ProblemBuilder {
         self.saved_literals.push(Literal::new(polarity, atom));
     }
 
-    pub(crate) fn clause(&mut self, conjecture: bool) {
+    pub fn clause(&mut self, conjecture: bool) {
         let terms = mem::take(&mut self.terms);
         self.variable_map.clear();
         let literals = mem::take(&mut self.saved_literals);

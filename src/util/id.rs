@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use std::num::NonZeroU32;
 use std::ops::{Add, Sub};
 
-pub(crate) struct Id<T> {
+pub struct Id<T> {
     id: NonZeroU32,
     _phantom: PhantomData<T>,
 }
@@ -16,11 +16,11 @@ impl<T> Id<T> {
         Self { id, _phantom }
     }
 
-    pub(crate) fn as_usize(self) -> usize {
+    pub fn as_usize(self) -> usize {
         self.id.get() as usize
     }
 
-    pub(crate) fn transmute<S>(self) -> Id<S> {
+    pub fn transmute<S>(self) -> Id<S> {
         let id = self.id;
         let _phantom = PhantomData;
         Id { id, _phantom }

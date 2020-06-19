@@ -121,7 +121,7 @@ fn read_stdin_chunk(buf: &mut Vec<u8>) -> usize {
     read
 }
 
-pub(crate) fn load_from_stdin() -> Problem {
+pub fn load_from_stdin() -> Problem {
     let mut builder = TPTP::default();
     let mut buf = vec![];
 

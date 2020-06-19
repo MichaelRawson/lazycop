@@ -17,40 +17,40 @@ fn argument_pairs<'terms>(
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct Clause {
+pub struct Clause {
     current: Id<Literal>,
     end: Id<Literal>,
 }
 
 impl Clause {
-    pub(crate) fn new(start: Id<Literal>, end: Id<Literal>) -> Self {
+    pub fn new(start: Id<Literal>, end: Id<Literal>) -> Self {
         let current = start;
         Self { current, end }
     }
 
-    pub(crate) fn is_empty(self) -> bool {
+    pub fn is_empty(self) -> bool {
         self.current == self.end
     }
 
-    pub(crate) fn open(self) -> Range<Literal> {
+    pub fn open(self) -> Range<Literal> {
         Range::new(self.current, self.end)
     }
 
-    pub(crate) fn remaining(self) -> Range<Literal> {
+    pub fn remaining(self) -> Range<Literal> {
         Range::new(self.current + Offset::new(1), self.end)
     }
 
-    pub(crate) fn current_literal(self) -> Id<Literal> {
+    pub fn current_literal(self) -> Id<Literal> {
         self.current
     }
 
-    pub(crate) fn close_literal(&mut self) -> Id<Literal> {
+    pub fn close_literal(&mut self) -> Id<Literal> {
         let result = self.current;
         self.current = self.current + Offset::new(1);
         result
     }
 
-    pub(crate) fn start<R: Record>(
+    pub fn start<R: Record>(
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
@@ -78,7 +78,7 @@ impl Clause {
         start
     }
 
-    pub(crate) fn reflexivity<R: Record>(
+    pub fn reflexivity<R: Record>(
         &mut self,
         record: &mut R,
         symbols: &Symbols,
@@ -100,7 +100,7 @@ impl Clause {
         );
     }
 
-    pub(crate) fn predicate_reduction<R: Record>(
+    pub fn predicate_reduction<R: Record>(
         &mut self,
         record: &mut R,
         symbols: &Symbols,
@@ -128,7 +128,7 @@ impl Clause {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn equality_reduction<R: Record>(
+    pub fn equality_reduction<R: Record>(
         &mut self,
         record: &mut R,
         symbols: &Symbols,
@@ -176,7 +176,7 @@ impl Clause {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn subterm_reduction<R: Record>(
+    pub fn subterm_reduction<R: Record>(
         &mut self,
         record: &mut R,
         symbols: &Symbols,
@@ -223,7 +223,7 @@ impl Clause {
         consequence
     }
 
-    pub(crate) fn strict_predicate_extension<R: Record>(
+    pub fn strict_predicate_extension<R: Record>(
         self,
         record: &mut R,
         problem: &Problem,
@@ -259,7 +259,7 @@ impl Clause {
         extension
     }
 
-    pub(crate) fn lazy_predicate_extension<R: Record>(
+    pub fn lazy_predicate_extension<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
@@ -308,7 +308,7 @@ impl Clause {
         (extension, disequations)
     }
 
-    pub(crate) fn strict_function_extension<R: Record>(
+    pub fn strict_function_extension<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
@@ -354,7 +354,7 @@ impl Clause {
         (extension, consequence)
     }
 
-    pub(crate) fn lazy_function_extension<R: Record>(
+    pub fn lazy_function_extension<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
@@ -412,7 +412,7 @@ impl Clause {
         (extension, consequence)
     }
 
-    pub(crate) fn variable_extension<R: Record>(
+    pub fn variable_extension<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
@@ -460,7 +460,7 @@ impl Clause {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn lazy_subterm_extension<R: Record>(
+    pub fn lazy_subterm_extension<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
@@ -527,7 +527,7 @@ impl Clause {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn strict_subterm_extension<R: Record>(
+    pub fn strict_subterm_extension<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,

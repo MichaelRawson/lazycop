@@ -5,7 +5,7 @@ use crate::record::Record;
 use std::iter::once;
 
 #[derive(Default)]
-pub(crate) struct Goal {
+pub struct Goal {
     literals: Literals,
     stack: Block<Clause>,
     valid: Block<Id<Clause>>,
@@ -32,17 +32,17 @@ fn copy_lemmata(
 }
 
 impl Goal {
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.stack.is_empty()
     }
 
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.literals.clear();
         self.stack.clear();
         self.valid.clear();
     }
 
-    pub(crate) fn save(&mut self) {
+    pub fn save(&mut self) {
         self.save_literals = self.literals.len();
         self.save_stack.copy_from(&self.stack);
         self.save_valid.copy_from(&self.valid);
@@ -53,7 +53,7 @@ impl Goal {
         );
     }
 
-    pub(crate) fn restore(&mut self) {
+    pub fn restore(&mut self) {
         self.literals.truncate(self.save_literals);
         self.stack.copy_from(&self.save_stack);
         self.valid.copy_from(&self.save_valid);
@@ -64,7 +64,7 @@ impl Goal {
         );
     }
 
-    pub(crate) fn num_open_branches(&self) -> u16 {
+    pub fn num_open_branches(&self) -> u16 {
         self.stack
             .range()
             .map(|id| Range::len(self.stack[id].remaining()) as u16)
@@ -72,7 +72,7 @@ impl Goal {
             + 1
     }
 
-    pub(crate) fn apply_rule<R: Record>(
+    pub fn apply_rule<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
@@ -425,7 +425,7 @@ impl Goal {
         }
     }
 
-    pub(crate) fn possible_rules<E: Extend<Rule>>(
+    pub fn possible_rules<E: Extend<Rule>>(
         &self,
         possible: &mut E,
         problem: &Problem,

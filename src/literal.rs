@@ -3,41 +3,41 @@ use crate::constraint::Constraints;
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
-pub(crate) struct Literal {
-    pub(crate) polarity: bool,
+pub struct Literal {
+    pub polarity: bool,
     atom: Atom,
 }
 
 impl Literal {
-    pub(crate) fn new(polarity: bool, atom: Atom) -> Self {
+    pub fn new(polarity: bool, atom: Atom) -> Self {
         Self { polarity, atom }
     }
 
-    pub(crate) fn disequation(left: Id<Term>, right: Id<Term>) -> Self {
+    pub fn disequation(left: Id<Term>, right: Id<Term>) -> Self {
         Self::new(false, Atom::Equality(left, right))
     }
 
-    pub(crate) fn offset(&mut self, offset: Offset<Term>) {
+    pub fn offset(&mut self, offset: Offset<Term>) {
         self.atom.offset(offset);
     }
 
-    pub(crate) fn is_predicate(&self) -> bool {
+    pub fn is_predicate(&self) -> bool {
         self.atom.is_predicate()
     }
 
-    pub(crate) fn is_equality(&self) -> bool {
+    pub fn is_equality(&self) -> bool {
         self.atom.is_equality()
     }
 
-    pub(crate) fn get_predicate(&self) -> Id<Term> {
+    pub fn get_predicate(&self) -> Id<Term> {
         self.atom.get_predicate()
     }
 
-    pub(crate) fn get_predicate_symbol(&self, terms: &Terms) -> Id<Symbol> {
+    pub fn get_predicate_symbol(&self, terms: &Terms) -> Id<Symbol> {
         self.atom.get_predicate_symbol(terms)
     }
 
-    pub(crate) fn get_predicate_arguments(
+    pub fn get_predicate_arguments(
         &self,
         symbols: &Symbols,
         terms: &Terms,
@@ -45,11 +45,11 @@ impl Literal {
         self.atom.get_predicate_arguments(symbols, terms)
     }
 
-    pub(crate) fn get_equality(&self) -> (Id<Term>, Id<Term>) {
+    pub fn get_equality(&self) -> (Id<Term>, Id<Term>) {
         self.atom.get_equality()
     }
 
-    pub(crate) fn subterms<F: FnMut(Id<Term>)>(
+    pub fn subterms<F: FnMut(Id<Term>)>(
         &self,
         symbols: &Symbols,
         terms: &Terms,
@@ -58,7 +58,7 @@ impl Literal {
         self.atom.subterms(symbols, terms, f);
     }
 
-    pub(crate) fn subst(
+    pub fn subst(
         &self,
         symbols: &Symbols,
         terms: &mut Terms,
@@ -71,14 +71,14 @@ impl Literal {
         Self { polarity, atom }
     }
 
-    pub(crate) fn add_reflexivity_constraints(
+    pub fn add_reflexivity_constraints(
         &self,
         constraints: &mut Constraints,
     ) {
         self.atom.add_reflexivity_constraints(constraints);
     }
 
-    pub(crate) fn add_disequation_constraints(
+    pub fn add_disequation_constraints(
         &self,
         constraints: &mut Constraints,
         terms: &Terms,
@@ -89,4 +89,4 @@ impl Literal {
     }
 }
 
-pub(crate) type Literals = Block<Literal>;
+pub type Literals = Block<Literal>;

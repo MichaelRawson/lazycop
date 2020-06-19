@@ -1,50 +1,50 @@
 use crate::prelude::*;
 use std::ops::{Index, IndexMut};
 
-pub(crate) struct Block<T> {
+pub struct Block<T> {
     items: Vec<T>,
 }
 
 impl<T> Block<T> {
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.items.truncate(1);
     }
 
-    pub(crate) fn len(&self) -> Id<T> {
+    pub fn len(&self) -> Id<T> {
         Id::new(non_zero(self.items.len() as u32))
     }
 
-    pub(crate) fn offset(&self) -> Offset<T> {
+    pub fn offset(&self) -> Offset<T> {
         Offset::new(self.items.len() as i32 - 1)
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.items.len() == 1
     }
 
-    pub(crate) fn last(&self) -> Option<&T> {
+    pub fn last(&self) -> Option<&T> {
         self.slice().last()
     }
 
-    pub(crate) fn last_mut(&mut self) -> Option<&mut T> {
+    pub fn last_mut(&mut self) -> Option<&mut T> {
         self.slice_mut().last_mut()
     }
 
-    pub(crate) fn range(&self) -> Range<T> {
+    pub fn range(&self) -> Range<T> {
         Range::new(Id::default(), self.len())
     }
 
-    pub(crate) fn push(&mut self, item: T) -> Id<T> {
+    pub fn push(&mut self, item: T) -> Id<T> {
         let id = self.len();
         self.items.push(item);
         id
     }
 
-    pub(crate) fn pop(&mut self) -> Option<T> {
+    pub fn pop(&mut self) -> Option<T> {
         self.items.pop()
     }
 
-    pub(crate) fn truncate(&mut self, len: Id<T>) {
+    pub fn truncate(&mut self, len: Id<T>) {
         self.items.truncate(len.as_usize());
     }
 
@@ -60,17 +60,17 @@ impl<T> Block<T> {
 }
 
 impl<T: Copy> Block<T> {
-    pub(crate) fn extend(&mut self, other: &Self) {
+    pub fn extend(&mut self, other: &Self) {
         self.items.extend_from_slice(&other.slice());
     }
 
-    pub(crate) fn copy_from(&mut self, other: &Self) {
+    pub fn copy_from(&mut self, other: &Self) {
         self.items.clone_from(&other.items);
     }
 }
 
 impl<T: Default> Block<T> {
-    pub(crate) fn resize(&mut self, len: Id<T>) {
+    pub fn resize(&mut self, len: Id<T>) {
         self.items.resize_with(len.as_usize(), Default::default);
     }
 }

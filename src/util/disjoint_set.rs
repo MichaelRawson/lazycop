@@ -1,37 +1,41 @@
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
-pub(crate) struct Set {
+pub struct Set {
     parent: Id<Set>,
     rank: u32,
 }
 
 #[derive(Default)]
-pub(crate) struct Disjoint {
+pub struct Disjoint {
     sets: Block<Set>,
 }
 
 impl Disjoint {
-    pub(crate) fn len(&self) -> Id<Set> {
+    pub fn is_empty(&self) -> bool {
+        self.sets.is_empty()
+    }
+
+    pub fn len(&self) -> Id<Set> {
         self.sets.len()
     }
 
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.sets.clear();
     }
 
-    pub(crate) fn copy_from(&mut self, other: &Self) {
+    pub fn copy_from(&mut self, other: &Self) {
         self.sets.copy_from(&other.sets);
     }
 
-    pub(crate) fn singleton(&mut self) -> Id<Set> {
+    pub fn singleton(&mut self) -> Id<Set> {
         let parent = self.sets.len();
         let rank = 0;
         let set = Set { parent, rank };
         self.sets.push(set)
     }
 
-    pub(crate) fn find(&mut self, mut current: Id<Set>) -> Id<Set> {
+    pub fn find(&mut self, mut current: Id<Set>) -> Id<Set> {
         while self.sets[current].parent != current {
             let parent = self.sets[current].parent;
             let grandparent = self.sets[parent].parent;
@@ -41,7 +45,7 @@ impl Disjoint {
         current
     }
 
-    pub(crate) fn merge(&mut self, left: Id<Set>, right: Id<Set>) {
+    pub fn merge(&mut self, left: Id<Set>, right: Id<Set>) {
         let left_rank = self.sets[left].rank;
         let right_rank = self.sets[right].rank;
         if left_rank > right_rank {

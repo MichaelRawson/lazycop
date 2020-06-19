@@ -1,39 +1,39 @@
 use crate::prelude::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Start {
-    pub(crate) clause: Id<ProblemClause>,
+pub struct Start {
+    pub clause: Id<ProblemClause>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PredicateReduction {
-    pub(crate) literal: Id<Literal>,
+pub struct PredicateReduction {
+    pub literal: Id<Literal>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PredicateExtension {
-    pub(crate) occurrence: Id<PredicateOccurrence>,
+pub struct PredicateExtension {
+    pub occurrence: Id<PredicateOccurrence>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct EqualityReduction {
-    pub(crate) literal: Id<Literal>,
-    pub(crate) target: Id<Term>,
+pub struct EqualityReduction {
+    pub literal: Id<Literal>,
+    pub target: Id<Term>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct EqualityExtension {
-    pub(crate) target: Id<Term>,
-    pub(crate) occurrence: Id<EqualityOccurrence>,
+pub struct EqualityExtension {
+    pub target: Id<Term>,
+    pub occurrence: Id<EqualityOccurrence>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct SubtermExtension {
-    pub(crate) occurrence: Id<SubtermOccurrence>,
+pub struct SubtermExtension {
+    pub occurrence: Id<SubtermOccurrence>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Rule {
+pub enum Rule {
     Start(Start),
     Reflexivity,
     PredicateReduction(PredicateReduction),
@@ -53,7 +53,7 @@ pub(crate) enum Rule {
 }
 
 impl Rule {
-    pub(crate) fn lr(&self) -> bool {
+    pub fn lr(&self) -> bool {
         match self {
             Rule::LREqualityReduction(_)
             | Rule::LRSubtermReduction(_)
@@ -67,7 +67,7 @@ impl Rule {
         }
     }
 
-    pub(crate) fn precedence(&self) -> u16 {
+    pub fn precedence(&self) -> u16 {
         match self {
             Rule::Start(_) => 0,
             Rule::Reflexivity | Rule::PredicateReduction(_) => 1,
@@ -88,20 +88,20 @@ impl Rule {
     }
 }
 
-pub(crate) struct RuleList {
+pub struct RuleList {
     parent: Option<Id<RuleList>>,
     count: u32,
     rule: Rule,
 }
 
 #[derive(Default)]
-pub(crate) struct Rules {
+pub struct Rules {
     tree: Block<RuleList>,
     free: Vec<Id<RuleList>>,
 }
 
 impl Rules {
-    pub(crate) fn get_list(
+    pub fn get_list(
         &self,
         mut current: Option<Id<RuleList>>,
     ) -> impl Iterator<Item = Rule> + '_ {
@@ -113,7 +113,7 @@ impl Rules {
         })
     }
 
-    pub(crate) fn add(
+    pub fn add(
         &mut self,
         parent: Option<Id<RuleList>>,
         rule: Rule,
@@ -136,7 +136,7 @@ impl Rules {
         }
     }
 
-    pub(crate) fn mark_done(
+    pub fn mark_done(
         &mut self,
         mut current: Option<Id<RuleList>>,
     ) -> u16 {

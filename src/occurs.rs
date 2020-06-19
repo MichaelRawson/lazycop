@@ -1,14 +1,14 @@
-pub(crate) trait Occurs {
+pub trait Occurs {
     const CHECK: bool;
 }
 
-pub(crate) struct Check;
+pub struct Check;
 
 impl Occurs for Check {
     const CHECK: bool = true;
 }
 
-pub(crate) struct SkipCheck;
+pub struct SkipCheck;
 
 impl Occurs for SkipCheck {
     const CHECK: bool = false;

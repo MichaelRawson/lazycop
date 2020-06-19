@@ -1,21 +1,21 @@
 use crate::prelude::*;
 
-pub(crate) struct Range<T> {
+pub struct Range<T> {
     start: Id<T>,
     stop: Id<T>,
 }
 
 impl<T> Range<T> {
-    pub(crate) fn new(start: Id<T>, stop: Id<T>) -> Self {
+    pub fn new(start: Id<T>, stop: Id<T>) -> Self {
         Self { start, stop }
     }
 
-    pub(crate) fn new_with_len(start: Id<T>, len: u32) -> Self {
+    pub fn new_with_len(start: Id<T>, len: u32) -> Self {
         let stop = start + Offset::new(len as i32);
         Self { start, stop }
     }
 
-    pub(crate) fn len(range: Self) -> u32 {
+    pub fn len(range: Self) -> u32 {
         (range.stop - range.start).offset as u32
     }
 }

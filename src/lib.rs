@@ -1,0 +1,21 @@
+#![type_length_limit = "10000000"]
+
+pub mod atom;
+pub mod binding;
+pub mod clause;
+pub mod constraint;
+pub mod disequation_solver;
+pub mod equation_solver;
+pub mod goal;
+pub mod io;
+pub mod literal;
+pub mod occurs;
+pub mod ordering_solver;
+pub mod prelude;
+pub mod problem;
+pub mod record;
+pub mod rule;
+pub mod symbol;
+pub mod tableau;
+pub mod term;
+pub mod util;

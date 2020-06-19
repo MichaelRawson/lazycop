@@ -9,7 +9,7 @@ struct AtomicDisequation {
 }
 
 #[derive(Default)]
-pub(crate) struct DisequationSolver {
+pub struct DisequationSolver {
     atomic: Block<AtomicDisequation>,
     solved: Block<Range<AtomicDisequation>>,
 
@@ -18,22 +18,22 @@ pub(crate) struct DisequationSolver {
 }
 
 impl DisequationSolver {
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.atomic.clear();
         self.solved.clear();
     }
 
-    pub(crate) fn save(&mut self) {
+    pub fn save(&mut self) {
         self.save_atomic = self.atomic.len();
         self.save_solved = self.solved.len();
     }
 
-    pub(crate) fn restore(&mut self) {
+    pub fn restore(&mut self) {
         self.atomic.truncate(self.save_atomic);
         self.solved.truncate(self.save_solved);
     }
 
-    pub(crate) fn simplify<I: Iterator<Item = (Id<Term>, Id<Term>)>>(
+    pub fn simplify<I: Iterator<Item = (Id<Term>, Id<Term>)>>(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,
@@ -57,7 +57,7 @@ impl DisequationSolver {
         true
     }
 
-    pub(crate) fn simplify_symmetric<
+    pub fn simplify_symmetric<
         I: Iterator<Item = SymmetricDisequation>,
     >(
         &mut self,
@@ -111,7 +111,7 @@ impl DisequationSolver {
         true
     }
 
-    pub(crate) fn check(
+    pub fn check(
         &self,
         symbols: &Symbols,
         terms: &Terms,

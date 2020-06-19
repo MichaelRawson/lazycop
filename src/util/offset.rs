@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-pub(crate) struct Offset<T> {
+pub struct Offset<T> {
     pub(super) offset: i32,
     _phantom: PhantomData<T>,
 }

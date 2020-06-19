@@ -1,9 +1,9 @@
-use crate::problem::Problem;
-use crate::record::Record;
+use lazy::problem::Problem;
+use lazy::record::Record;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::Relaxed;
 
-pub(crate) struct Statistics {
+pub struct Statistics {
     problem_equality: bool,
     problem_symbols: usize,
     problem_clauses: usize,
@@ -16,7 +16,7 @@ pub(crate) struct Statistics {
 }
 
 impl Statistics {
-    pub(crate) fn new(problem: &Problem) -> Self {
+    pub fn new(problem: &Problem) -> Self {
         let problem_equality = problem.has_equality();
         let problem_symbols = problem.signature().len().as_usize();
         let problem_clauses = problem.num_clauses();
@@ -39,7 +39,7 @@ impl Statistics {
         }
     }
 
-    pub(crate) fn record<R: Record>(&self, record: &mut R) {
+    pub fn record<R: Record>(&self, record: &mut R) {
         record.statistic("equality problem", self.problem_equality);
         record.statistic("problem symbols", self.problem_symbols);
         record.statistic("problem clauses", self.problem_clauses);
@@ -63,24 +63,24 @@ impl Statistics {
         record.statistic("total tableaux", self.total_tableaux.load(Relaxed));
     }
 
-    pub(crate) fn increment_discarded_tableaux(&self) {
+    pub fn increment_discarded_tableaux(&self) {
         self.discarded_tableaux.fetch_add(1, Relaxed);
     }
 
-    pub(crate) fn increment_enqueued_tableaux(&self) {
+    pub fn increment_enqueued_tableaux(&self) {
         self.enqueued_tableaux.fetch_add(1, Relaxed);
     }
 
-    pub(crate) fn increment_expanded_tableaux(&self) {
+    pub fn increment_expanded_tableaux(&self) {
         self.expanded_tableaux.fetch_add(1, Relaxed);
     }
 
-    pub(crate) fn exhausted_tableaux(&self, exhausted: u16) {
+    pub fn exhausted_tableaux(&self, exhausted: u16) {
         self.exhausted_tableaux
             .fetch_add(exhausted as usize, Relaxed);
     }
 
-    pub(crate) fn increment_total_tableaux(&self) {
+    pub fn increment_total_tableaux(&self) {
         self.total_tableaux.fetch_add(1, Relaxed);
     }
 }

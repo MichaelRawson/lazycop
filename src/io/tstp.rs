@@ -5,7 +5,7 @@ use crate::util::fresh::Fresh;
 use std::fmt::Display;
 
 #[derive(Default)]
-pub(crate) struct TSTP {
+pub struct TSTP {
     variable_map: Fresh,
     clause_stack: Vec<usize>,
     premise_list: Vec<usize>,

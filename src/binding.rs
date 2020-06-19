@@ -1,37 +1,37 @@
 use crate::prelude::*;
 
 #[derive(Default)]
-pub(crate) struct Bindings {
+pub struct Bindings {
     bound: Block<Option<Id<Term>>>,
     save: Block<Option<Id<Term>>>,
 }
 
 impl Bindings {
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.bound.clear();
     }
 
-    pub(crate) fn save(&mut self) {
+    pub fn save(&mut self) {
         self.save.copy_from(&self.bound);
     }
 
-    pub(crate) fn restore(&mut self) {
+    pub fn restore(&mut self) {
         self.bound.copy_from(&self.save);
     }
 
-    pub(crate) fn resize(&mut self, len: Id<Term>) {
+    pub fn resize(&mut self, len: Id<Term>) {
         self.bound.resize(len.transmute());
     }
 
-    pub(crate) fn bind(&mut self, x: Id<Variable>, term: Id<Term>) {
+    pub fn bind(&mut self, x: Id<Variable>, term: Id<Term>) {
         self.bound[x.transmute()] = Some(term);
     }
 
-    pub(crate) fn is_bound(&self, x: Id<Variable>) -> bool {
+    pub fn is_bound(&self, x: Id<Variable>) -> bool {
         self.bound[x.transmute()].is_some()
     }
 
-    pub(crate) fn items(
+    pub fn items(
         &self,
     ) -> impl Iterator<Item = (Id<Variable>, Id<Term>)> + '_ {
         self.bound.range().filter_map(move |id| {
@@ -41,7 +41,7 @@ impl Bindings {
         })
     }
 
-    pub(crate) fn view(
+    pub fn view(
         &self,
         symbols: &Symbols,
         terms: &Terms,
@@ -53,7 +53,7 @@ impl Bindings {
         (term, terms.view(symbols, term))
     }
 
-    pub(crate) fn occurs(
+    pub fn occurs(
         &self,
         symbols: &Symbols,
         terms: &Terms,

@@ -2,13 +2,13 @@ use crate::prelude::*;
 use fnv::FnvHashMap;
 
 #[derive(Default)]
-pub(crate) struct Fresh {
+pub struct Fresh {
     map: FnvHashMap<Id<Variable>, usize>,
     count: usize,
 }
 
 impl Fresh {
-    pub(crate) fn get(&mut self, variable: Id<Variable>) -> usize {
+    pub fn get(&mut self, variable: Id<Variable>) -> usize {
         if let Some(count) = self.map.get(&variable) {
             return *count;
         }

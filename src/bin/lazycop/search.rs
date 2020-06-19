@@ -1,9 +1,9 @@
-use crate::prelude::*;
-use crate::record::Silent;
 use crate::statistics::Statistics;
-use crate::tableau::Tableau;
-use crate::util::queue::{Priority, Queue};
 use crossbeam_utils::thread;
+use lazy::prelude::*;
+use lazy::record::Silent;
+use lazy::tableau::Tableau;
+use lazy::util::queue::{Priority, Queue};
 use parking_lot::Mutex;
 
 const STACK_SIZE: usize = 0x10_00000;
@@ -134,7 +134,7 @@ fn task(problem: &Problem, statistics: &Statistics, attempt: &Mutex<Attempt>) {
     }
 }
 
-pub(crate) fn search(problem: &Problem) -> (Statistics, Option<Vec<Rule>>) {
+pub fn search(problem: &Problem) -> (Statistics, Option<Vec<Rule>>) {
     let statistics = Statistics::new(problem);
     let attempt = Mutex::new(Attempt::default());
     thread::scope(|scope| {

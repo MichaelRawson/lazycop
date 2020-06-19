@@ -4,7 +4,7 @@ use crate::prelude::*;
 use crate::util::disjoint_set::{Disjoint, Set};
 
 #[derive(Default)]
-pub(crate) struct EquationSolver {
+pub struct EquationSolver {
     aliases: Disjoint,
     to_alias: Block<Option<Id<Set>>>,
     from_alias: Block<Id<Term>>,
@@ -15,25 +15,25 @@ pub(crate) struct EquationSolver {
 }
 
 impl EquationSolver {
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.aliases.clear();
         self.to_alias.clear();
         self.from_alias.clear();
     }
 
-    pub(crate) fn save(&mut self) {
+    pub fn save(&mut self) {
         self.save_aliases.copy_from(&self.aliases);
         self.save_to_alias.copy_from(&self.to_alias);
         self.save_from_alias.copy_from(&self.from_alias);
     }
 
-    pub(crate) fn restore(&mut self) {
+    pub fn restore(&mut self) {
         self.aliases.copy_from(&self.save_aliases);
         self.to_alias.copy_from(&self.save_to_alias);
         self.from_alias.copy_from(&self.save_from_alias);
     }
 
-    pub(crate) fn solve<
+    pub fn solve<
         O: Occurs,
         I: Iterator<Item = (Id<Term>, Id<Term>)>,
     >(
