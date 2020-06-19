@@ -49,6 +49,14 @@ impl Problem {
         &self.symbols
     }
 
+    pub(crate) fn num_clauses(&self) -> usize {
+        self.clauses.len().as_usize()
+    }
+
+    pub(crate) fn num_start_clauses(&self) -> usize {
+        self.start.len()
+    }
+
     pub(crate) fn has_equality(&self) -> bool {
         self.equalities_present
     }

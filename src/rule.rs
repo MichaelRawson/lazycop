@@ -136,7 +136,11 @@ impl Rules {
         }
     }
 
-    pub(crate) fn mark_done(&mut self, mut current: Option<Id<RuleList>>) {
+    pub(crate) fn mark_done(
+        &mut self,
+        mut current: Option<Id<RuleList>>,
+    ) -> u16 {
+        let mut closed = 0;
         while let Some(id) = current {
             let leaf = &mut self.tree[id];
             leaf.count -= 1;
@@ -145,6 +149,8 @@ impl Rules {
             }
             self.free.push(id);
             current = leaf.parent;
+            closed += 1;
         }
+        closed
     }
 }

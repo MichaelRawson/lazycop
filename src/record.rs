@@ -1,5 +1,6 @@
 use crate::clause::Clause;
 use crate::prelude::*;
+use std::fmt::Display;
 
 pub(crate) trait Record {
     fn axiom(
@@ -31,6 +32,8 @@ pub(crate) trait Record {
         _bindings: I,
     ) {
     }
+
+    fn statistic<T: Display>(&mut self, _key: &'static str, _value: T) {}
 }
 
 pub(crate) struct Silent;

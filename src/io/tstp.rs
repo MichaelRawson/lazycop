@@ -2,6 +2,7 @@ use crate::clause::Clause;
 use crate::prelude::*;
 use crate::record::Record;
 use crate::util::fresh::Fresh;
+use std::fmt::Display;
 
 #[derive(Default)]
 pub(crate) struct TSTP {
@@ -209,5 +210,9 @@ impl Record for TSTP {
         }
         println!("])).");
         println!();
+    }
+
+    fn statistic<T: Display>(&mut self, key: &'static str, value: T) {
+        println!("% {}: {}", key, value);
     }
 }

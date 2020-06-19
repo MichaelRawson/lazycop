@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use crate::record::Silent;
+use crate::statistics::Statistics;
 use crate::tableau::Tableau;
 use crate::util::queue::{Priority, Queue};
 use crossbeam_utils::thread;
@@ -71,10 +72,10 @@ fn enqueue(
     attempt.queue.enqueue(Some(new), priority);
 }
 
-fn finish(attempt: &Mutex<Attempt>, leaf: Option<Id<RuleList>>) {
+fn finish(attempt: &Mutex<Attempt>, leaf: Option<Id<RuleList>>) -> u16 {
     let mut attempt = attempt.lock();
-    attempt.rules.mark_done(leaf);
     attempt.in_flight -= 1;
+    attempt.rules.mark_done(leaf)
 }
 
 fn found_proof(attempt: &Mutex<Attempt>, proof: Vec<Rule>) {
@@ -91,7 +92,7 @@ fn heuristic(rule: &Rule, rules: &[Rule], tableau: &Tableau) -> Priority {
     }
 }
 
-fn task(problem: &Problem, attempt: &Mutex<Attempt>) {
+fn task(problem: &Problem, statistics: &Statistics, attempt: &Mutex<Attempt>) {
     let mut leaf = None;
     let mut rules = vec![];
     let mut possible = vec![];
@@ -119,15 +120,22 @@ fn task(problem: &Problem, attempt: &Mutex<Attempt>) {
                 }
                 let priority = heuristic(&rule, &rules, &tableau);
                 enqueue(attempt, leaf, rule, priority);
+                statistics.increment_enqueued_tableaux();
+            } else {
+                statistics.increment_discarded_tableaux();
             }
             tableau.restore();
+            statistics.increment_total_tableaux();
         }
-        finish(attempt, leaf);
+        statistics.increment_expanded_tableaux();
+        let closed = finish(attempt, leaf);
+        statistics.exhausted_tableaux(closed);
         tableau.clear();
     }
 }
 
-pub(crate) fn search(problem: &Problem) -> Option<Vec<Rule>> {
+pub(crate) fn search(problem: &Problem) -> (Statistics, Option<Vec<Rule>>) {
+    let statistics = Statistics::new(problem);
     let attempt = Mutex::new(Attempt::default());
     thread::scope(|scope| {
         for index in 0..num_cpus::get() {
@@ -135,10 +143,10 @@ pub(crate) fn search(problem: &Problem) -> Option<Vec<Rule>> {
                 .builder()
                 .name(format!("search-{}", index))
                 .stack_size(STACK_SIZE)
-                .spawn(|_| task(problem, &attempt))
+                .spawn(|_| task(problem, &statistics, &attempt))
                 .expect("failed to spawn search thread");
         }
     })
     .unwrap_or_else(|_| panic!("thread crashed"));
-    attempt.into_inner().proof
+    (statistics, attempt.into_inner().proof)
 }
