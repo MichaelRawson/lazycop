@@ -12,7 +12,7 @@ fn symbol_precedence(
 ) -> Ordering {
     let left_arity = symbols[left].arity;
     let right_arity = symbols[right].arity;
-    left_arity.cmp(&right_arity).then_with(|| left.cmp(&right))
+    left_arity.cmp(&right_arity).then_with(|| right.cmp(&left))
 }
 
 fn alpha(

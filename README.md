@@ -29,7 +29,7 @@ lazyCoP avoids this by implementing both lazy and strict versions of all lazy in
 The resulting duplication is eliminated by refinement: lazy inferences are not permitted to simulate strict rule application.
 
 The term ordering employed is the lexicographic path ordering.
-For symbol precedence, `f > g` iff either `f` has a larger arity than `g`, or the two have equal arity but `f` appears later in the problem than `g`.
+For symbol precedence, `f > g` iff either `f` has a larger arity than `g`, or the two have equal arity but `f` appears earlier in the problem than `g`.
 
 ## Completeness
 Paskevich claims [1] that the pure lazy paramodulation calculus is complete, but leaves demonstrating the completeness of refinements such as path regularity as future work.

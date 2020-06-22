@@ -1,54 +1,48 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Priority {
-    pub estimate: u16,
-    pub precedence: u16,
+struct Item<K, V> {
+    priority: K,
+    payload: V,
 }
 
-struct Item<T> {
-    item: T,
-    priority: Priority,
-}
-
-impl<T> PartialEq for Item<T> {
+impl<K: Eq, V> PartialEq for Item<K, V> {
     fn eq(&self, other: &Self) -> bool {
         self.priority == other.priority
     }
 }
 
-impl<T> Eq for Item<T> {}
+impl<K: Eq, V> Eq for Item<K, V> {}
 
-impl<T> PartialOrd for Item<T> {
+impl<K: Ord, V> PartialOrd for Item<K, V> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T> Ord for Item<T> {
+impl<K: Ord, V> Ord for Item<K, V> {
     fn cmp(&self, other: &Self) -> Ordering {
         other.priority.cmp(&self.priority)
     }
 }
 
-pub struct Queue<T> {
-    heap: BinaryHeap<Item<T>>,
+pub struct Queue<K, V> {
+    heap: BinaryHeap<Item<K, V>>,
 }
 
-impl<T> Default for Queue<T> {
+impl<K: Ord, V> Default for Queue<K, V> {
     fn default() -> Self {
         let heap = BinaryHeap::default();
         Self { heap }
     }
 }
 
-impl<T> Queue<T> {
-    pub fn enqueue(&mut self, item: T, priority: Priority) {
-        self.heap.push(Item { item, priority });
+impl<K: Ord, V> Queue<K, V> {
+    pub fn enqueue(&mut self, priority: K, payload: V) {
+        self.heap.push(Item { priority, payload });
     }
 
-    pub fn dequeue(&mut self) -> Option<T> {
-        self.heap.pop().map(|item| item.item)
+    pub fn dequeue(&mut self) -> Option<V> {
+        self.heap.pop().map(|item| item.payload)
     }
 }

@@ -2,6 +2,8 @@ use lazy::io::tstp::TSTP;
 use lazy::io::{exit, szs, tptp};
 use lazy::tableau::Tableau;
 
+mod priority;
+mod rule_store;
 mod search;
 mod statistics;
 

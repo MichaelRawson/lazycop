@@ -1,33 +1,32 @@
+use crate::priority::Priority;
+use crate::rule_store::*;
 use crate::statistics::Statistics;
 use crossbeam_utils::thread;
 use lazy::prelude::*;
 use lazy::record::Silent;
 use lazy::tableau::Tableau;
-use lazy::util::queue::{Priority, Queue};
+use lazy::util::queue::Queue;
 use parking_lot::Mutex;
 
 const STACK_SIZE: usize = 0x10_00000;
 
 struct Attempt {
-    rules: Rules,
-    queue: Queue<Option<Id<RuleList>>>,
+    rule_store: RuleStore,
+    queue: Queue<Priority, Option<Id<RuleList>>>,
     proof: Option<Vec<Rule>>,
     in_flight: u16,
 }
 
 impl Default for Attempt {
     fn default() -> Self {
-        let rules = Rules::default();
+        let rule_store = RuleStore::default();
         let proof = None;
         let in_flight = 0;
         let mut queue = Queue::default();
-        let priority = Priority {
-            estimate: 0,
-            precedence: 0,
-        };
-        queue.enqueue(None, priority);
+        let priority = Priority::new(0.0);
+        queue.enqueue(priority, None);
         Self {
-            rules,
+            rule_store,
             queue,
             proof,
             in_flight,
@@ -49,7 +48,7 @@ fn dequeue(
 
         if let Some(id) = attempt.queue.dequeue() {
             *leaf = id;
-            rules.extend(attempt.rules.get_list(id));
+            rules.extend(attempt.rule_store.get_list(id));
             attempt.in_flight += 1;
             return true;
         } else if attempt.in_flight == 0 {
@@ -68,14 +67,14 @@ fn enqueue(
     priority: Priority,
 ) {
     let mut attempt = attempt.lock();
-    let new = attempt.rules.add(leaf, rule);
-    attempt.queue.enqueue(Some(new), priority);
+    let new = attempt.rule_store.add(leaf, rule);
+    attempt.queue.enqueue(priority, Some(new));
 }
 
 fn finish(attempt: &Mutex<Attempt>, leaf: Option<Id<RuleList>>) -> u16 {
     let mut attempt = attempt.lock();
     attempt.in_flight -= 1;
-    attempt.rules.mark_done(leaf)
+    attempt.rule_store.mark_done(leaf)
 }
 
 fn found_proof(attempt: &Mutex<Attempt>, proof: Vec<Rule>) {
@@ -83,13 +82,9 @@ fn found_proof(attempt: &Mutex<Attempt>, proof: Vec<Rule>) {
     attempt.proof = Some(proof);
 }
 
-fn heuristic(rule: &Rule, rules: &[Rule], tableau: &Tableau) -> Priority {
-    let estimate = tableau.num_open_branches() + (rules.len() as u16);
-    let precedence = rule.precedence();
-    Priority {
-        estimate,
-        precedence,
-    }
+fn heuristic(rules: &[Rule], tableau: &Tableau) -> Priority {
+    let base = tableau.num_open_branches() + (rules.len() as u16);
+    Priority::new(base as f32)
 }
 
 fn task(problem: &Problem, statistics: &Statistics, attempt: &Mutex<Attempt>) {
@@ -118,7 +113,7 @@ fn task(problem: &Problem, statistics: &Statistics, attempt: &Mutex<Attempt>) {
                     found_proof(attempt, rules);
                     return;
                 }
-                let priority = heuristic(&rule, &rules, &tableau);
+                let priority = heuristic(&rules, &tableau);
                 enqueue(attempt, leaf, rule, priority);
                 statistics.increment_enqueued_tableaux();
             } else {
