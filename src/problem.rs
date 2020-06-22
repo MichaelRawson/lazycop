@@ -38,10 +38,10 @@ pub struct Problem {
     predicate_occurrences: Block<PredicateOccurrence>,
     equality_occurrences: Block<EqualityOccurrence>,
     subterm_occurrences: Block<SubtermOccurrence>,
-    predicates: [Block<Vec<Id<PredicateOccurrence>>>; 2],
+    predicates: [LUT<Symbol, Vec<Id<PredicateOccurrence>>>; 2],
     variable_equalities: Vec<Id<EqualityOccurrence>>,
-    function_equalities: Block<Vec<Id<EqualityOccurrence>>>,
-    symbol_subterms: Block<Vec<Id<SubtermOccurrence>>>,
+    function_equalities: LUT<Symbol, Vec<Id<EqualityOccurrence>>>,
+    symbol_subterms: LUT<Symbol, Vec<Id<SubtermOccurrence>>>,
 }
 
 impl Problem {
@@ -97,9 +97,7 @@ impl Problem {
         polarity: bool,
         symbol: Id<Symbol>,
     ) -> impl Iterator<Item = Id<PredicateOccurrence>> + '_ {
-        self.predicates[polarity as usize][symbol.transmute()]
-            .iter()
-            .copied()
+        self.predicates[polarity as usize][symbol].iter().copied()
     }
 
     pub fn query_variable_equalities(
@@ -112,7 +110,7 @@ impl Problem {
         &self,
         symbol: Id<Symbol>,
     ) -> impl Iterator<Item = Id<EqualityOccurrence>> + '_ {
-        self.function_equalities[symbol.transmute()].iter().copied()
+        self.function_equalities[symbol].iter().copied()
     }
 
     pub fn query_all_subterms(
@@ -127,7 +125,7 @@ impl Problem {
         &self,
         symbol: Id<Symbol>,
     ) -> impl Iterator<Item = Id<SubtermOccurrence>> + '_ {
-        self.symbol_subterms[symbol.transmute()].iter().copied()
+        self.symbol_subterms[symbol].iter().copied()
     }
 }
 
@@ -148,11 +146,9 @@ pub struct ProblemBuilder {
 impl ProblemBuilder {
     pub fn finish(mut self) -> Problem {
         let max_symbol = self.problem.signature().len();
-        self.problem.predicates[0].resize(max_symbol.transmute());
-        self.problem.predicates[1].resize(max_symbol.transmute());
-        self.problem
-            .function_equalities
-            .resize(max_symbol.transmute());
+        self.problem.predicates[0].resize(max_symbol);
+        self.problem.predicates[1].resize(max_symbol);
+        self.problem.function_equalities.resize(max_symbol);
 
         if self.axiom_clauses.is_empty() || self.conjecture_clauses.is_empty()
         {
@@ -177,7 +173,10 @@ impl ProblemBuilder {
         let symbol = *self
             .symbols
             .entry((name.clone(), arity))
-            .or_insert_with(|| symbols.add(arity, name));
+            .or_insert_with(|| {
+                let symbol = Symbol { arity, name };
+                symbols.push(symbol)
+            });
         let args = self
             .saved_terms
             .split_off(self.saved_terms.len() - (arity as usize));
@@ -206,8 +205,8 @@ impl ProblemBuilder {
             .push(PredicateOccurrence { clause, literal });
         let polarity_positions =
             &mut self.problem.predicates[polarity as usize];
-        polarity_positions.resize((self.problem.symbols.len()).transmute());
-        polarity_positions[symbol.transmute()].push(occurrence);
+        polarity_positions.resize(self.problem.symbols.len());
+        polarity_positions[symbol].push(occurrence);
         self.saved_literals.push(Literal::new(polarity, atom));
     }
 
@@ -286,9 +285,8 @@ impl ProblemBuilder {
             TermView::Function(f, _) => {
                 self.problem
                     .function_equalities
-                    .resize(self.problem.symbols.len().transmute());
-                self.problem.function_equalities[f.transmute()]
-                    .push(occurrence);
+                    .resize(self.problem.symbols.len());
+                self.problem.function_equalities[f].push(occurrence);
             }
         }
     }
@@ -310,8 +308,8 @@ impl ProblemBuilder {
                 literal,
                 subterm,
             });
-            symbol_subterms.resize(symbols.len().transmute());
-            symbol_subterms[symbol.transmute()].push(occurrence);
+            symbol_subterms.resize(symbols.len());
+            symbol_subterms[symbol].push(occurrence);
         });
     }
 

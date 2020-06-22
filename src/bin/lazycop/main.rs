@@ -1,5 +1,5 @@
-use lazy::io::{exit, szs, tptp};
 use lazy::io::tstp::TSTP;
+use lazy::io::{exit, szs, tptp};
 use lazy::tableau::Tableau;
 
 mod search;

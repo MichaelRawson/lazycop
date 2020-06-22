@@ -15,7 +15,7 @@ pub struct TSTP {
 
 impl TSTP {
     fn print_symbol(symbols: &Symbols, symbol: Id<Symbol>) {
-        print!("{}", &symbols.name(symbol));
+        print!("{}", &symbols[symbol].name);
     }
 
     fn print_variable(&mut self, x: Id<Variable>) {

@@ -57,9 +57,7 @@ impl DisequationSolver {
         true
     }
 
-    pub fn simplify_symmetric<
-        I: Iterator<Item = SymmetricDisequation>,
-    >(
+    pub fn simplify_symmetric<I: Iterator<Item = SymmetricDisequation>>(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,

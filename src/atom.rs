@@ -102,10 +102,7 @@ impl Atom {
         }
     }
 
-    pub fn add_reflexivity_constraints(
-        &self,
-        constraints: &mut Constraints,
-    ) {
+    pub fn add_reflexivity_constraints(&self, constraints: &mut Constraints) {
         let (left, right) = self.get_equality();
         constraints.assert_neq(left, right);
     }

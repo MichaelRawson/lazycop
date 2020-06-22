@@ -58,9 +58,3 @@ impl Disjoint {
         }
     }
 }
-
-impl Clone for Disjoint {
-    fn clone(&self) -> Self {
-        unimplemented!()
-    }
-}

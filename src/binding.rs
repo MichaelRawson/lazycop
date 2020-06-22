@@ -2,13 +2,13 @@ use crate::prelude::*;
 
 #[derive(Default)]
 pub struct Bindings {
-    bound: Block<Option<Id<Term>>>,
-    save: Block<Option<Id<Term>>>,
+    bound: LUT<Variable, Option<Id<Term>>>,
+    save: LUT<Variable, Option<Id<Term>>>,
 }
 
 impl Bindings {
     pub fn clear(&mut self) {
-        self.bound.clear();
+        self.bound.resize(Id::default());
     }
 
     pub fn save(&mut self) {
@@ -24,20 +24,18 @@ impl Bindings {
     }
 
     pub fn bind(&mut self, x: Id<Variable>, term: Id<Term>) {
-        self.bound[x.transmute()] = Some(term);
+        self.bound[x] = Some(term);
     }
 
     pub fn is_bound(&self, x: Id<Variable>) -> bool {
-        self.bound[x.transmute()].is_some()
+        self.bound[x].is_some()
     }
 
     pub fn items(
         &self,
     ) -> impl Iterator<Item = (Id<Variable>, Id<Term>)> + '_ {
-        self.bound.range().filter_map(move |id| {
-            let variable = id.transmute();
-            let term = self.bound[id.transmute()]?;
-            Some((variable, term))
+        self.bound.range().filter_map(move |variable| {
+            self.bound[variable].map(|term| (variable, term))
         })
     }
 
@@ -70,6 +68,6 @@ impl Bindings {
     }
 
     fn lookup(&self, x: Id<Variable>) -> Id<Term> {
-        self.bound[x.transmute()].unwrap_or_else(|| x.transmute())
+        self.bound[x].unwrap_or_else(|| x.transmute())
     }
 }

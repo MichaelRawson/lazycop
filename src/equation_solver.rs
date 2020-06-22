@@ -6,19 +6,19 @@ use crate::util::disjoint_set::{Disjoint, Set};
 #[derive(Default)]
 pub struct EquationSolver {
     aliases: Disjoint,
-    to_alias: Block<Option<Id<Set>>>,
-    from_alias: Block<Id<Term>>,
+    to_alias: LUT<Term, Option<Id<Set>>>,
+    from_alias: LUT<Set, Id<Term>>,
 
     save_aliases: Disjoint,
-    save_to_alias: Block<Option<Id<Set>>>,
-    save_from_alias: Block<Id<Term>>,
+    save_to_alias: LUT<Term, Option<Id<Set>>>,
+    save_from_alias: LUT<Set, Id<Term>>,
 }
 
 impl EquationSolver {
     pub fn clear(&mut self) {
         self.aliases.clear();
-        self.to_alias.clear();
-        self.from_alias.clear();
+        self.to_alias.resize(Id::default());
+        self.from_alias.resize(Id::default());
     }
 
     pub fn save(&mut self) {
@@ -33,17 +33,14 @@ impl EquationSolver {
         self.from_alias.copy_from(&self.save_from_alias);
     }
 
-    pub fn solve<
-        O: Occurs,
-        I: Iterator<Item = (Id<Term>, Id<Term>)>,
-    >(
+    pub fn solve<O: Occurs, I: Iterator<Item = (Id<Term>, Id<Term>)>>(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,
         bindings: &mut Bindings,
         mut equations: I,
     ) -> bool {
-        self.to_alias.resize(terms.len().transmute());
+        self.to_alias.resize(terms.len());
         let success = equations.all(|(left, right)| {
             self.solve_equation::<O>(symbols, terms, left, right)
         });
@@ -53,11 +50,10 @@ impl EquationSolver {
 
         bindings.resize(terms.len().transmute());
         for id in self.to_alias.range() {
-            let variable = id.transmute();
             if let Some(alias) = self.to_alias[id] {
                 let set = self.aliases.find(alias);
-                let term = self.from_alias[set.transmute()];
-                bindings.bind(variable, term);
+                let term = self.from_alias[set];
+                bindings.bind(id.transmute(), term);
             }
         }
         true
@@ -132,16 +128,15 @@ impl EquationSolver {
     ) -> (Id<Term>, TermView) {
         match terms.view(symbols, term) {
             TermView::Variable(x) => {
-                if let Some(alias) = self.to_alias[x.transmute()] {
+                if let Some(alias) = self.to_alias[term] {
                     let alias = self.aliases.find(alias);
-                    let term = self.from_alias[alias.transmute()];
+                    let term = self.from_alias[alias];
                     (term, terms.view(symbols, term))
                 } else {
                     let alias = self.aliases.singleton();
-                    self.to_alias[x.transmute()] = Some(alias);
-                    let term = x.transmute();
-                    self.from_alias.resize(self.aliases.len().transmute());
-                    self.from_alias[alias.transmute()] = term;
+                    self.to_alias[term] = Some(alias);
+                    self.from_alias.resize(self.aliases.len());
+                    self.from_alias[alias] = term;
                     (term, TermView::Variable(x))
                 }
             }
@@ -157,6 +152,6 @@ impl EquationSolver {
 
     fn bind(&mut self, x: Id<Variable>, term: Id<Term>) {
         let alias = some(self.to_alias[x.transmute()]);
-        self.from_alias[alias.transmute()] = term;
+        self.from_alias[alias] = term;
     }
 }

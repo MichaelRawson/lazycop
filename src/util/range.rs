@@ -18,6 +18,12 @@ impl<T> Range<T> {
     pub fn len(range: Self) -> u32 {
         (range.stop - range.start).offset as u32
     }
+
+    pub fn transmute<S>(self) -> Range<S> {
+        let start = self.start.transmute();
+        let stop = self.stop.transmute();
+        Range { start, stop }
+    }
 }
 
 impl<T> Clone for Range<T> {

@@ -78,11 +78,7 @@ impl<'problem> Tableau<'problem> {
         self.goal.num_open_branches()
     }
 
-    pub fn apply_rule<R: Record>(
-        &mut self,
-        record: &mut R,
-        rule: &Rule,
-    ) {
+    pub fn apply_rule<R: Record>(&mut self, record: &mut R, rule: &Rule) {
         self.goal.apply_rule(
             record,
             &self.problem,

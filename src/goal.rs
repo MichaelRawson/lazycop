@@ -8,25 +8,24 @@ use std::iter::once;
 pub struct Goal {
     literals: Literals,
     stack: Block<Clause>,
-    valid: Block<Id<Clause>>,
-    lemmata: Block<Vec<Id<Literal>>>,
+    valid: LUT<Literal, Id<Clause>>,
+    lemmata: LUT<Clause, Vec<Id<Literal>>>,
 
     save_literals: Id<Literal>,
     save_stack: Block<Clause>,
-    save_valid: Block<Id<Clause>>,
-    save_lemmata: Block<Vec<Id<Literal>>>,
+    save_valid: LUT<Literal, Id<Clause>>,
+    save_lemmata: LUT<Clause, Vec<Id<Literal>>>,
 }
 
 fn copy_lemmata(
     range: Range<Clause>,
-    from: &Block<Vec<Id<Literal>>>,
-    to: &mut Block<Vec<Id<Literal>>>,
+    from: &LUT<Clause, Vec<Id<Literal>>>,
+    to: &mut LUT<Clause, Vec<Id<Literal>>>,
 ) {
     if to.len() < from.len() {
         to.resize(from.len());
     }
     for id in range {
-        let id = id.transmute();
         to[id].clone_from(&from[id]);
     }
 }
@@ -39,7 +38,7 @@ impl Goal {
     pub fn clear(&mut self) {
         self.literals.clear();
         self.stack.clear();
-        self.valid.clear();
+        self.valid.resize(Id::default());
     }
 
     pub fn save(&mut self) {
@@ -326,38 +325,37 @@ impl Goal {
 
     fn push(&mut self, clause: Clause) {
         let id = self.stack.push(clause);
-        if self.stack.len().transmute() > self.lemmata.len() {
-            self.lemmata.resize(self.stack.len().transmute());
+        if self.stack.len() > self.lemmata.len() {
+            self.lemmata.resize(self.stack.len());
         }
-        self.lemmata[id.transmute()].clear();
+        self.lemmata[id].clear();
     }
 
     fn extension_validity(&mut self) {
-        self.valid.resize(self.literals.len().transmute());
+        self.valid.resize(self.literals.len());
         let valid_in = self.stack.len() + Offset::new(-1);
         let literal = some(self.stack.last()).current_literal();
-        self.valid[literal.transmute()] = valid_in;
+        self.valid[literal] = valid_in;
     }
 
     fn reduction_validity(&mut self, reduction: Id<Literal>) {
-        self.valid.resize(self.literals.len().transmute());
+        self.valid.resize(self.literals.len());
         let valid_in = self
             .stack
             .range()
             .find(|id| self.stack[*id].current_literal() == reduction)
             .map(|id| id + Offset::new(1))
-            .unwrap_or(self.valid[reduction.transmute()]);
+            .unwrap_or(self.valid[reduction]);
 
         for affected in Range::new(valid_in, self.stack.len()).rev().skip(1) {
-            let literal = self.stack[affected.transmute()].current_literal();
-            let index = literal.transmute();
-            let existing = self.valid[index];
-            self.valid[index] = std::cmp::max(existing, valid_in);
+            let literal = self.stack[affected].current_literal();
+            let existing = self.valid[literal];
+            self.valid[literal] = std::cmp::max(existing, valid_in);
         }
     }
 
     fn close_branches(&mut self) {
-        self.valid.resize(self.literals.len().transmute());
+        self.valid.resize(self.literals.len());
         let last = some(self.stack.last());
         if !last.is_empty() {
             return;
@@ -365,12 +363,13 @@ impl Goal {
         self.stack.pop();
         while let Some(parent) = self.stack.last_mut() {
             let id = parent.close_literal();
-            let valid_in = self.valid[id.transmute()];
+            let valid_in = self.valid[id];
             let mut lemma = self.literals[id];
             lemma.polarity = !lemma.polarity;
             let lemma = self.literals.push(lemma);
-            self.valid.push(valid_in);
-            self.lemmata[valid_in.transmute()].push(lemma);
+            self.valid.resize(self.literals.len());
+            self.valid[lemma] = valid_in;
+            self.lemmata[valid_in].push(lemma);
 
             if !parent.is_empty() {
                 return;
@@ -686,9 +685,9 @@ impl Goal {
 
     fn reduction_literals(&self) -> impl Iterator<Item = Id<Literal>> + '_ {
         self.path_literals().chain(
-            self.stack.range().flat_map(move |id| {
-                self.lemmata[id.transmute()].iter().copied()
-            }),
+            self.stack
+                .range()
+                .flat_map(move |id| self.lemmata[id].iter().copied()),
         )
     }
 

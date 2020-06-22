@@ -71,10 +71,7 @@ impl Literal {
         Self { polarity, atom }
     }
 
-    pub fn add_reflexivity_constraints(
-        &self,
-        constraints: &mut Constraints,
-    ) {
+    pub fn add_reflexivity_constraints(&self, constraints: &mut Constraints) {
         self.atom.add_reflexivity_constraints(constraints);
     }
 

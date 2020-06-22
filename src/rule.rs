@@ -136,10 +136,7 @@ impl Rules {
         }
     }
 
-    pub fn mark_done(
-        &mut self,
-        mut current: Option<Id<RuleList>>,
-    ) -> u16 {
+    pub fn mark_done(&mut self, mut current: Option<Id<RuleList>>) -> u16 {
         let mut closed = 0;
         while let Some(id) = current {
             let leaf = &mut self.tree[id];

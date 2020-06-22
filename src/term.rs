@@ -84,7 +84,7 @@ impl Terms {
         symbols: &Symbols,
         symbol: Id<Symbol>,
     ) -> Id<Term> {
-        let arity = symbols.arity(symbol);
+        let arity = symbols[symbol].arity;
         let symbol = Some(symbol);
         let start = self.terms.len();
         for _ in 0..arity {
@@ -174,7 +174,7 @@ impl Terms {
     pub fn view(&self, symbols: &Symbols, id: Id<Term>) -> TermView {
         match self.terms[id].as_symbol() {
             Some(symbol) => {
-                let arity = symbols.arity(symbol);
+                let arity = symbols[symbol].arity;
                 let start = (id + Offset::new(1)).transmute();
                 let args = Range::new_with_len(start, arity);
                 TermView::Function(symbol, args)
@@ -189,7 +189,7 @@ impl Terms {
         id: Id<Term>,
     ) -> Range<Argument> {
         let symbol = self.symbol(id);
-        let arity = symbols.arity(symbol);
+        let arity = symbols[symbol].arity;
         let start = (id + Offset::new(1)).transmute();
         Range::new_with_len(start, arity)
     }

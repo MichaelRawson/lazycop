@@ -2,6 +2,7 @@ pub mod block;
 pub mod disjoint_set;
 pub mod fresh;
 pub mod id;
+pub mod lut;
 pub mod offset;
 pub mod queue;
 pub mod range;

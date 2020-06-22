@@ -10,8 +10,8 @@ fn symbol_precedence(
     left: Id<Symbol>,
     right: Id<Symbol>,
 ) -> Ordering {
-    let left_arity = symbols.arity(left);
-    let right_arity = symbols.arity(right);
+    let left_arity = symbols[left].arity;
+    let right_arity = symbols[right].arity;
     left_arity.cmp(&right_arity).then_with(|| left.cmp(&right))
 }
 
