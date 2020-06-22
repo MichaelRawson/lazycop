@@ -1,16 +1,5 @@
-[package]
-name = "lazy"
-version = "0.1.0"
-authors = ["Michael Rawson <michael@rawsons.uk>"]
-edition = "2018"
-license = "MIT"
-
-[dependencies]
-crossbeam-utils = "0.7"
-fnv = "1.0"
-num_cpus = "1.13"
-parking_lot = "0.10"
-tptp = "0.23"
+[workspace]
+members = ["lazy", "lazycop"]
 
 [profile.release]
 panic = "abort"

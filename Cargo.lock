@@ -74,10 +74,7 @@ dependencies = [
 name = "lazy"
 version = "0.1.0"
 dependencies = [
- "crossbeam-utils",
  "fnv",
- "num_cpus",
- "parking_lot",
  "tptp",
 ]
 
@@ -86,6 +83,16 @@ name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+
+[[package]]
+name = "lazycop"
+version = "0.1.0"
+dependencies = [
+ "crossbeam-utils",
+ "lazy",
+ "num_cpus",
+ "parking_lot",
+]
 
 [[package]]
 name = "lexical-core"
@@ -216,9 +223,9 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "syn"
-version = "1.0.31"
+version = "1.0.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5304cfdf27365b7585c25d4af91b35016ed21ef88f17ced89c7093b43dba8b6"
+checksum = "e8d5d96e8cbb005d6959f119f773bfaebb5684296108fb32600c00cde305b2cd"
 dependencies = [
  "proc-macro2",
  "quote",
