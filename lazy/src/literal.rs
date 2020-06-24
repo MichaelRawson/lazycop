@@ -49,6 +49,21 @@ impl Literal {
         self.atom.get_equality()
     }
 
+    pub fn graph(
+        &self,
+        graph: &mut Graph,
+        symbols: &Symbols,
+        terms: &Terms,
+        bindings: &Bindings,
+    ) -> Id<Node> {
+        let atom = self.atom.graph(graph, symbols, terms, bindings);
+        if !self.polarity {
+            graph.negation(atom)
+        } else {
+            atom
+        }
+    }
+
     pub fn subterms<F: FnMut(Id<Term>)>(
         &self,
         symbols: &Symbols,

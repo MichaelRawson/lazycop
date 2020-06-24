@@ -1,0 +1,16 @@
+[package]
+name = "lazygen"
+version = "0.1.0"
+authors = ["Michael Rawson <michael@rawsons.uk>"]
+edition = "2018"
+license = "MIT"
+
+[dependencies.lazy]
+path = "../lazy"
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
+
+[dependencies]
+serde_json = "1.0"

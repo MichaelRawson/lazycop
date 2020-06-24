@@ -1,3 +1,4 @@
+use crate::binding::Bindings;
 use crate::clause::Clause;
 use crate::constraint::Constraints;
 use crate::prelude::*;
@@ -69,6 +70,37 @@ impl Goal {
             .map(|id| Range::len(self.stack[id].remaining()) as u16)
             .sum::<u16>()
             + 1
+    }
+
+    pub fn graph(
+        &self,
+        graph: &mut Graph,
+        symbols: &Symbols,
+        terms: &Terms,
+        bindings: &Bindings,
+    ) {
+        let add_clause = |graph: &mut Graph, id| -> Id<Node> {
+            let anchor = self.literals[self.stack[id].current_literal()]
+                .graph(graph, symbols, terms, bindings);
+            for literal in self.stack[id].remaining() {
+                let other = self.literals[literal]
+                    .graph(graph, symbols, terms, bindings);
+                graph.connect(anchor, other);
+            }
+            for lemma in self.lemmata[id].iter().copied() {
+                let other = self.literals[lemma]
+                    .graph(graph, symbols, terms, bindings);
+                graph.connect(other, anchor);
+            }
+            anchor
+        };
+        let mut clauses = self.stack.range();
+        let mut previous = add_clause(graph, some(clauses.next()));
+        for next in clauses {
+            let next = add_clause(graph, next);
+            graph.connect(previous, next);
+            previous = next;
+        }
     }
 
     pub fn apply_rule<R: Record>(

@@ -39,6 +39,33 @@ impl Bindings {
         })
     }
 
+    pub fn graph(
+        &self,
+        graph: &mut Graph,
+        symbols: &Symbols,
+        terms: &Terms,
+        term: Id<Term>,
+    ) -> Id<Node> {
+        match self.view(symbols, terms, term).1 {
+            TermView::Variable(x) => graph.variable(x),
+            TermView::Function(f, args) => {
+                let symbol = graph.symbol(f);
+                if Range::is_empty(args) {
+                    return symbol;
+                }
+                let application = graph.application(symbol);
+                let mut previous = symbol;
+                for arg in args {
+                    let term =
+                        self.graph(graph, symbols, terms, terms.resolve(arg));
+                    let argument = graph.argument(application, previous, term);
+                    previous = argument;
+                }
+                application
+            }
+        }
+    }
+
     pub fn view(
         &self,
         symbols: &Symbols,

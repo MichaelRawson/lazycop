@@ -1,6 +1,7 @@
 pub mod block;
 pub mod disjoint_set;
 pub mod fresh;
+pub mod graph;
 pub mod id;
 pub mod lut;
 pub mod offset;

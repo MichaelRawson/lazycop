@@ -60,6 +60,26 @@ impl Atom {
         terms.arguments(symbols, self.get_predicate())
     }
 
+    pub fn graph(
+        &self,
+        graph: &mut Graph,
+        symbols: &Symbols,
+        terms: &Terms,
+        bindings: &Bindings,
+    ) -> Id<Node> {
+        match self {
+            Atom::Predicate(p) => {
+                let term = bindings.graph(graph, symbols, terms, *p);
+                graph.predicate(term)
+            }
+            Atom::Equality(left, right) => {
+                let left = bindings.graph(graph, symbols, terms, *left);
+                let right = bindings.graph(graph, symbols, terms, *right);
+                graph.equality(left, right)
+            }
+        }
+    }
+
     pub fn subterms<F: FnMut(Id<Term>)>(
         &self,
         symbols: &Symbols,

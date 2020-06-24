@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct Priority {
-    value: f32
+    value: f32,
 }
 
 impl Priority {

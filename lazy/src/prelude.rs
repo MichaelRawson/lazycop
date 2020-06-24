@@ -1,9 +1,11 @@
+pub use crate::binding::*;
 pub use crate::literal::*;
 pub use crate::problem::*;
 pub use crate::rule::*;
 pub use crate::symbol::*;
 pub use crate::term::*;
 pub use crate::util::block::*;
+pub use crate::util::graph::*;
 pub use crate::util::id::*;
 pub use crate::util::lut::*;
 pub use crate::util::offset::*;

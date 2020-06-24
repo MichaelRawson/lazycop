@@ -151,9 +151,19 @@ impl<'problem> Tableau<'problem> {
 
     pub fn record_unification<R: Record>(&mut self, record: &mut R) {
         record.unification(
-            &self.problem.signature(),
+            self.problem.signature(),
             &self.terms,
             self.bindings.items(),
+        );
+    }
+
+    pub fn graph(&mut self, graph: &mut Graph) {
+        graph.initialise(self.problem.signature(), &self.terms);
+        self.goal.graph(
+            graph,
+            self.problem.signature(),
+            &self.terms,
+            &self.bindings,
         );
     }
 }
