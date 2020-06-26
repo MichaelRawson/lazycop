@@ -46,8 +46,12 @@ impl Bindings {
         terms: &Terms,
         term: Id<Term>,
     ) -> Id<Node> {
-        match self.view(symbols, terms, term).1 {
-            TermView::Variable(x) => graph.variable(x),
+        let (term, view) = self.view(symbols, terms, term);
+        if let Some(node) = graph.get_term(term) {
+            return node;
+        }
+        let node = match view {
+            TermView::Variable(_) => graph.variable(),
             TermView::Function(f, args) => {
                 let symbol = graph.symbol(f);
                 if Range::is_empty(args) {
@@ -63,7 +67,9 @@ impl Bindings {
                 }
                 application
             }
-        }
+        };
+        graph.set_term(term, node);
+        node
     }
 
     pub fn view(

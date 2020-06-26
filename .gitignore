@@ -2,4 +2,7 @@
 /m2k
 /Axioms
 /Problems
-lazycop.zip
+/lazycop.zip
+/training/model.pt
+__pycache__
+*.ipynb

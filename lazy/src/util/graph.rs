@@ -17,7 +17,7 @@ pub struct Graph {
     pub from: Vec<Id<Node>>,
     pub to: Vec<Id<Node>>,
     symbols: LUT<Symbol, Option<Id<Node>>>,
-    variables: LUT<Variable, Option<Id<Node>>>,
+    terms: LUT<Term, Option<Id<Node>>>,
 }
 
 impl Graph {
@@ -26,12 +26,12 @@ impl Graph {
         self.from.clear();
         self.to.clear();
         self.symbols.resize(Id::default());
-        self.variables.resize(Id::default());
+        self.terms.resize(Id::default());
     }
 
     pub fn initialise(&mut self, symbols: &Symbols, terms: &Terms) {
         self.symbols.resize(symbols.len());
-        self.variables.resize(terms.len().transmute());
+        self.terms.resize(terms.len());
     }
 
     pub fn connect(&mut self, from: Id<Node>, to: Id<Node>) {
@@ -49,14 +49,8 @@ impl Graph {
         }
     }
 
-    pub fn variable(&mut self, variable: Id<Variable>) -> Id<Node> {
-        if let Some(node) = self.variables[variable] {
-            node
-        } else {
-            let node = self.nodes.push(Node::Variable);
-            self.variables[variable] = Some(node);
-            node
-        }
+    pub fn variable(&mut self) -> Id<Node> {
+        self.nodes.push(Node::Variable)
     }
 
     pub fn argument(
@@ -76,6 +70,14 @@ impl Graph {
         let application = self.nodes.push(Node::Application);
         self.connect(application, symbol);
         application
+    }
+
+    pub fn get_term(&self, term: Id<Term>) -> Option<Id<Node>> {
+        self.terms[term]
+    }
+
+    pub fn set_term(&mut self, term: Id<Term>, node: Id<Node>) {
+        self.terms[term] = Some(node);
     }
 
     pub fn predicate(&mut self, term: Id<Node>) -> Id<Node> {
