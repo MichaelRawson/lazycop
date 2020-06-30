@@ -1,15 +1,16 @@
 import torch
 from torch.nn import BatchNorm1d, Embedding, Linear, Module, ModuleList, Parameter
-from torch.nn.functional import leaky_relu as relu
-from torch.nn.init import xavier_normal_
+from torch.nn.functional import relu
+from torch.nn.init import xavier_normal_, zeros_
 
 NODE_TYPES = 7
-CHANNELS = 256
-LAYERS = 4
+CHANNELS = 64
+HIDDEN = 4096
+MODULES = 4
 
 class BN(BatchNorm1d):
     def __init__(self):
-        super().__init__(CHANNELS, track_running_stats=False)
+        super().__init__(CHANNELS, affine=False, track_running_stats=False)
 
 class Conv(Module):
     def __init__(self):
@@ -33,7 +34,7 @@ class BiConv(Module):
     def forward(self, x, sources, targets, norm, norm_t):
         out = self.out(x, sources, targets, norm)
         back = self.back(x, targets, sources, norm_t)
-        return torch.max(out, back)
+        return out + back
 
 class Residual(Module):
     def __init__(self):
@@ -57,13 +58,29 @@ class Model(Module):
     def __init__(self):
         super().__init__()
         self.embedding = Embedding(NODE_TYPES, CHANNELS)
-        self.conv = ModuleList([Residual() for _ in range(LAYERS)])
-        self.fc = Linear(CHANNELS, 1)
+        self.conv = BiConv()
+        self.res = ModuleList([Residual() for _ in range(MODULES)])
+        self.hidden = Linear(CHANNELS, HIDDEN)
+        self.fc = Linear(HIDDEN, 1)
 
-    def forward(self, x, sources, targets, norm, norm_t):
+    def forward(self, x, sources, targets, batch, counts, total):
+        weights = torch.ones_like(sources, dtype=torch.float32)
+        norm = 1.0 / torch.ones_like(x, dtype=torch.float32)\
+            .scatter_add(0, targets, weights)\
+            .unsqueeze(dim=1)
+        norm_t = 1.0 / torch.ones_like(x, dtype=torch.float32)\
+            .scatter_add(0, sources, weights)\
+            .unsqueeze(dim=1)
+
         x = self.embedding(x)
-        for conv in self.conv:
-            x = conv(x, sources, targets, norm, norm_t)
-        x = torch.mean(x, dim=0)
+        x = self.conv(x, sources, targets, norm, norm_t)
+        for res in self.res:
+            x = res(x, sources, targets, norm, norm_t)
+
+        pooled = torch.zeros((total, CHANNELS), device=x.device)\
+            .index_add_(0, batch, x)
+        x = pooled / counts.unsqueeze(dim=1) 
+        x = self.hidden(x)
+        x = relu(x)
         x = self.fc(x)
         return x.squeeze()

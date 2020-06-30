@@ -4,7 +4,7 @@ pub struct RuleList {
     parent: Option<Id<RuleList>>,
     rule: Rule,
     heuristic: u16,
-    expanded: bool,
+    actual: u16,
 }
 
 #[derive(Default)]
@@ -13,8 +13,8 @@ pub struct RuleStore {
 }
 
 impl RuleStore {
-    pub fn get_heuristic(&self, id: Id<RuleList>) -> u16 {
-        self.tree[id].heuristic
+    pub fn get_actual(&self, id: Id<RuleList>) -> u16 {
+        self.tree[id].actual
     }
 
     pub fn get_list(
@@ -35,39 +35,35 @@ impl RuleStore {
         rule: Rule,
         heuristic: u16,
     ) -> Id<RuleList> {
-        let expanded = false;
+        let actual = std::u16::MAX;
         let list = RuleList {
             parent,
             rule,
             heuristic,
-            expanded,
+            actual
         };
         self.tree.push(list)
     }
 
-    pub fn mark_expanded(&mut self, id: Id<RuleList>) {
-        self.tree[id].expanded = true;
-    }
-
-    pub fn punish_expanded(&mut self) {
-        for id in self.tree.range().rev() {
-            if self.tree[id].expanded {
-                self.tree[id].heuristic = std::u16::MAX;
-            }
-        }
-    }
-
     pub fn recompute_heuristics(&mut self) {
         for id in self.tree.range().rev() {
-            if self.tree[id].heuristic == std::u16::MAX {
+            let parent = if let Some(parent) = self.tree[id].parent {
+                parent
+            }
+            else {
                 continue;
+            };
+            let actual = self.get_actual(id);
+            let actual = if actual == std::u16::MAX {
+                self.tree[id].heuristic
             }
-            if let Some(parent) = self.tree[id].parent {
-                let distance = self.tree[id].heuristic + 1;
-                let parent_distance = self.tree[parent].heuristic;
-                let recomputed = std::cmp::min(distance, parent_distance);
-                self.tree[parent].heuristic = recomputed;
-            }
+            else {
+                actual
+            };
+            let distance = actual + 1;
+            let parent_distance = self.tree[parent].actual;
+            let recomputed = std::cmp::min(distance, parent_distance);
+            self.tree[parent].actual = recomputed;
         }
     }
 
@@ -75,7 +71,6 @@ impl RuleStore {
         self.tree
             .range()
             .rev()
-            .filter(move |id| self.tree[*id].expanded)
-            .filter(move |id| self.tree[*id].heuristic != std::u16::MAX)
+            .filter(move |id| self.tree[*id].actual != std::u16::MAX)
     }
 }

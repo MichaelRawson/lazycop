@@ -52,6 +52,7 @@ fn main() {
 
         tableau.possible_rules(&mut possible);
         tableau.save();
+        let mut children = false;
         for rule in possible.drain(..) {
             tableau.apply_rule(&mut Silent, &rule);
             if tableau.solve_constraints() {
@@ -63,18 +64,17 @@ fn main() {
                     let distance = rule_list.len() as u16;
                     let priority = distance + heuristic;
                     queue.enqueue(priority, Some(id));
+                    children = true;
                 }
             }
             tableau.restore();
         }
-        if let Some(id) = id {
-            rules.mark_expanded(id);
+        if children {
+            expanded += 1;
         }
-        expanded += 1;
         tableau.clear();
     }
 
-    rules.punish_expanded();
     rules.recompute_heuristics();
     let stdout = std::io::stdout();
     let mut lock = stdout.lock();
@@ -93,7 +93,7 @@ fn main() {
         } else {
             tableau.num_open_branches()
         };
-        let actual = rules.get_heuristic(id);
+        let actual = rules.get_actual(id);
 
         tableau.graph(&mut graph);
         nodes.extend(graph.nodes.range().map(|id| graph.nodes[id] as u32));

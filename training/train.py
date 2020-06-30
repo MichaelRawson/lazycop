@@ -2,20 +2,22 @@ from pathlib import Path
 import sys
 from data import examples
 from model import Model
-from torch import jit
+import torch
 from torch.optim import SGD
 from torch.optim.lr_scheduler import CyclicLR
 from torch.utils.tensorboard import SummaryWriter
+from torch.nn.functional import mse_loss
 
-BATCH_SIZE = 64
 SAVE_INTERVAL = 10000
-BASE_LR = 1e-6
-MAX_LR = 1e-4
-HALF_CYCLE = 5000 / BATCH_SIZE
+BATCH_SIZE = 16
+BASE_LR = 0
+MAX_LR = 5e-3
+GAMMA = 0.99999
+HALF_CYCLE = 5000
 WEIGHT_DECAY = 1e-4
 
 if __name__ == '__main__':
-    model = jit.script(Model().to('cuda'))
+    model = Model().to('cuda')
     optimiser = SGD(
         model.parameters(),
         lr=BASE_LR,
@@ -27,34 +29,31 @@ if __name__ == '__main__':
         optimiser,
         BASE_LR,
         MAX_LR,
+        mode='exp_range',
+        gamma=GAMMA,
         step_size_up=HALF_CYCLE
     )
     step = 0
     writer = SummaryWriter()
     while True:
-        for x, sources, targets, norm, norm_t, y in examples(sys.argv[1]):
+        for example in examples(sys.argv[1], BATCH_SIZE):
+            x, sources, targets, batch, counts, total, y = example
             x = x.to('cuda')
             sources = sources.to('cuda')
             targets = targets.to('cuda')
-            norm = norm.to('cuda')
-            norm_t = norm_t.to('cuda')
+            batch = batch.to('cuda')
+            counts = counts.to('cuda')
             y = y.to('cuda')
-            params = (
-                x,
-                sources,
-                targets,
-                norm,
-                norm_t
-            )
+            params = (x, sources, targets, batch, counts, total)
 
             predicted = model(*params)
-            error = ((y - predicted) ** 2) / BATCH_SIZE
+            error = mse_loss(predicted, y)
             error.backward()
             step += 1
 
             writer.add_scalar(
                 'absolute error',
-                (y - predicted).abs(),
+                error.sqrt(),
                 step
             )
             writer.add_scalar(
@@ -62,11 +61,9 @@ if __name__ == '__main__':
                 scheduler.get_last_lr()[0],
                 step
             )
-
-            if step % BATCH_SIZE == 0:
-                optimiser.step()
-                optimiser.zero_grad()
-                scheduler.step()
+            optimiser.step()
+            optimiser.zero_grad()
+            scheduler.step()
 
             if step % SAVE_INTERVAL == 0:
-                model.save('model.pt')
+                torch.save(model.state_dict(), 'model.pt')
