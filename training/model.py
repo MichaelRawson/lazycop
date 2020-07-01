@@ -10,7 +10,7 @@ MODULES = 4
 
 class BN(BatchNorm1d):
     def __init__(self):
-        super().__init__(CHANNELS, affine=False, track_running_stats=False)
+        super().__init__(CHANNELS, affine=False)
 
 class Conv(Module):
     def __init__(self):
@@ -54,6 +54,17 @@ class Residual(Module):
         x = self.conv2(x, sources, targets, norm, norm_t)
         return save + x
 
+def compute_norms(x, sources, targets):
+        weights = torch.ones_like(sources, dtype=torch.float32)
+        norm = 1.0 / torch.ones_like(x, dtype=torch.float32)\
+            .scatter_add(0, targets, weights)\
+            .unsqueeze(dim=1)
+        norm_t = 1.0 / torch.ones_like(x, dtype=torch.float32)\
+            .scatter_add(0, sources, weights)\
+            .unsqueeze(dim=1)
+        return norm, norm_t
+
+
 class Model(Module):
     def __init__(self):
         super().__init__()
@@ -64,19 +75,13 @@ class Model(Module):
         self.fc = Linear(HIDDEN, 1)
 
     def forward(self, x, sources, targets, batch, counts, total):
-        weights = torch.ones_like(sources, dtype=torch.float32)
-        norm = 1.0 / torch.ones_like(x, dtype=torch.float32)\
-            .scatter_add(0, targets, weights)\
-            .unsqueeze(dim=1)
-        norm_t = 1.0 / torch.ones_like(x, dtype=torch.float32)\
-            .scatter_add(0, sources, weights)\
-            .unsqueeze(dim=1)
-
+        norm, norm_t = compute_norms(x, sources, targets)
         x = self.embedding(x)
         x = self.conv(x, sources, targets, norm, norm_t)
         for res in self.res:
             x = res(x, sources, targets, norm, norm_t)
 
+        x = relu(x)
         pooled = torch.zeros((total, CHANNELS), device=x.device)\
             .index_add_(0, batch, x)
         x = pooled / counts.unsqueeze(dim=1) 

@@ -11,7 +11,7 @@ from torch.nn.functional import mse_loss
 SAVE_INTERVAL = 10000
 BATCH_SIZE = 16
 BASE_LR = 0
-MAX_LR = 5e-3
+MAX_LR = 0.01
 GAMMA = 0.99999
 HALF_CYCLE = 5000
 WEIGHT_DECAY = 1e-4
@@ -54,12 +54,12 @@ if __name__ == '__main__':
             writer.add_scalar(
                 'absolute error',
                 error.sqrt(),
-                step
+                BATCH_SIZE * step
             )
             writer.add_scalar(
                 'LR',
                 scheduler.get_last_lr()[0],
-                step
+                BATCH_SIZE * step
             )
             optimiser.step()
             optimiser.zero_grad()
