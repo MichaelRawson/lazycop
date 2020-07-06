@@ -8,12 +8,11 @@ from torch.optim.lr_scheduler import CyclicLR
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.functional import mse_loss
 
-SAVE_INTERVAL = 10000
-BATCH_SIZE = 16
+BATCH_SIZE = 64
 BASE_LR = 0
-MAX_LR = 0.01
+MAX_LR = 0.05
 GAMMA = 0.99999
-HALF_CYCLE = 5000
+HALF_CYCLE = 1e5 / (2 * BATCH_SIZE)
 WEIGHT_DECAY = 1e-4
 
 if __name__ == '__main__':
@@ -65,5 +64,4 @@ if __name__ == '__main__':
             optimiser.zero_grad()
             scheduler.step()
 
-            if step % SAVE_INTERVAL == 0:
-                torch.save(model.state_dict(), 'model.pt')
+        torch.save(model.state_dict(), 'model.pt')

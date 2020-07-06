@@ -43,7 +43,9 @@ def examples(path, batch_size):
             x = torch.tensor(record['nodes'])
             sources = torch.tensor(record['from'])
             targets = torch.tensor(record['to'])
-            y = (record['actual'] - record['heuristic']) / record['heuristic']
+            heuristic = float(record['heuristic'])
+            actual = float(record['actual'])
+            y = actual - heuristic
             batcher.append(x, sources, targets, y)
             if batcher.total > batch_size:
                 yield batcher.finish_batch()

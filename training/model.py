@@ -5,12 +5,11 @@ from torch.nn.init import xavier_normal_, zeros_
 
 NODE_TYPES = 7
 CHANNELS = 64
-HIDDEN = 4096
 MODULES = 4
 
 class BN(BatchNorm1d):
-    def __init__(self):
-        super().__init__(CHANNELS, affine=False)
+    def __init__(self, channels):
+        super().__init__(channels, affine=False)
 
 class Conv(Module):
     def __init__(self):
@@ -39,18 +38,16 @@ class BiConv(Module):
 class Residual(Module):
     def __init__(self):
         super().__init__()
-        self.bn1 = BN()
-        self.bn2 = BN()
+        self.bn1 = BN(CHANNELS)
+        self.bn2 = BN(CHANNELS)
         self.conv1 = BiConv()
         self.conv2 = BiConv()
 
     def forward(self, x, sources, targets, norm, norm_t):
         save = x
-        x = relu(x)
-        x = self.bn1(x)
+        x = self.bn1(relu(x))
         x = self.conv1(x, sources, targets, norm, norm_t)
-        x = relu(x)
-        x = self.bn2(x)
+        x = self.bn2(relu(x))
         x = self.conv2(x, sources, targets, norm, norm_t)
         return save + x
 
@@ -64,15 +61,15 @@ def compute_norms(x, sources, targets):
             .unsqueeze(dim=1)
         return norm, norm_t
 
-
 class Model(Module):
     def __init__(self):
         super().__init__()
         self.embedding = Embedding(NODE_TYPES, CHANNELS)
         self.conv = BiConv()
         self.res = ModuleList([Residual() for _ in range(MODULES)])
-        self.hidden = Linear(CHANNELS, HIDDEN)
-        self.fc = Linear(HIDDEN, 1)
+        self.fc1 = Linear(CHANNELS, CHANNELS)
+        self.fc2 = Linear(CHANNELS, CHANNELS)
+        self.fc3 = Linear(CHANNELS, 1)
 
     def forward(self, x, sources, targets, batch, counts, total):
         norm, norm_t = compute_norms(x, sources, targets)
@@ -80,12 +77,10 @@ class Model(Module):
         x = self.conv(x, sources, targets, norm, norm_t)
         for res in self.res:
             x = res(x, sources, targets, norm, norm_t)
-
-        x = relu(x)
         pooled = torch.zeros((total, CHANNELS), device=x.device)\
             .index_add_(0, batch, x)
         x = pooled / counts.unsqueeze(dim=1) 
-        x = self.hidden(x)
-        x = relu(x)
-        x = self.fc(x)
+        x = relu(self.fc1(x))
+        x = relu(self.fc2(x))
+        x = self.fc3(x)
         return x.squeeze()
