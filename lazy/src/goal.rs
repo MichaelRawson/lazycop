@@ -80,19 +80,18 @@ impl Goal {
         bindings: &Bindings,
     ) {
         let add_clause = |graph: &mut Graph, id| -> Id<Node> {
-            let anchor = self.literals[self.stack[id].current_literal()]
-                .graph(graph, symbols, terms, bindings);
-            for literal in self.stack[id].remaining() {
-                let other = self.literals[literal]
-                    .graph(graph, symbols, terms, bindings);
-                graph.connect(anchor, other);
+            let clause = graph.clause();
+            for open in self.stack[id].open() {
+                let open =
+                    self.literals[open].graph(graph, symbols, terms, bindings);
+                graph.connect(clause, open)
             }
             for lemma in self.lemmata[id].iter().copied() {
-                let other = self.literals[lemma]
+                let lemma = self.literals[lemma]
                     .graph(graph, symbols, terms, bindings);
-                graph.connect(other, anchor);
+                graph.connect(lemma, clause);
             }
-            anchor
+            clause
         };
         let mut clauses = self.stack.range();
         let mut previous = add_clause(graph, some(clauses.next()));

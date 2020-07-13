@@ -68,10 +68,7 @@ impl Atom {
         bindings: &Bindings,
     ) -> Id<Node> {
         match self {
-            Atom::Predicate(p) => {
-                let term = bindings.graph(graph, symbols, terms, *p);
-                graph.predicate(term)
-            }
+            Atom::Predicate(p) => bindings.graph(graph, symbols, terms, *p),
             Atom::Equality(left, right) => {
                 let left = bindings.graph(graph, symbols, terms, *left);
                 let right = bindings.graph(graph, symbols, terms, *right);

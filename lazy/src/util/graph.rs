@@ -6,9 +6,9 @@ pub enum Node {
     Variable,
     Argument,
     Application,
-    Predicate,
     Equality,
     Negation,
+    Clause,
 }
 
 #[derive(Default)]
@@ -80,12 +80,6 @@ impl Graph {
         self.terms[term] = Some(node);
     }
 
-    pub fn predicate(&mut self, term: Id<Node>) -> Id<Node> {
-        let predicate = self.nodes.push(Node::Predicate);
-        self.connect(predicate, term);
-        predicate
-    }
-
     pub fn equality(&mut self, left: Id<Node>, right: Id<Node>) -> Id<Node> {
         let equality = self.nodes.push(Node::Equality);
         self.connect(equality, left);
@@ -97,5 +91,9 @@ impl Graph {
         let negation = self.nodes.push(Node::Negation);
         self.connect(negation, atom);
         negation
+    }
+
+    pub fn clause(&mut self) -> Id<Node> {
+        self.nodes.push(Node::Clause)
     }
 }

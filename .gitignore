@@ -3,6 +3,9 @@
 /Axioms
 /Problems
 /lazycop.zip
-/training/model.pt
+/model.pt
+/runs
+/training/weights.h
 __pycache__
-*.ipynb
+*.ipynb*
+*.nvvp

@@ -1,28 +1,21 @@
 import torch
-from torch.nn import BatchNorm1d, Embedding, Linear, Module, ModuleList, Parameter
+from torch.nn import Embedding, Linear, Module, ModuleList
 from torch.nn.functional import relu
-from torch.nn.init import xavier_normal_, zeros_
 
 NODE_TYPES = 7
 CHANNELS = 64
-MODULES = 4
-
-class BN(BatchNorm1d):
-    def __init__(self, channels):
-        super().__init__(channels, affine=False)
+HIDDEN = 1024
+LAYERS = 8
 
 class Conv(Module):
     def __init__(self):
         super().__init__()
-        self.weight = Parameter(torch.Tensor(CHANNELS, CHANNELS))
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        xavier_normal_(self.weight)
+        self.weight = Linear(CHANNELS, CHANNELS, bias=False)
+        torch.nn.init.constant_(self.weight.weight, 1e-3)
 
     def forward(self, x, sources, targets, norm):
         x = norm * x.index_add(0, targets, x[sources])
-        return x @ self.weight
+        return relu(self.weight(x))
 
 class BiConv(Module):
     def __init__(self):
@@ -34,22 +27,6 @@ class BiConv(Module):
         out = self.out(x, sources, targets, norm)
         back = self.back(x, targets, sources, norm_t)
         return out + back
-
-class Residual(Module):
-    def __init__(self):
-        super().__init__()
-        self.bn1 = BN(CHANNELS)
-        self.bn2 = BN(CHANNELS)
-        self.conv1 = BiConv()
-        self.conv2 = BiConv()
-
-    def forward(self, x, sources, targets, norm, norm_t):
-        save = x
-        x = self.bn1(relu(x))
-        x = self.conv1(x, sources, targets, norm, norm_t)
-        x = self.bn2(relu(x))
-        x = self.conv2(x, sources, targets, norm, norm_t)
-        return save + x
 
 def compute_norms(x, sources, targets):
         weights = torch.ones_like(sources, dtype=torch.float32)
@@ -65,22 +42,20 @@ class Model(Module):
     def __init__(self):
         super().__init__()
         self.embedding = Embedding(NODE_TYPES, CHANNELS)
-        self.conv = BiConv()
-        self.res = ModuleList([Residual() for _ in range(MODULES)])
-        self.fc1 = Linear(CHANNELS, CHANNELS)
-        self.fc2 = Linear(CHANNELS, CHANNELS)
-        self.fc3 = Linear(CHANNELS, 1)
+        self.conv = ModuleList([BiConv() for i in range(LAYERS)])
+        self.hidden = Linear(CHANNELS, HIDDEN)
+        self.output = Linear(HIDDEN, 1)
 
     def forward(self, x, sources, targets, batch, counts, total):
         norm, norm_t = compute_norms(x, sources, targets)
         x = self.embedding(x)
-        x = self.conv(x, sources, targets, norm, norm_t)
-        for res in self.res:
-            x = res(x, sources, targets, norm, norm_t)
-        pooled = torch.zeros((total, CHANNELS), device=x.device)\
-            .index_add_(0, batch, x)
-        x = pooled / counts.unsqueeze(dim=1) 
-        x = relu(self.fc1(x))
-        x = relu(self.fc2(x))
-        x = self.fc3(x)
+        for conv in self.conv:
+            x = x + conv(x, sources, targets, norm, norm_t)
+        x = torch.zeros(
+            (total, CHANNELS),
+            device=x.device
+        ).index_add_(0, batch, x) / counts
+        x = self.hidden(x)
+        x = relu(x)
+        x = self.output(x)
         return x.squeeze()

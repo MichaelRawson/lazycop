@@ -3,8 +3,8 @@ use lazy::prelude::*;
 pub struct RuleList {
     parent: Option<Id<RuleList>>,
     rule: Rule,
+    expanded: bool,
     heuristic: u16,
-    actual: u16,
 }
 
 #[derive(Default)]
@@ -13,8 +13,8 @@ pub struct RuleStore {
 }
 
 impl RuleStore {
-    pub fn get_actual(&self, id: Id<RuleList>) -> u16 {
-        self.tree[id].actual
+    pub fn get_heuristic(&self, id: Id<RuleList>) -> u16 {
+        self.tree[id].heuristic
     }
 
     pub fn get_list(
@@ -35,35 +35,41 @@ impl RuleStore {
         rule: Rule,
         heuristic: u16,
     ) -> Id<RuleList> {
-        let actual = std::u16::MAX;
+        let expanded = false;
         let list = RuleList {
             parent,
             rule,
+            expanded,
             heuristic,
-            actual
         };
         self.tree.push(list)
     }
 
+    pub fn mark_expanded(&mut self, id: Id<RuleList>) {
+        self.tree[id].expanded = true;
+    }
+
     pub fn recompute_heuristics(&mut self) {
+        for id in self.tree.range() {
+            if self.tree[id].expanded {
+                self.tree[id].heuristic = std::u16::MAX;
+            }
+        }
+
         for id in self.tree.range().rev() {
+            let heuristic = self.tree[id].heuristic;
+            if heuristic == std::u16::MAX {
+                continue;
+            }
             let parent = if let Some(parent) = self.tree[id].parent {
                 parent
-            }
-            else {
+            } else {
                 continue;
             };
-            let actual = self.get_actual(id);
-            let actual = if actual == std::u16::MAX {
-                self.tree[id].heuristic
-            }
-            else {
-                actual
-            };
-            let distance = actual + 1;
-            let parent_distance = self.tree[parent].actual;
+            let distance = heuristic + 1;
+            let parent_distance = self.tree[parent].heuristic;
             let recomputed = std::cmp::min(distance, parent_distance);
-            self.tree[parent].actual = recomputed;
+            self.tree[parent].heuristic = recomputed;
         }
     }
 
@@ -71,6 +77,7 @@ impl RuleStore {
         self.tree
             .range()
             .rev()
-            .filter(move |id| self.tree[*id].actual != std::u16::MAX)
+            .filter(move |id| self.tree[*id].expanded)
+            .filter(move |id| self.tree[*id].heuristic != std::u16::MAX)
     }
 }
