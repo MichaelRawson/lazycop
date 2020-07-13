@@ -8,8 +8,9 @@
 #include <cublasLt.h>
 #include "weights.h"
 
-static const size_t UNROLL = 8;
 static const size_t ALIGNTO = 256;
+static const size_t THREADS = 512;
+static const size_t UNROLL = 8;
 static const cudaDataType_t DATA_TYPE = CUDA_R_32F;
 static const cublasComputeType_t COMPUTE_TYPE = CUBLAS_COMPUTE_32F_FAST_16F;
 
@@ -162,10 +163,12 @@ __global__ void k_embed(
 	float *weights,
 	float *x
 ) {
-	auto channel = threadIdx.x;
+	auto thread = threadIdx.x;
+	auto channel = thread % CHANNELS;
+	auto offset = thread / CHANNELS;
 
 	#pragma unroll UNROLL
-	for(int i = 0; i < num_nodes; i ++) {
+	for(int i = offset; i < num_nodes; i += THREADS / CHANNELS) {
 		auto index = CHANNELS * i + channel;
 		auto node = __ldcs(nodes + i);
 		auto weight = __ldg(weights + CHANNELS * node + channel);
@@ -174,7 +177,7 @@ __global__ void k_embed(
 }
 
 static void embed() {
-	k_embed<<<1, CHANNELS>>>(
+	k_embed<<<1, THREADS>>>(
 		num_nodes,
 		nodes,
 		EMBED_WEIGHTS,
@@ -184,38 +187,65 @@ static void embed() {
 }
 
 __global__ void k_gather_neighbours(
-	int32_t num_nodes,
 	int32_t num_edges,
 	float *x,
 	int2 *edges,
-	float *forward_node_norm,
-	float *backward_node_norm,
 	float *out,
 	float *back
 ) {
-	auto channel = threadIdx.x;
+	auto thread = threadIdx.x;
+	auto channel = thread % CHANNELS;
+	auto offset = thread / CHANNELS;
 
 	#pragma unroll UNROLL
-	for(int i = 0; i < num_nodes; i++) {
-		auto index = CHANNELS * i + channel;
-		float value = __ldg(x + index);
-		__stwb(out + index, value);
-		__stwb(back + index, value);
-	}
-	__syncthreads();
-
-	#pragma unroll UNROLL
-	for(int i = 0; i < num_edges; i++) {
+	for(int i = offset; i < num_edges; i += THREADS / CHANNELS) {
 		auto edge = __ldg(edges + i);
 		auto from = CHANNELS * edge.x + channel;
 		auto to = CHANNELS * edge.y + channel;
 		atomicAdd(out + to, __ldg(x + from));
 		atomicAdd(back + from, __ldg(x + to));
 	}
-	__syncthreads();
+}
+
+static void gather_neighbours() {
+	CUDAOK(cudaMemcpyAsync(
+		out,
+		x,
+		num_nodes * CHANNELS * sizeof(float),
+		cudaMemcpyDeviceToDevice,
+		CU_STREAM_PER_THREAD
+	));
+	CUDAOK(cudaMemcpyAsync(
+		back,
+		x,
+		num_nodes * CHANNELS * sizeof(float),
+		cudaMemcpyDeviceToDevice,
+		CU_STREAM_PER_THREAD
+	));
+	k_gather_neighbours<<<1, THREADS>>>(
+		num_edges,
+		x,
+		edges,
+		out,
+		back
+	);
+	CHECK_KERNEL;
+}
+
+__global__ void k_normalise(
+	int32_t num_nodes,
+	int2 *edges,
+	float *forward_node_norm,
+	float *backward_node_norm,
+	float *out,
+	float *back
+) {
+	auto thread = threadIdx.x;
+	auto channel = thread % CHANNELS;
+	auto offset = thread / CHANNELS;
 
 	#pragma unroll UNROLL
-	for(int i = 0; i < num_nodes; i++) {
+	for(int i = offset; i < num_nodes; i += THREADS / CHANNELS) {
 		auto index = CHANNELS * i + channel;
 		float forward_norm = __ldg(forward_node_norm + i);
 		float backward_norm = __ldg(backward_node_norm + i);
@@ -224,14 +254,11 @@ __global__ void k_gather_neighbours(
 		__stcg(out + index, out_val);
 		__stcg(back + index, back_val);
 	}
-
 }
 
-static void gather_neighbours() {
-	k_gather_neighbours<<<1, CHANNELS>>>(
+static void normalise() {
+	k_normalise<<<1, THREADS>>>(
 		num_nodes,
-		num_edges,
-		x,
 		edges,
 		forward_node_norm,
 		backward_node_norm,
@@ -247,10 +274,10 @@ __global__ void k_combine_scratch(
 	float *scratch2,
 	float *x
 ) {
-	auto channel = threadIdx.x;
+	auto thread = threadIdx.x;
 
 	#pragma unroll UNROLL
-	for(int i = channel; i < CHANNELS * num_nodes; i += CHANNELS) {
+	for(int i = thread; i < CHANNELS * num_nodes; i += THREADS) {
 		float combined =
 			fmaxf(0.0f, __ldg(scratch1 + i)) +
 			fmaxf(0.0f, __ldg(scratch2 + i));
@@ -259,7 +286,7 @@ __global__ void k_combine_scratch(
 }
 
 static void combine_scratch() {
-	k_combine_scratch<<<1, CHANNELS>>>(
+	k_combine_scratch<<<1, THREADS>>>(
 		num_nodes,
 		scratch1,
 		scratch2,
@@ -276,24 +303,20 @@ __global__ void k_global_mean_pool(
 	float *x,
 	float *pooled
 ) {
-	auto channel = threadIdx.x;
+	auto thread = threadIdx.x;
+	auto channel = thread % CHANNELS;
+	auto offset = thread / CHANNELS;
 
 	#pragma unroll UNROLL
-	for(int i = channel; i < CHANNELS * num_graphs; i += CHANNELS) {
-		__stwb(pooled + i, 0.0f);
-	}
-
-	#pragma unroll UNROLL
-	for(int i = 0; i < num_nodes; i++) {
+	for(int i = offset; i < num_nodes; i += THREADS / CHANNELS) {
 		float value = __ldcs(x + CHANNELS * i + channel);
 		int32_t graph = __ldg(batch + i);
 		float *addr = pooled + CHANNELS * graph + channel;
-		float old = __ldca(addr);
-		__stwb(addr, value + old);
+		atomicAdd(addr, value);
 	}
 
 	#pragma unroll UNROLL
-	for(int i = 0; i < num_graphs; i++) {
+	for(int i = offset; i < num_graphs; i += THREADS / CHANNELS) {
 		float norm = __ldg(graph_norms + i);
 		float *addr = pooled + CHANNELS * i + channel;
 		float value = __ldcs(addr);
@@ -302,7 +325,13 @@ __global__ void k_global_mean_pool(
 }
 
 static void global_mean_pool() {
-	k_global_mean_pool<<<1, CHANNELS>>>(
+	CUDAOK(cudaMemsetAsync(
+		pooled,
+		0,
+		num_graphs * CHANNELS * sizeof(float),
+		CU_STREAM_PER_THREAD
+	));
+	k_global_mean_pool<<<1, THREADS>>>(
 		num_nodes,
 		num_graphs,
 		batch,
@@ -321,7 +350,7 @@ __global__ void k_hidden_bias_relu(
 	auto thread = threadIdx.x;
 
 	#pragma unroll UNROLL
-	for(int i = thread; i < HIDDEN * num_graphs; i += CHANNELS) {
+	for(int i = thread; i < HIDDEN * num_graphs; i += THREADS) {
 		float activated = fmaxf(
 			0.0f,
 			__ldcs(hidden + i) + __ldg(bias + i % HIDDEN)
@@ -331,7 +360,7 @@ __global__ void k_hidden_bias_relu(
 }
 
 static void hidden_bias_relu() {
-	k_hidden_bias_relu<<<1, CHANNELS>>>(num_graphs, HIDDEN_BIAS, hidden);
+	k_hidden_bias_relu<<<1, THREADS>>>(num_graphs, HIDDEN_BIAS, hidden);
 	CHECK_KERNEL;
 }
 
@@ -340,6 +369,7 @@ static void residual(int32_t layer) {
 	float *back_weights = BACK_WEIGHTS + CHANNELS * CHANNELS * layer;
 
 	gather_neighbours();
+	normalise();
 	mm(
 		&conv_heuristic, 
 		node_desc,
@@ -677,11 +707,7 @@ static void go() {
 		batch,
 		output
 	);
-	std::cout << output[0];
-	for(int i = 1; i < num_graphs; i++) {
-		std::cout << "," << output[i];
-	}
-	std::cout << std::endl;
+	std::cout << output[0] << std::endl;
 }
 
 int main() {
@@ -689,7 +715,7 @@ int main() {
 
 	std::vector<std::thread> workers;
 	auto f = []() {
-		for(int i = 0; i < 200; i++) {
+		for(int i = 0; i < 50; i++) {
 			go();
 		}
 	};
