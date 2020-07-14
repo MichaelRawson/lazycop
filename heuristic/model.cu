@@ -1,9 +1,4 @@
-#include <algorithm>
 #include <cassert>
-#include <iostream>
-#include <thread>
-#include <vector>
-#include <unordered_map>
 #include <cuda.h>
 #include <cublasLt.h>
 #include "weights.h"
@@ -12,11 +7,10 @@ static const size_t ALIGNTO = 256;
 static const size_t THREADS = 512;
 static const size_t UNROLL = 8;
 static const cudaDataType_t DATA_TYPE = CUDA_R_32F;
-static const cublasComputeType_t COMPUTE_TYPE = CUBLAS_COMPUTE_32F_FAST_16F;
+static const cublasComputeType_t COMPUTE_TYPE = CUBLAS_COMPUTE_32F;
 
 #define BLASOK(x) assert(x == CUBLAS_STATUS_SUCCESS)
 #define CUDAOK(x) assert(x == cudaSuccess)
-#define CHECK_KERNEL CUDAOK(cudaGetLastError())
 #define ALIGN(x) (ALIGNTO * (((x) / ALIGNTO) + ((x) % ALIGNTO != 0)))
 
 #define DEVICE_ALLOC(device, count) {\
@@ -56,9 +50,6 @@ static thread_local bool thread_initialised = false;
 static thread_local uint8_t *p_upload, *d_upload;
 static thread_local float *p_download, *d_download;
 static thread_local int32_t
-	num_nodes = 0,
-	num_edges = 0,
-	num_graphs = 0,
 	*nodes = NULL,
 	*batch = NULL;
 static thread_local int2 *edges = NULL;
@@ -73,7 +64,10 @@ static thread_local float
 	*scratch2 = NULL,
 	*pooled = NULL,
 	*hidden = NULL;
-static thread_local int32_t
+static thread_local uint32_t
+	num_nodes = 0,
+	num_edges = 0,
+	num_graphs = 0,
 	p_upload_capacity = 0,
 	d_upload_capacity = 0,
 	p_download_capacity = 0,
@@ -95,7 +89,7 @@ static thread_local cublasLtMatmulHeuristicResult_t
 	hidden_heuristic,
 	output_heuristic;
 
-static void upload_weights(float **device, const float *data, int32_t size) {
+static void upload_weights(float **device, const float *data, size_t size) {
 	CUDAOK(cudaMalloc(device, size));
 	CUDAOK(cudaMemcpy(
 		*device,
@@ -183,11 +177,11 @@ static void embed() {
 		EMBED_WEIGHTS,
 		x
 	);
-	CHECK_KERNEL;
 }
 
 __global__ void k_gather_neighbours(
-	int32_t num_edges,
+	uint32_t num_nodes,
+	uint32_t num_edges,
 	float *x,
 	int2 *edges,
 	float *out,
@@ -197,17 +191,39 @@ __global__ void k_gather_neighbours(
 	auto channel = thread % CHANNELS;
 	auto offset = thread / CHANNELS;
 
+	for(auto i = offset; i < num_nodes; i += THREADS / CHANNELS) {
+		auto start = __ldg(x + CHANNELS * i + channel);
+		auto out_result = start;
+		auto back_result = start;
+		for(int j = 0; j < num_edges; j++) {
+			auto edge = __ldg(edges + j);
+			auto from = CHANNELS * edge.x + channel;
+			auto to = CHANNELS * edge.y + channel;
+			if(edge.y == i) {
+				out_result += __ldg(x + from);
+			}
+			if(edge.x == i) {
+				back_result += __ldg(x + to);
+			}
+		}
+		__stcg(out + CHANNELS * i + channel, out_result);
+		__stcg(back + CHANNELS * i + channel, back_result);
+	}
+	/*
+
 	#pragma unroll UNROLL
-	for(int i = offset; i < num_edges; i += THREADS / CHANNELS) {
+	for(int i = offset; i < num_edges; i++) {
 		auto edge = __ldg(edges + i);
 		auto from = CHANNELS * edge.x + channel;
 		auto to = CHANNELS * edge.y + channel;
 		atomicAdd(out + to, __ldg(x + from));
 		atomicAdd(back + from, __ldg(x + to));
 	}
+	*/
 }
 
 static void gather_neighbours() {
+	/*
 	CUDAOK(cudaMemcpyAsync(
 		out,
 		x,
@@ -222,14 +238,15 @@ static void gather_neighbours() {
 		cudaMemcpyDeviceToDevice,
 		CU_STREAM_PER_THREAD
 	));
+	*/
 	k_gather_neighbours<<<1, THREADS>>>(
+		num_nodes,
 		num_edges,
 		x,
 		edges,
 		out,
 		back
 	);
-	CHECK_KERNEL;
 }
 
 __global__ void k_normalise(
@@ -265,7 +282,6 @@ static void normalise() {
 		out,
 		back
 	);
-	CHECK_KERNEL;
 }
 
 __global__ void k_combine_scratch(
@@ -292,7 +308,6 @@ static void combine_scratch() {
 		scratch2,
 		x
 	);
-	CHECK_KERNEL;
 }
 
 __global__ void k_global_mean_pool(
@@ -303,25 +318,17 @@ __global__ void k_global_mean_pool(
 	float *x,
 	float *pooled
 ) {
-	auto thread = threadIdx.x;
-	auto channel = thread % CHANNELS;
-	auto offset = thread / CHANNELS;
+	auto graph = blockIdx.x;
+	auto channel = threadIdx.x;
 
-	#pragma unroll UNROLL
-	for(int i = offset; i < num_nodes; i += THREADS / CHANNELS) {
-		float value = __ldcs(x + CHANNELS * i + channel);
-		int32_t graph = __ldg(batch + i);
-		float *addr = pooled + CHANNELS * graph + channel;
-		atomicAdd(addr, value);
+	float total = 0.0;
+	for(int i = 0; i < num_nodes; i++) {
+		if(__ldg(batch + i) == graph) {
+			total += __ldg(x + CHANNELS * i + channel);
+		}
 	}
-
-	#pragma unroll UNROLL
-	for(int i = offset; i < num_graphs; i += THREADS / CHANNELS) {
-		float norm = __ldg(graph_norms + i);
-		float *addr = pooled + CHANNELS * i + channel;
-		float value = __ldcs(addr);
-		__stcg(addr, norm * value);
-	}
+	total *= graph_norms[graph];
+	__stcg(pooled + CHANNELS * graph + channel, total);
 }
 
 static void global_mean_pool() {
@@ -331,7 +338,7 @@ static void global_mean_pool() {
 		num_graphs * CHANNELS * sizeof(float),
 		CU_STREAM_PER_THREAD
 	));
-	k_global_mean_pool<<<1, THREADS>>>(
+	k_global_mean_pool<<<num_graphs, CHANNELS>>>(
 		num_nodes,
 		num_graphs,
 		batch,
@@ -339,7 +346,6 @@ static void global_mean_pool() {
 		x,
 		pooled
 	);
-	CHECK_KERNEL;
 }
 
 __global__ void k_hidden_bias_relu(
@@ -361,7 +367,6 @@ __global__ void k_hidden_bias_relu(
 
 static void hidden_bias_relu() {
 	k_hidden_bias_relu<<<1, THREADS>>>(num_graphs, HIDDEN_BIAS, hidden);
-	CHECK_KERNEL;
 }
 
 static void residual(int32_t layer) {
@@ -392,13 +397,13 @@ static void residual(int32_t layer) {
 }
 
 static void upload(
-	int32_t h_num_nodes,
-	int32_t h_num_edges,
-	int32_t h_num_graphs,
-	const int32_t *h_nodes,
-	const int32_t *h_sources,
-	const int32_t *h_targets,
-	const int32_t *h_batch
+	uint32_t h_num_nodes,
+	uint32_t h_num_edges,
+	uint32_t h_num_graphs,
+	const uint32_t *h_nodes,
+	const uint32_t *h_sources,
+	const uint32_t *h_targets,
+	const uint32_t *h_batch
 ) {
 	num_nodes = h_num_nodes;
 	num_edges = h_num_edges;
@@ -527,7 +532,7 @@ static void upload(
 	memset(p_forward_node_norm, 0, num_nodes * sizeof(float));
 	memset(p_backward_node_norm, 0, num_nodes * sizeof(float));
 	memset(p_graph_norms, 0, num_graphs * sizeof(float));
-	for(int i = 0; i < num_edges; i++) {
+	for(uint32_t i = 0; i < num_edges; i++) {
 		auto source = h_sources[i];
 		auto target = h_targets[i];
 		p_edges[i].x = source;
@@ -535,7 +540,7 @@ static void upload(
 		p_forward_node_norm[target] += 1.0f;
 		p_backward_node_norm[source] += 1.0f;
 	}
-	for(int i = 0; i < num_nodes; i++) {
+	for(uint32_t i = 0; i < num_nodes; i++) {
 		p_nodes[i] = h_nodes[i];
 		p_forward_node_norm[i] = 1.0f /
 			(1.0f + p_forward_node_norm[i]);
@@ -543,7 +548,7 @@ static void upload(
 			(1.0f + p_backward_node_norm[i]);
 		p_graph_norms[h_batch[i]] += 1.0f;
 	}
-	for(int i = 0; i < num_graphs; i++) {
+	for(uint32_t i = 0; i < num_graphs; i++) {
 		p_graph_norms[i] = 1.0f / p_graph_norms[i];
 	}
 
@@ -566,7 +571,7 @@ static void download(float *h_results) {
 	));
 	CUDAOK(cudaStreamSynchronize(CU_STREAM_PER_THREAD));
 
-	for(int i = 0; i < num_graphs; i++) {
+	for(uint32_t i = 0; i < num_graphs; i++) {
 		h_results[i] = p_download[i] + OUTPUT_BIAS;
 	}
 }
@@ -633,14 +638,14 @@ extern "C" void init() {
 }
 
 extern "C" void model(
-	int32_t h_num_nodes,
-	int32_t h_num_edges,
-	int32_t h_num_graphs,
-	const int32_t *h_nodes,
-	const int32_t *h_sources,
-	const int32_t *h_targets,
-	const int32_t *h_batch,
-	float  *h_results
+	uint32_t h_num_nodes,
+	uint32_t h_num_edges,
+	uint32_t h_num_graphs,
+	const uint32_t *h_nodes,
+	const uint32_t *h_sources,
+	const uint32_t *h_targets,
+	const uint32_t *h_batch,
+	float *h_results
 ) {
 	upload(
 		h_num_nodes,
@@ -652,7 +657,7 @@ extern "C" void model(
 		h_batch
 	);
 	embed();
-	for(int i = 0; i < LAYERS; i++) {
+	for(uint32_t i = 0; i < LAYERS; i++) {
 		residual(i);
 	}
 	global_mean_pool();
@@ -678,15 +683,18 @@ extern "C" void model(
 	download(h_results);
 }
 
-#ifndef NO_TEST
+#ifdef TEST
+#include <iostream>
+#include <thread>
+#include <vector>
 static void go() {
 	const int num_nodes = 1000;
 	const int num_edges = 2000;
 	const int num_graphs = 10;
-	int32_t nodes[num_nodes];
-	int32_t sources[num_edges];
-	int32_t targets[num_edges];
-	int32_t batch[num_nodes];
+	uint32_t nodes[num_nodes];
+	uint32_t sources[num_edges];
+	uint32_t targets[num_edges];
+	uint32_t batch[num_nodes];
 	for(int i = 0; i < num_nodes; i++) {
 		nodes[i] = 0;
 		batch[i] = i / (num_nodes / num_graphs);
@@ -715,11 +723,11 @@ int main() {
 
 	std::vector<std::thread> workers;
 	auto f = []() {
-		for(int i = 0; i < 50; i++) {
+		for(int i = 0; i < 200; i++) {
 			go();
 		}
 	};
-	for(int i = 0; i < 8; i++) {
+	for(int i = 0; i < 16; i++) {
 		workers.emplace_back(f);
 	}
 	for(auto &worker : workers) {

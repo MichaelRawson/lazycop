@@ -34,6 +34,15 @@ impl Default for Attempt {
     }
 }
 
+fn add_rule(
+    attempt: &Mutex<Attempt>,
+    leaf: Option<Id<RuleList>>,
+    rule: Rule,
+) -> Id<RuleList> {
+    let mut attempt = attempt.lock();
+    attempt.rule_store.add(leaf, rule)
+}
+
 fn dequeue(
     attempt: &Mutex<Attempt>,
     leaf: &mut Option<Id<RuleList>>,
@@ -60,14 +69,8 @@ fn dequeue(
     }
 }
 
-fn enqueue(
-    attempt: &Mutex<Attempt>,
-    leaf: Option<Id<RuleList>>,
-    rule: Rule,
-    priority: Priority,
-) {
+fn enqueue(attempt: &Mutex<Attempt>, new: Id<RuleList>, priority: Priority) {
     let mut attempt = attempt.lock();
-    let new = attempt.rule_store.add(leaf, rule);
     attempt.queue.enqueue(priority, Some(new));
 }
 
@@ -82,9 +85,8 @@ fn found_proof(attempt: &Mutex<Attempt>, proof: Vec<Rule>) {
     attempt.proof = Some(proof);
 }
 
-fn heuristic(rules: &[Rule], tableau: &Tableau) -> Priority {
-    let base = tableau.num_open_branches() + (rules.len() as u16);
-    Priority::new(base as f32)
+fn heuristic(rules: &[Rule], tableau: &Tableau) -> f32 {
+    (tableau.num_open_branches() + (rules.len() as u16)) as f32
 }
 
 fn task(problem: &Problem, statistics: &Statistics, attempt: &Mutex<Attempt>) {
@@ -92,6 +94,10 @@ fn task(problem: &Problem, statistics: &Statistics, attempt: &Mutex<Attempt>) {
     let mut rules = vec![];
     let mut possible = vec![];
     let mut tableau = Tableau::new(&*problem);
+    let mut leaves = vec![];
+    let mut heuristics = vec![];
+    let mut residuals = vec![];
+    let mut graph = Graph::default();
 
     while dequeue(attempt, &mut leaf, &mut rules) {
         let mut record = Silent; //crate::io::tstp::TSTP::default();
@@ -113,19 +119,32 @@ fn task(problem: &Problem, statistics: &Statistics, attempt: &Mutex<Attempt>) {
                     found_proof(attempt, rules);
                     return;
                 }
-                let priority = heuristic(&rules, &tableau);
-                enqueue(attempt, leaf, rule, priority);
-                statistics.increment_enqueued_tableaux();
+                leaves.push(add_rule(attempt, leaf, rule));
+                heuristics.push(heuristic(&rules, &tableau));
+                residuals.push(0.0);
+                tableau.graph(&mut graph);
+                graph.finish_subgraph();
             } else {
                 statistics.increment_discarded_tableaux();
             }
             tableau.restore();
             statistics.increment_total_tableaux();
         }
+        heuristic::model(&graph, &mut residuals);
+        for (i, residual) in residuals.drain(..).enumerate() {
+            heuristics[i] += residual;
+        }
+        for (new, heuristic) in leaves.drain(..).zip(heuristics.drain(..)) {
+            println!("{}", heuristic);
+            enqueue(attempt, new, Priority::new(heuristic));
+            statistics.increment_enqueued_tableaux();
+        }
+
         statistics.increment_expanded_tableaux();
         let closed = finish(attempt, leaf);
         statistics.exhausted_tableaux(closed);
         tableau.clear();
+        graph.clear();
     }
 }
 
@@ -133,7 +152,7 @@ pub fn search(problem: &Problem) -> (Statistics, Option<Vec<Rule>>) {
     let statistics = Statistics::new(problem);
     let attempt = Mutex::new(Attempt::default());
     thread::scope(|scope| {
-        for index in 0..num_cpus::get() {
+        for index in 0..1 {
             scope
                 .builder()
                 .name(format!("search-{}", index))

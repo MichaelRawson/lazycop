@@ -11,10 +11,10 @@ def fmt_weights(tensor):
 if __name__ == '__main__':
     weights = torch.load(sys.argv[1], map_location='cpu')
 
-    print(f"#define NODE_TYPES {NODE_TYPES}")
-    print(f"#define CHANNELS {CHANNELS}")
-    print(f"#define HIDDEN {HIDDEN}")
-    print(f"#define LAYERS {LAYERS}")
+    print(f"const uint32_t NODE_TYPES = {NODE_TYPES};")
+    print(f"const uint32_t CHANNELS = {CHANNELS};")
+    print(f"const uint32_t HIDDEN = {HIDDEN};")
+    print(f"const uint32_t LAYERS = {LAYERS};")
     output_bias = float(weights['output.bias'])
     print(f"#define OUTPUT_BIAS {output_bias}")
 

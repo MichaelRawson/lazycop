@@ -8,7 +8,7 @@ pub struct Priority {
 
 impl Priority {
     pub fn new(value: f32) -> Self {
-        debug_assert!(value >= 0.0 && value < std::f32::MAX);
+        debug_assert!(value.is_finite());
         Self { value }
     }
 }

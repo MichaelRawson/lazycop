@@ -3,9 +3,12 @@
 /Axioms
 /Problems
 /lazycop.zip
-/model.pt
 /runs
-/training/weights.h
+/heuristic/weights.h
+/heuristic/test
 __pycache__
+*.a
+*.o
 *.ipynb*
 *.nvvp
+*.pt

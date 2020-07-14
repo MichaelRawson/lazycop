@@ -8,6 +8,8 @@ mod search;
 mod statistics;
 
 fn main() {
+    heuristic::init();
+
     let problem = tptp::load_from_stdin();
     let (statistics, result) = search::search(&problem);
 

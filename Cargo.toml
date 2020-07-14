@@ -1,5 +1,5 @@
 [workspace]
-members = ["lazy", "lazycop", "lazygen"]
+members = ["lazy", "heuristic", "lazycop", "lazygen"]
 
 [profile.release]
 panic = "abort"

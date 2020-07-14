@@ -16,6 +16,10 @@ impl<T> Id<T> {
         Self { id, _phantom }
     }
 
+    pub fn as_u32(self) -> u32 {
+        self.id.get() as u32
+    }
+
     pub fn as_usize(self) -> usize {
         self.id.get() as usize
     }

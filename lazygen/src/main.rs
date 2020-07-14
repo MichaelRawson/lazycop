@@ -31,8 +31,6 @@ fn main() {
     let mut queue = Queue::default();
     let mut graph = Graph::default();
     let mut nodes = vec![];
-    let mut from = vec![];
-    let mut to = vec![];
     let mut expanded = 0;
     queue.enqueue(0, None);
 
@@ -96,14 +94,12 @@ fn main() {
 
         tableau.graph(&mut graph);
         nodes.extend(graph.nodes.range().map(|id| graph.nodes[id] as u32));
-        from.extend(graph.from.iter().map(|id| id.as_usize() as u32 - 1));
-        to.extend(graph.to.iter().map(|id| id.as_usize() as u32 - 1));
         let item = Item {
             heuristic,
             actual,
             nodes: nodes.as_ref(),
-            from: from.as_ref(),
-            to: to.as_ref(),
+            from: graph.from.as_ref(),
+            to: graph.to.as_ref(),
         };
 
         to_writer(&mut lock, &item).expect("failed to write record");
@@ -111,8 +107,6 @@ fn main() {
 
         tableau.clear();
         graph.clear();
-        from.clear();
-        to.clear();
         nodes.clear();
     }
 }

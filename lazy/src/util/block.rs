@@ -23,11 +23,11 @@ impl<T> Block<T> {
     }
 
     pub fn last(&self) -> Option<&T> {
-        self.slice().last()
+        self.as_slice().last()
     }
 
     pub fn last_mut(&mut self) -> Option<&mut T> {
-        self.slice_mut().last_mut()
+        self.as_mut_slice().last_mut()
     }
 
     pub fn range(&self) -> Range<T> {
@@ -48,12 +48,12 @@ impl<T> Block<T> {
         self.items.truncate(len.as_usize());
     }
 
-    fn slice(&self) -> &[T] {
+    pub fn as_slice(&self) -> &[T] {
         debug_assert!(!self.items.is_empty(), "should never be empty");
         unsafe { self.items.get_unchecked(1..) }
     }
 
-    fn slice_mut(&mut self) -> &mut [T] {
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
         debug_assert!(!self.items.is_empty(), "should never be empty");
         unsafe { self.items.get_unchecked_mut(1..) }
     }
@@ -61,7 +61,7 @@ impl<T> Block<T> {
 
 impl<T: Copy> Block<T> {
     pub fn extend(&mut self, other: &Self) {
-        self.items.extend_from_slice(&other.slice());
+        self.items.extend_from_slice(&other.as_slice());
     }
 
     pub fn copy_from(&mut self, other: &Self) {

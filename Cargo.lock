@@ -71,6 +71,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "heuristic"
+version = "0.1.0"
+dependencies = [
+ "lazy",
+]
+
+[[package]]
 name = "itoa"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -95,6 +102,7 @@ name = "lazycop"
 version = "0.1.0"
 dependencies = [
  "crossbeam-utils",
+ "heuristic",
  "lazy",
  "num_cpus",
  "parking_lot",
