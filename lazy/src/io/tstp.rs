@@ -216,3 +216,7 @@ impl Record for TSTP {
         println!("% {}: {}", key, value);
     }
 }
+
+pub fn trivial_proof() {
+    println!("cnf(c0, axiom,\n\t$false).");
+}

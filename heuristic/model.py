@@ -11,7 +11,7 @@ class Conv(Module):
     def __init__(self):
         super().__init__()
         self.weight = Linear(CHANNELS, CHANNELS, bias=False)
-        torch.nn.init.constant_(self.weight.weight, 1e-3)
+        torch.nn.init.constant_(self.weight.weight, 1e-6)
 
     def forward(self, x, sources, targets, norm):
         x = norm * x.index_add(0, targets, x[sources])

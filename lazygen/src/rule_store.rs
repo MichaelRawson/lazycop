@@ -76,7 +76,6 @@ impl RuleStore {
     pub fn examples(&self) -> impl Iterator<Item = Id<RuleList>> + '_ {
         self.tree
             .range()
-            .rev()
             .filter(move |id| self.tree[*id].expanded)
             .filter(move |id| self.tree[*id].heuristic != std::u16::MAX)
     }

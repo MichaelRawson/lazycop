@@ -10,7 +10,8 @@ use std::io::Write;
 
 mod rule_store;
 
-const MAXIMUM: usize = 1_000_000;
+const MAX_EXPANSIONS: usize = 1_000_000;
+const SAMPLE: usize = 10_000;
 
 #[derive(Serialize)]
 struct Item<'a> {
@@ -23,6 +24,9 @@ struct Item<'a> {
 
 fn main() {
     let problem = tptp::load_from_stdin();
+    if problem.is_trivial() {
+        return;
+    }
     let mut tableau = Tableau::new(&problem);
     let mut record = Silent;
     let mut rules = RuleStore::default();
@@ -35,7 +39,7 @@ fn main() {
     queue.enqueue(0, None);
 
     while let Some(id) = queue.dequeue() {
-        if expanded > MAXIMUM {
+        if expanded > MAX_EXPANSIONS {
             break;
         }
 
@@ -75,7 +79,7 @@ fn main() {
     rules.recompute_heuristics();
     let stdout = std::io::stdout();
     let mut lock = stdout.lock();
-    for id in rules.examples() {
+    for id in rules.examples().take(SAMPLE) {
         rule_list.clear();
         rule_list.extend(rules.get_list(Some(id)));
         for rule in rule_list.iter().rev() {

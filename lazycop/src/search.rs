@@ -130,12 +130,12 @@ fn task(problem: &Problem, statistics: &Statistics, attempt: &Mutex<Attempt>) {
             tableau.restore();
             statistics.increment_total_tableaux();
         }
+
         heuristic::model(&graph, &mut residuals);
         for (i, residual) in residuals.drain(..).enumerate() {
             heuristics[i] += residual;
         }
         for (new, heuristic) in leaves.drain(..).zip(heuristics.drain(..)) {
-            println!("{}", heuristic);
             enqueue(attempt, new, Priority::new(heuristic));
             statistics.increment_enqueued_tableaux();
         }
@@ -152,7 +152,7 @@ pub fn search(problem: &Problem) -> (Statistics, Option<Vec<Rule>>) {
     let statistics = Statistics::new(problem);
     let attempt = Mutex::new(Attempt::default());
     thread::scope(|scope| {
-        for index in 0..1 {
+        for index in 0..2 * num_cpus::get() {
             scope
                 .builder()
                 .name(format!("search-{}", index))

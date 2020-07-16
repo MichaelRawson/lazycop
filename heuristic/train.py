@@ -2,7 +2,7 @@ from pathlib import Path
 import sys
 
 import torch
-from torch.nn.functional import mse_loss
+from torch.nn.functional import smooth_l1_loss
 from torch.optim import SGD
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.tensorboard import SummaryWriter
@@ -54,7 +54,7 @@ if __name__ == '__main__':
 
             raw = model(x, sources, targets, batch, counts, total)
             predicted = heuristic + raw
-            error = mse_loss(predicted, actual)
+            error = smooth_l1_loss(predicted, actual)
             error.backward()
             step += 1
 
@@ -64,8 +64,8 @@ if __name__ == '__main__':
                 step
             )
             writer.add_scalar(
-                'training/absolute error',
-                error.sqrt(),
+                'training/error',
+                torch.abs(predicted - actual).mean(),
                 step
             )
             optimiser.step()

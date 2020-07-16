@@ -1,3 +1,4 @@
+use lazy::io::tstp;
 use lazy::io::tstp::TSTP;
 use lazy::io::{exit, szs, tptp};
 use lazy::tableau::Tableau;
@@ -11,6 +12,14 @@ fn main() {
     heuristic::init();
 
     let problem = tptp::load_from_stdin();
+    if problem.is_trivial() {
+        szs::unsatisfiable();
+        szs::begin_incomplete_proof();
+        tstp::trivial_proof();
+        szs::end_incomplete_proof();
+        exit::success()
+    }
+
     let (statistics, result) = search::search(&problem);
 
     let mut record = TSTP::default();

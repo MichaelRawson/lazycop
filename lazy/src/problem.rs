@@ -1,8 +1,5 @@
 use crate::atom::Atom;
-use crate::clause::Clause;
-use crate::io::{exit, szs, tstp};
 use crate::prelude::*;
-use crate::record::Record;
 use fnv::FnvHashMap;
 use std::mem;
 
@@ -42,9 +39,14 @@ pub struct Problem {
     variable_equalities: Vec<Id<EqualityOccurrence>>,
     function_equalities: LUT<Symbol, Vec<Id<EqualityOccurrence>>>,
     symbol_subterms: LUT<Symbol, Vec<Id<SubtermOccurrence>>>,
+    trivial: bool,
 }
 
 impl Problem {
+    pub fn is_trivial(&self) -> bool {
+        self.trivial
+    }
+
     pub fn signature(&self) -> &Symbols {
         &self.symbols
     }
@@ -237,17 +239,8 @@ impl ProblemBuilder {
         let literals = mem::take(&mut self.saved_literals);
 
         if literals.is_empty() {
-            szs::unsatisfiable();
-            szs::begin_incomplete_proof();
-            let mut record = tstp::TSTP::default();
-            record.axiom(
-                &self.problem.symbols,
-                &terms,
-                &literals,
-                Clause::new(Id::default(), Id::default()),
-            );
-            szs::end_incomplete_proof();
-            exit::success()
+            self.problem.trivial = true;
+            return;
         }
 
         let problem_clause = ProblemClause { literals, terms };

@@ -63,24 +63,24 @@ impl Statistics {
         record.statistic("total tableaux", self.total_tableaux.load(Relaxed));
     }
 
-    pub fn increment_discarded_tableaux(&self) {
-        self.discarded_tableaux.fetch_add(1, Relaxed);
+    pub fn increment_discarded_tableaux(&self) -> usize {
+        self.discarded_tableaux.fetch_add(1, Relaxed)
     }
 
-    pub fn increment_enqueued_tableaux(&self) {
-        self.enqueued_tableaux.fetch_add(1, Relaxed);
+    pub fn increment_enqueued_tableaux(&self) -> usize {
+        self.enqueued_tableaux.fetch_add(1, Relaxed)
     }
 
-    pub fn increment_expanded_tableaux(&self) {
-        self.expanded_tableaux.fetch_add(1, Relaxed);
+    pub fn increment_expanded_tableaux(&self) -> usize {
+        self.expanded_tableaux.fetch_add(1, Relaxed)
     }
 
-    pub fn exhausted_tableaux(&self, exhausted: u16) {
+    pub fn exhausted_tableaux(&self, exhausted: u16) -> usize {
         self.exhausted_tableaux
-            .fetch_add(exhausted as usize, Relaxed);
+            .fetch_add(exhausted as usize, Relaxed)
     }
 
-    pub fn increment_total_tableaux(&self) {
-        self.total_tableaux.fetch_add(1, Relaxed);
+    pub fn increment_total_tableaux(&self) -> usize {
+        self.total_tableaux.fetch_add(1, Relaxed)
     }
 }

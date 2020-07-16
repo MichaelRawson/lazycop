@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(u32)]
 pub enum Node {
     Symbol,
@@ -18,7 +18,8 @@ pub struct Graph {
     pub nodes: Block<Node>,
     pub from: Vec<u32>,
     pub to: Vec<u32>,
-    pub batch: Vec<u32>,
+    pub node_batch: Vec<u32>,
+    pub edge_batch: Vec<u32>,
     symbols: LUT<Symbol, Option<Id<Node>>>,
     terms: LUT<Term, Option<Id<Node>>>,
 }
@@ -29,13 +30,16 @@ impl Graph {
         self.nodes.clear();
         self.from.clear();
         self.to.clear();
-        self.batch.clear();
+        self.node_batch.clear();
+        self.edge_batch.clear();
         self.symbols.resize(Id::default());
         self.terms.resize(Id::default());
     }
 
     pub fn finish_subgraph(&mut self) {
         self.subgraphs += 1;
+        self.node_batch.push(self.nodes.len().as_u32() - 1);
+        self.edge_batch.push(self.from.len() as u32);
         self.symbols.resize(Id::default());
         self.terms.resize(Id::default());
     }
@@ -109,7 +113,6 @@ impl Graph {
     }
 
     fn node(&mut self, node: Node) -> Id<Node> {
-        self.batch.push(self.subgraphs);
         self.nodes.push(node)
     }
 }
