@@ -5,7 +5,7 @@
 
 static const size_t
 	ALIGNTO = 256,
-	THREADS = 192,
+	THREADS = 512,
 	UNROLL = 8;
 static const cudaDataType_t DATA_TYPE = CUDA_R_32F;
 static const cublasComputeType_t COMPUTE_TYPE = CUBLAS_COMPUTE_32F;
@@ -665,40 +665,26 @@ extern "C" void model(
 #include <iostream>
 #include <thread>
 #include <vector>
-static void go() {
-	const int num_nodes = 1000;
-	const int num_edges = 2000;
-	const int num_graphs = 10;
-	uint32_t nodes[num_nodes];
-	uint32_t sources[num_edges];
-	uint32_t targets[num_edges];
-	uint32_t node_batch[num_graphs];
-	uint32_t edge_batch[num_graphs];
-	for(int i = 0; i < num_nodes; i++) {
-		nodes[i] = 0;
-	}
-	for(int i = 0; i < num_edges; i++) {
-		sources[i] = i / 2;
-		targets[i] = i / 2;
-	}
-	for(int i = 0; i < num_graphs; i++) {
-		node_batch[i] = (num_nodes / num_graphs) * (i + 1);
-		edge_batch[i] = (num_edges / num_graphs) * (i + 1);
-	}
+#include "example.h"
 
-	float output[num_graphs];
+static void go() {
+	float output[EXAMPLE_NUM_GRAPHS];
 	model(
-		num_nodes,
-		num_edges,
-		num_graphs,
-		nodes,
-		sources,
-		targets,
-		node_batch,
-		edge_batch,
+		EXAMPLE_NUM_NODES,
+		EXAMPLE_NUM_EDGES,
+		EXAMPLE_NUM_GRAPHS,
+		EXAMPLE_NODES,
+		EXAMPLE_SOURCES,
+		EXAMPLE_TARGETS,
+		EXAMPLE_NODE_BATCH,
+		EXAMPLE_EDGE_BATCH,
 		output
 	);
-	std::cout << output[0] << std::endl;
+	for(uint32_t i = 0; i < num_graphs; i++) {
+		std::cout << output[i] << " ";
+	}
+	//std::cout << 'x';
+	std::cout << std::endl;
 }
 
 int main() {

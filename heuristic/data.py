@@ -7,36 +7,59 @@ class Batcher:
         self.reset()
 
     def reset(self):
-        self.total = 0
-        self.x = []
+        self.node_count = 0
+        self.edge_count = 0
+        self.graph_count = 0
+        self.assignment = []
+        self.nodes = []
+        self.node_counts = []
         self.sources = []
         self.targets = []
-        self.batch = []
-        self.counts = []
         self.heuristic = []
-        self.actual = []
+        self.estimate = []
+        self.node_boundary = []
+        self.edge_boundary = []
 
-    def append(self, x, sources, targets, heuristic, actual):
-        self.total += 1
-        self.batch.append(len(self.x) * torch.ones(x.shape, dtype=torch.long))
-        self.x.append(x)
-        self.sources.append(sources)
-        self.targets.append(targets)
-        self.counts.append(len(x))
+    def append(self, nodes, sources, targets, heuristic, estimate):
+        self.assignment.append(
+            self.graph_count * torch.ones(nodes.shape, dtype=torch.long)
+        )
+        self.nodes.append(nodes)
+        self.node_counts.append(len(nodes))
+        self.sources.append(sources + self.node_count)
+        self.targets.append(targets + self.node_count)
         self.heuristic.append(heuristic)
-        self.actual.append(actual)
+        self.estimate.append(estimate)
+        self.node_count += len(nodes)
+        self.edge_count += len(sources)
+        self.graph_count += 1
+        self.node_boundary.append(self.node_count)
+        self.edge_boundary.append(self.edge_count)
 
     def finish_batch(self):
-        x = torch.cat(self.x)
+        assignment = torch.cat(self.assignment)
+        nodes = torch.cat(self.nodes)
+        node_counts = torch.tensor(self.node_counts)
         sources = torch.cat(self.sources)
         targets = torch.cat(self.targets)
-        batch = torch.cat(self.batch)
-        counts = torch.tensor(self.counts).unsqueeze(dim=1)
-        total = self.total
         heuristic = torch.tensor(self.heuristic)
-        actual = torch.tensor(self.actual)
+        estimate = torch.tensor(self.estimate)
+        node_boundary = torch.tensor(self.node_boundary)
+        edge_boundary = torch.tensor(self.edge_boundary)
+        graph_count = self.graph_count
         self.reset()
-        return (x, sources, targets, batch, counts, total, heuristic, actual)
+        return {
+            'assignment': assignment,
+            'nodes': nodes,
+            'node_counts': node_counts,
+            'sources': sources,
+            'targets': targets,
+            'heuristic': heuristic,
+            'estimate': estimate,
+            'node_boundary': node_boundary,
+            'edge_boundary': edge_boundary,
+            'graph_count': graph_count
+        }
 
 def examples(path, batch_size):
     with gzip.open(path, 'rb') as f:
@@ -47,12 +70,12 @@ def examples(path, batch_size):
             sources = torch.tensor(record['from'])
             targets = torch.tensor(record['to'])
             heuristic = float(record['heuristic'])
-            actual = float(record['actual'])
-            batcher.append(x, sources, targets, heuristic, actual)
-            if batcher.total >= batch_size:
+            estimate = float(record['estimate'])
+            batcher.append(x, sources, targets, heuristic, estimate)
+            if batcher.graph_count >= batch_size:
                 yield batcher.finish_batch()
 
-        if batcher.total > 0:
+        if batcher.graph_count > 0:
             yield batcher.finish_batch()
 
 class Examples(torch.utils.data.IterableDataset):

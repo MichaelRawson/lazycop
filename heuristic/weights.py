@@ -9,7 +9,7 @@ def fmt_weights(tensor):
         print(f"\t{value},")
 
 if __name__ == '__main__':
-    weights = torch.load(sys.argv[1], map_location='cpu')
+    weights = torch.load('model.pt', map_location='cpu')
 
     print(f"const uint32_t NODE_TYPES = {NODE_TYPES};")
     print(f"const uint32_t CHANNELS = {CHANNELS};")

@@ -42,7 +42,7 @@ impl<K: Ord, V> Queue<K, V> {
         self.heap.push(Item { priority, payload });
     }
 
-    pub fn dequeue(&mut self) -> Option<V> {
-        self.heap.pop().map(|item| item.payload)
+    pub fn dequeue(&mut self) -> Option<(K, V)> {
+        self.heap.pop().map(|item| (item.priority, item.payload))
     }
 }

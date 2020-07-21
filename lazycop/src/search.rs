@@ -55,7 +55,7 @@ fn dequeue(
             return false;
         }
 
-        if let Some(id) = attempt.queue.dequeue() {
+        if let Some((_priority, id)) = attempt.queue.dequeue() {
             *leaf = id;
             rules.extend(attempt.rule_store.get_list(id));
             attempt.in_flight += 1;
@@ -86,7 +86,10 @@ fn found_proof(attempt: &Mutex<Attempt>, proof: Vec<Rule>) {
 }
 
 fn heuristic(rules: &[Rule], tableau: &Tableau) -> f32 {
-    (tableau.num_open_branches() + (rules.len() as u16)) as f32
+    let open_branches = tableau.num_open_branches();
+    let depth = rules.len() as u16;
+    let heuristic = open_branches + depth;
+    heuristic as f32
 }
 
 fn task(problem: &Problem, statistics: &Statistics, attempt: &Mutex<Attempt>) {
@@ -133,7 +136,7 @@ fn task(problem: &Problem, statistics: &Statistics, attempt: &Mutex<Attempt>) {
 
         heuristic::model(&graph, &mut residuals);
         for (i, residual) in residuals.drain(..).enumerate() {
-            heuristics[i] += residual;
+            heuristics[i] += 1.0 * residual;
         }
         for (new, heuristic) in leaves.drain(..).zip(heuristics.drain(..)) {
             enqueue(attempt, new, Priority::new(heuristic));
@@ -152,7 +155,7 @@ pub fn search(problem: &Problem) -> (Statistics, Option<Vec<Rule>>) {
     let statistics = Statistics::new(problem);
     let attempt = Mutex::new(Attempt::default());
     thread::scope(|scope| {
-        for index in 0..2 * num_cpus::get() {
+        for index in 0..num_cpus::get() {
             scope
                 .builder()
                 .name(format!("search-{}", index))

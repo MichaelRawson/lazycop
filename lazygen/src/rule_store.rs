@@ -5,6 +5,7 @@ pub struct RuleList {
     rule: Rule,
     expanded: bool,
     heuristic: u16,
+    estimate: u16,
 }
 
 #[derive(Default)]
@@ -15,6 +16,10 @@ pub struct RuleStore {
 impl RuleStore {
     pub fn get_heuristic(&self, id: Id<RuleList>) -> u16 {
         self.tree[id].heuristic
+    }
+
+    pub fn get_estimate(&self, id: Id<RuleList>) -> u16 {
+        self.tree[id].estimate
     }
 
     pub fn get_list(
@@ -36,40 +41,36 @@ impl RuleStore {
         heuristic: u16,
     ) -> Id<RuleList> {
         let expanded = false;
+        let heuristic = heuristic as u16;
+        let estimate = heuristic;
         let list = RuleList {
             parent,
             rule,
             expanded,
             heuristic,
+            estimate,
         };
         self.tree.push(list)
     }
 
     pub fn mark_expanded(&mut self, id: Id<RuleList>) {
         self.tree[id].expanded = true;
+        self.tree[id].estimate = std::u16::MAX;
     }
 
-    pub fn recompute_heuristics(&mut self) {
-        for id in self.tree.range() {
-            if self.tree[id].expanded {
-                self.tree[id].heuristic = std::u16::MAX;
-            }
-        }
-
+    pub fn bubble_up(&mut self) {
         for id in self.tree.range().rev() {
-            let heuristic = self.tree[id].heuristic;
-            if heuristic == std::u16::MAX {
-                continue;
-            }
+            let estimate = self.tree[id].heuristic;
             let parent = if let Some(parent) = self.tree[id].parent {
                 parent
             } else {
                 continue;
             };
-            let distance = heuristic + 1;
-            let parent_distance = self.tree[parent].heuristic;
-            let recomputed = std::cmp::min(distance, parent_distance);
-            self.tree[parent].heuristic = recomputed;
+
+            let parent_estimate = 1 + estimate;
+            if parent_estimate < self.tree[parent].estimate {
+                self.tree[parent].estimate = parent_estimate;
+            }
         }
     }
 
@@ -77,6 +78,6 @@ impl RuleStore {
         self.tree
             .range()
             .filter(move |id| self.tree[*id].expanded)
-            .filter(move |id| self.tree[*id].heuristic != std::u16::MAX)
+            .filter(move |id| self.tree[*id].estimate != std::u16::MAX)
     }
 }

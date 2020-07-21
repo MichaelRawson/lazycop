@@ -4,9 +4,11 @@
 /Axioms
 /Problems
 /lazycop.zip
-/runs
+/heuristic/example.h
 /heuristic/weights.h
 /heuristic/test
+/heuristic/data.gz
+/heuristic/runs
 __pycache__
 *.a
 *.o
