@@ -1,0 +1,103 @@
+use crate::prelude::*;
+use std::ops::{Index, IndexMut};
+
+pub(crate) struct Block<T> {
+    items: Vec<T>,
+}
+
+impl<T> Block<T> {
+    pub(crate) fn clear(&mut self) {
+        self.items.truncate(1);
+    }
+
+    pub(crate) fn len(&self) -> Id<T> {
+        Id::new(non_zero(self.items.len() as u32))
+    }
+
+    pub(crate) fn offset(&self) -> Offset<T> {
+        Offset::new(self.items.len() as i32 - 1)
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.items.len() == 1
+    }
+
+    pub(crate) fn last(&self) -> Option<&T> {
+        self.as_slice().last()
+    }
+
+    pub(crate) fn last_mut(&mut self) -> Option<&mut T> {
+        self.as_mut_slice().last_mut()
+    }
+
+    pub(crate) fn range(&self) -> Range<T> {
+        Range::new(Id::default(), self.len())
+    }
+
+    pub(crate) fn push(&mut self, item: T) -> Id<T> {
+        let id = self.len();
+        self.items.push(item);
+        id
+    }
+
+    pub(crate) fn pop(&mut self) -> Option<T> {
+        self.items.pop()
+    }
+
+    pub(crate) fn truncate(&mut self, len: Id<T>) {
+        self.items.truncate(len.as_usize());
+    }
+
+    pub(crate) fn as_slice(&self) -> &[T] {
+        debug_assert!(!self.items.is_empty(), "should never be empty");
+        unsafe { self.items.get_unchecked(1..) }
+    }
+
+    pub(crate) fn as_mut_slice(&mut self) -> &mut [T] {
+        debug_assert!(!self.items.is_empty(), "should never be empty");
+        unsafe { self.items.get_unchecked_mut(1..) }
+    }
+}
+
+impl<T: Copy> Block<T> {
+    pub(crate) fn extend(&mut self, other: &Self) {
+        self.items.extend_from_slice(&other.as_slice());
+    }
+
+    pub(crate) fn copy_from(&mut self, other: &Self) {
+        self.items.clone_from(&other.items);
+    }
+}
+
+impl<T: Default> Block<T> {
+    pub(crate) fn resize(&mut self, len: Id<T>) {
+        self.items.resize_with(len.as_usize(), Default::default);
+    }
+}
+
+impl<T> Default for Block<T> {
+    fn default() -> Self {
+        let placeholder = std::mem::MaybeUninit::zeroed();
+        let placeholder = unsafe { placeholder.assume_init() };
+        let items = vec![placeholder];
+        Self { items }
+    }
+}
+
+impl<T> Index<Id<T>> for Block<T> {
+    type Output = T;
+
+    fn index(&self, id: Id<T>) -> &Self::Output {
+        let index = id.as_usize();
+        debug_assert!(index > 0 && index < self.items.len(), "out of range");
+        unsafe { self.items.get_unchecked(index) }
+    }
+}
+
+impl<T> IndexMut<Id<T>> for Block<T> {
+    fn index_mut(&mut self, id: Id<T>) -> &mut Self::Output {
+        let index = id.as_usize();
+        debug_assert!(index > 0 && index < self.items.len(), "out of range");
+        unsafe { self.items.get_unchecked_mut(index) }
+    }
+}
