@@ -54,7 +54,7 @@ impl<T> Iterator for Range<T> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let size = self.stop.as_usize() - self.start.as_usize();
+        let size = (self.stop.index() - self.start.index()) as usize;
         (size, Some(size))
     }
 }

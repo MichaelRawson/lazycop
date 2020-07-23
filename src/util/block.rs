@@ -7,27 +7,27 @@ pub(crate) struct Block<T> {
 
 impl<T> Block<T> {
     pub(crate) fn clear(&mut self) {
-        self.items.truncate(1);
+        self.items.clear();
     }
 
     pub(crate) fn len(&self) -> Id<T> {
-        Id::new(non_zero(self.items.len() as u32))
+        Id::new(self.items.len() as u32)
     }
 
     pub(crate) fn offset(&self) -> Offset<T> {
-        Offset::new(self.items.len() as i32 - 1)
+        Offset::new(self.items.len() as i32)
     }
 
     pub(crate) fn is_empty(&self) -> bool {
-        self.items.len() == 1
+        self.items.is_empty()
     }
 
     pub(crate) fn last(&self) -> Option<&T> {
-        self.as_slice().last()
+        self.items.last()
     }
 
     pub(crate) fn last_mut(&mut self) -> Option<&mut T> {
-        self.as_mut_slice().last_mut()
+        self.items.last_mut()
     }
 
     pub(crate) fn range(&self) -> Range<T> {
@@ -45,41 +45,31 @@ impl<T> Block<T> {
     }
 
     pub(crate) fn truncate(&mut self, len: Id<T>) {
-        self.items.truncate(len.as_usize());
-    }
-
-    pub(crate) fn as_slice(&self) -> &[T] {
-        debug_assert!(!self.items.is_empty(), "should never be empty");
-        unsafe { self.items.get_unchecked(1..) }
-    }
-
-    pub(crate) fn as_mut_slice(&mut self) -> &mut [T] {
-        debug_assert!(!self.items.is_empty(), "should never be empty");
-        unsafe { self.items.get_unchecked_mut(1..) }
+        self.items.truncate(len.index() as usize);
     }
 }
 
 impl<T: Copy> Block<T> {
     pub(crate) fn extend(&mut self, other: &Self) {
-        self.items.extend_from_slice(&other.as_slice());
+        self.items.extend_from_slice(&other.items);
     }
 
     pub(crate) fn copy_from(&mut self, other: &Self) {
-        self.items.clone_from(&other.items);
+        self.items.clear();
+        self.items.extend_from_slice(&other.items);
     }
 }
 
 impl<T: Default> Block<T> {
     pub(crate) fn resize(&mut self, len: Id<T>) {
-        self.items.resize_with(len.as_usize(), Default::default);
+        self.items
+            .resize_with(len.index() as usize, Default::default);
     }
 }
 
 impl<T> Default for Block<T> {
     fn default() -> Self {
-        let placeholder = std::mem::MaybeUninit::zeroed();
-        let placeholder = unsafe { placeholder.assume_init() };
-        let items = vec![placeholder];
+        let items = vec![];
         Self { items }
     }
 }
@@ -88,16 +78,16 @@ impl<T> Index<Id<T>> for Block<T> {
     type Output = T;
 
     fn index(&self, id: Id<T>) -> &Self::Output {
-        let index = id.as_usize();
-        debug_assert!(index > 0 && index < self.items.len(), "out of range");
+        let index = id.index() as usize;
+        debug_assert!(index < self.items.len(), "out of range");
         unsafe { self.items.get_unchecked(index) }
     }
 }
 
 impl<T> IndexMut<Id<T>> for Block<T> {
     fn index_mut(&mut self, id: Id<T>) -> &mut Self::Output {
-        let index = id.as_usize();
-        debug_assert!(index > 0 && index < self.items.len(), "out of range");
+        let index = id.index() as usize;
+        debug_assert!(index < self.items.len(), "out of range");
         unsafe { self.items.get_unchecked_mut(index) }
     }
 }

@@ -1,6 +1,7 @@
 use crate::constraint::Constraints;
 use crate::prelude::*;
 use crate::record::Record;
+use crate::rule::*;
 use std::iter::once;
 
 fn argument_pairs<'terms>(
@@ -67,13 +68,13 @@ impl Clause {
             start.clause,
         );
         record.inference(
-            problem.signature(),
+            &problem.symbols,
             terms,
             literals,
             "start",
             None,
             None,
-            &[start],
+            &[start.open()],
         );
         start
     }
@@ -96,7 +97,7 @@ impl Clause {
             "reflexivity",
             once((left, right)),
             None,
-            &[*self],
+            &[self.open()],
         );
     }
 
@@ -120,7 +121,7 @@ impl Clause {
             "predicate_reduction",
             assertions.clone(),
             Some(q),
-            &[*self],
+            &[self.open()],
         );
         for (s, t) in assertions {
             constraints.assert_eq(s, t);
@@ -170,7 +171,7 @@ impl Clause {
             "equality_reduction",
             once((target, from)).chain(fresh_constraint),
             Some(&literals[reduction.literal]),
-            &[self.closed(), consequence],
+            &[self.remaining(), consequence.open()],
         );
         consequence
     }
@@ -218,7 +219,7 @@ impl Clause {
             "subterm_reduction",
             once((target, from)).chain(fresh_constraint),
             Some(&literals[reduction.literal]),
-            &[self.closed(), consequence],
+            &[self.remaining(), consequence.open()],
         );
         consequence
     }
@@ -242,15 +243,15 @@ impl Clause {
         );
         let p = &literals[self.current];
         let q = &literals[extension.close_literal()];
-        let assertions = argument_pairs(problem.signature(), terms, p, q);
+        let assertions = argument_pairs(&problem.symbols, terms, p, q);
         record.inference(
-            problem.signature(),
+            &problem.symbols,
             terms,
             literals,
             "strict_predicate_extension",
             assertions.clone(),
             None,
-            &[self.closed(), extension],
+            &[self.remaining(), extension.open()],
         );
 
         for (parg, qarg) in assertions {
@@ -278,8 +279,8 @@ impl Clause {
         );
         let p = &literals[self.current];
         let q = &literals[extension.current];
-        let pargs = p.get_predicate_arguments(problem.signature(), terms);
-        let qargs = q.get_predicate_arguments(problem.signature(), terms);
+        let pargs = p.get_predicate_arguments(&problem.symbols, terms);
+        let qargs = q.get_predicate_arguments(&problem.symbols, terms);
 
         let fresh_start = terms.len();
         for parg in pargs {
@@ -297,13 +298,13 @@ impl Clause {
         let disequations = Self::new(disequation_start, disequation_end);
 
         record.inference(
-            problem.signature(),
+            &problem.symbols,
             terms,
             literals,
             "lazy_predicate_extension",
             fresh.zip(pargs.map(|p| terms.resolve(p))),
             None,
-            &[self.closed(), extension.closed(), disequations],
+            &[self.remaining(), extension.remaining(), disequations.open()],
         );
         (extension, disequations)
     }
@@ -333,7 +334,7 @@ impl Clause {
 
         literals.push(Literal::disequation(fresh, to));
         literals.push(literals[self.current].subst(
-            problem.signature(),
+            &problem.symbols,
             terms,
             constraints,
             target,
@@ -343,13 +344,13 @@ impl Clause {
         let consequence = Self::new(start, end);
 
         record.inference(
-            problem.signature(),
+            &problem.symbols,
             terms,
             literals,
             "strict_function_extension",
             once((target, from)),
             None,
-            &[self.closed(), extension.closed(), consequence],
+            &[self.remaining(), extension.remaining(), consequence.open()],
         );
         (extension, consequence)
     }
@@ -375,23 +376,23 @@ impl Clause {
         let start = literals.len();
         let fresh = terms.add_variable();
         let placeholder =
-            terms.fresh_function(problem.signature(), terms.symbol(from));
+            terms.fresh_function(&problem.symbols, terms.symbol(from));
         constraints.assert_eq(target, placeholder);
         constraints.assert_neq(from, target);
         constraints.assert_gt(placeholder, fresh);
 
         let ss = terms
-            .arguments(problem.signature(), placeholder)
+            .arguments(&problem.symbols, placeholder)
             .map(|s| terms.resolve(s));
         let ts = terms
-            .arguments(problem.signature(), from)
+            .arguments(&problem.symbols, from)
             .map(|t| terms.resolve(t));
         for (s, t) in ss.zip(ts) {
             literals.push(Literal::disequation(s, t));
         }
         literals.push(Literal::disequation(fresh, to));
         literals.push(literals[self.current].subst(
-            problem.signature(),
+            &problem.symbols,
             terms,
             constraints,
             target,
@@ -401,13 +402,13 @@ impl Clause {
         let consequence = Self::new(start, end);
 
         record.inference(
-            problem.signature(),
+            &problem.symbols,
             terms,
             literals,
             "lazy_function_extension",
             once((placeholder, target)),
             None,
-            &[self.closed(), extension.closed(), consequence],
+            &[self.remaining(), extension.remaining(), consequence.open()],
         );
         (extension, consequence)
     }
@@ -435,7 +436,7 @@ impl Clause {
         let fresh = terms.add_variable();
         literals.push(Literal::disequation(to, fresh));
         literals.push(literals[self.current].subst(
-            problem.signature(),
+            &problem.symbols,
             terms,
             constraints,
             target,
@@ -447,13 +448,13 @@ impl Clause {
         constraints.assert_eq(target, from);
         constraints.assert_gt(from, fresh);
         record.inference(
-            problem.signature(),
+            &problem.symbols,
             terms,
             literals,
             "variable_extension",
             once((target, from)),
             None,
-            &[self.closed(), extension.closed(), consequence],
+            &[self.remaining(), extension.remaining(), consequence.open()],
         );
 
         (extension, consequence)
@@ -489,23 +490,23 @@ impl Clause {
         };
 
         let placeholder =
-            terms.fresh_function(problem.signature(), terms.symbol(target));
+            terms.fresh_function(&problem.symbols, terms.symbol(target));
         constraints.assert_eq(placeholder, from);
         constraints.assert_gt(from, to);
         constraints.assert_neq(target, from);
 
         let start = literals.len();
         let ss = terms
-            .arguments(problem.signature(), placeholder)
+            .arguments(&problem.symbols, placeholder)
             .map(|s| terms.resolve(s));
         let ts = terms
-            .arguments(problem.signature(), target)
+            .arguments(&problem.symbols, target)
             .map(|t| terms.resolve(t));
         for (s, t) in ss.zip(ts) {
             literals.push(Literal::disequation(s, t));
         }
         literals.push(literals[extension.current].subst(
-            problem.signature(),
+            &problem.symbols,
             terms,
             constraints,
             target,
@@ -515,13 +516,13 @@ impl Clause {
         let consequence = Self::new(start, end);
 
         record.inference(
-            problem.signature(),
+            &problem.symbols,
             terms,
             literals,
             "lazy_subterm_extension",
             once((placeholder, from)).chain(fresh_constraint),
             None,
-            &[self.closed(), extension.closed(), consequence],
+            &[self.remaining(), extension.remaining(), consequence.open()],
         );
         (extension, consequence)
     }
@@ -560,7 +561,7 @@ impl Clause {
 
         let start = literals.len();
         literals.push(literals[extension.current].subst(
-            problem.signature(),
+            &problem.symbols,
             terms,
             constraints,
             target,
@@ -570,13 +571,13 @@ impl Clause {
         let consequence = Self::new(start, end);
 
         record.inference(
-            problem.signature(),
+            &problem.symbols,
             terms,
             literals,
             "strict_subterm_extension",
             once((target, from)).chain(fresh_constraint),
             None,
-            &[self.closed(), extension.closed(), consequence],
+            &[self.remaining(), extension.remaining(), consequence.open()],
         );
         (extension, consequence)
     }
@@ -590,7 +591,7 @@ impl Clause {
         extension: PredicateExtension,
     ) -> Self {
         let occurrence =
-            problem.get_predicate_occurrence(extension.occurrence);
+            &problem.index.predicate_occurrences[extension.occurrence];
         Self::extension(
             record,
             problem,
@@ -610,7 +611,8 @@ impl Clause {
         constraints: &mut Constraints,
         extension: EqualityExtension,
     ) -> (Self, Id<Term>, Id<Term>) {
-        let occurrence = problem.get_equality_occurrence(extension.occurrence);
+        let occurrence =
+            &problem.index.equality_occurrences[extension.occurrence];
         let extension = Self::extension(
             record,
             problem,
@@ -622,7 +624,7 @@ impl Clause {
         );
 
         let (left, right) = literals[extension.current].get_equality();
-        let (from, to) = if occurrence.lr {
+        let (from, to) = if occurrence.l2r {
             (left, right)
         } else {
             (right, left)
@@ -638,8 +640,9 @@ impl Clause {
         constraints: &mut Constraints,
         extension: SubtermExtension,
     ) -> (Self, Id<Term>) {
-        let occurrence = problem.get_subterm_occurrence(extension.occurrence);
-        let target = occurrence.subterm + terms.offset();
+        let occurrence =
+            &problem.index.subterm_occurrences[extension.occurrence];
+        let target = occurrence.subterm + terms.current_offset();
         let extension = Self::extension(
             record,
             problem,
@@ -684,9 +687,9 @@ impl Clause {
         clause: Id<ProblemClause>,
     ) -> Self {
         let start = literals.len();
-        let offset = terms.offset();
+        let offset = terms.current_offset();
 
-        let clause = problem.get_clause(clause);
+        let clause = &problem.clauses[clause];
         terms.extend(&clause.terms);
         literals.extend(&clause.literals);
 
@@ -697,7 +700,7 @@ impl Clause {
         let clause = Self::new(start, end);
         clause.add_tautology_constraints(constraints, terms, literals);
 
-        record.axiom(problem.signature(), terms, literals, clause);
+        record.axiom(&problem.symbols, terms, literals, clause);
         clause
     }
 
@@ -723,11 +726,5 @@ impl Clause {
                 }
             }
         }
-    }
-
-    fn closed(self) -> Self {
-        let current = self.current + Offset::new(1);
-        let end = self.end;
-        Self { current, end }
     }
 }

@@ -1,4 +1,3 @@
-use crate::atom::Atom;
 use crate::constraint::Constraints;
 use crate::prelude::*;
 
@@ -49,12 +48,13 @@ impl Literal {
         self.atom.get_equality()
     }
 
+    #[cfg(feature = "nn")]
     pub(crate) fn graph(
         &self,
         graph: &mut Graph,
         symbols: &Symbols,
         terms: &Terms,
-        bindings: &Bindings,
+        bindings: &crate::binding::Bindings,
     ) -> Id<Node> {
         let atom = self.atom.graph(graph, symbols, terms, bindings);
         if !self.polarity {

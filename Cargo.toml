@@ -8,13 +8,16 @@ license = "MIT"
 [features]
 nn = ["lazynn"]
 
-[dependencies.lazynn]
-optional = true
-path = "lazynn"
-
 [dependencies]
 crossbeam-utils = "0.7"
 fnv = "1.0"
 num_cpus = "1.13"
-parking_lot = "0.10"
+parking_lot = "0.11"
 tptp = "0.23"
+
+[dependencies.lazynn]
+optional = true
+path = "lazynn"
+
+[profile.release]
+panic = "abort"

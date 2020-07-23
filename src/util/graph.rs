@@ -38,7 +38,7 @@ impl Graph {
 
     pub(crate) fn finish_subgraph(&mut self) {
         self.subgraphs += 1;
-        self.node_batch.push(self.nodes.len().as_u32() - 1);
+        self.node_batch.push(self.nodes.len().index());
         self.edge_batch.push(self.from.len() as u32);
         self.symbols.resize(Id::default());
         self.terms.resize(Id::default());
@@ -50,8 +50,8 @@ impl Graph {
     }
 
     pub(crate) fn connect(&mut self, from: Id<Node>, to: Id<Node>) {
-        self.from.push(from.as_u32() - 1);
-        self.to.push(to.as_u32() - 1);
+        self.from.push(from.index());
+        self.to.push(to.index());
     }
 
     pub(crate) fn symbol(&mut self, symbol: Id<Symbol>) -> Id<Node> {
@@ -87,11 +87,11 @@ impl Graph {
         application
     }
 
-    pub(crate) fn get_term(&self, term: Id<Term>) -> Option<Id<Node>> {
+    pub(crate) fn get_cached_term(&self, term: Id<Term>) -> Option<Id<Node>> {
         self.terms[term]
     }
 
-    pub(crate) fn set_term(&mut self, term: Id<Term>, node: Id<Node>) {
+    pub(crate) fn cache_term(&mut self, term: Id<Term>, node: Id<Node>) {
         self.terms[term] = Some(node);
     }
 

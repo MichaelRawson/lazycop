@@ -1,3 +1,4 @@
+use crate::index::*;
 use crate::prelude::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -53,7 +54,7 @@ pub(crate) enum Rule {
 }
 
 impl Rule {
-    pub(crate) fn lr(&self) -> bool {
+    pub(crate) fn is_l2r(&self) -> bool {
         match self {
             Rule::LREqualityReduction(_)
             | Rule::LRSubtermReduction(_)

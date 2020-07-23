@@ -1,9 +1,9 @@
+use crate::goal::Goal;
 use crate::prelude::*;
 use crate::priority::Priority;
 use crate::record::Silent;
 use crate::rule_store::*;
 use crate::statistics::Statistics;
-use crate::tableau::Tableau;
 use crate::util::queue::Queue;
 use crossbeam_utils::thread;
 use parking_lot::Mutex;
@@ -85,8 +85,8 @@ fn found_proof(attempt: &Mutex<Attempt>, proof: Vec<Rule>) {
     attempt.proof = Some(proof);
 }
 
-fn heuristic(rules: &[Rule], tableau: &Tableau) -> f32 {
-    let open_branches = tableau.num_open_branches();
+fn heuristic(rules: &[Rule], goal: &Goal) -> f32 {
+    let open_branches = goal.num_open_branches();
     let depth = rules.len() as u16;
     let heuristic = open_branches + depth;
     heuristic as f32
@@ -96,58 +96,48 @@ fn task(problem: &Problem, statistics: &Statistics, attempt: &Mutex<Attempt>) {
     let mut leaf = None;
     let mut rules = vec![];
     let mut possible = vec![];
-    let mut tableau = Tableau::new(&*problem);
+    let mut goal = Goal::new(problem);
     let mut leaves = vec![];
     let mut heuristics = vec![];
-    let mut residuals = vec![];
-    let mut graph = Graph::default();
 
     while dequeue(attempt, &mut leaf, &mut rules) {
         let mut record = Silent; //crate::io::tstp::TSTP::default();
         for rule in rules.iter().rev() {
-            tableau.apply_rule(&mut record, rule);
+            goal.apply_rule(&mut record, rule);
         }
-        if !tableau.simplify_constraints() {
+        if !goal.simplify_constraints() {
             unreachable()
         }
 
-        tableau.possible_rules(&mut possible);
-        tableau.save();
+        goal.possible_rules(&mut possible);
+        goal.save();
         for rule in possible.drain(..) {
-            tableau.apply_rule(&mut Silent, &rule);
-            if tableau.solve_constraints() {
-                if tableau.is_closed() {
+            goal.apply_rule(&mut Silent, &rule);
+            if goal.solve_constraints() {
+                if goal.is_closed() {
                     rules.reverse();
                     rules.push(rule);
                     found_proof(attempt, rules);
                     return;
                 }
                 leaves.push(add_rule(attempt, leaf, rule));
-                heuristics.push(heuristic(&rules, &tableau));
-                residuals.push(0.0);
-                tableau.graph(&mut graph);
-                graph.finish_subgraph();
+                heuristics.push(heuristic(&rules, &goal));
             } else {
-                statistics.increment_discarded_tableaux();
+                statistics.increment_discarded_goals();
             }
-            tableau.restore();
-            statistics.increment_total_tableaux();
+            goal.restore();
+            statistics.increment_total_goals();
         }
 
-        //heuristic::model(&graph, &mut residuals);
-        for (i, residual) in residuals.drain(..).enumerate() {
-            heuristics[i] += 1.0 * residual;
-        }
         for (new, heuristic) in leaves.drain(..).zip(heuristics.drain(..)) {
             enqueue(attempt, new, Priority::new(heuristic));
-            statistics.increment_enqueued_tableaux();
+            statistics.increment_enqueued_goals();
         }
 
-        statistics.increment_expanded_tableaux();
+        statistics.increment_expanded_goals();
         let closed = finish(attempt, leaf);
-        statistics.exhausted_tableaux(closed);
-        tableau.clear();
-        graph.clear();
+        statistics.exhausted_goals(closed);
+        goal.clear();
     }
 }
 

@@ -21,7 +21,7 @@ pub(crate) trait Record {
         _inference: &'static str,
         _equations: I,
         _literal: Option<&Literal>,
-        _deductions: &[Clause],
+        _deductions: &[Range<Literal>],
     ) {
     }
 

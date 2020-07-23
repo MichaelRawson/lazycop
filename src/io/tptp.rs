@@ -1,6 +1,7 @@
 use crate::io::exit;
 use crate::io::szs;
 use crate::prelude::*;
+use crate::problem_builder::ProblemBuilder;
 use std::fmt;
 use std::io::Read;
 use tptp::parsers::TPTPIterator;
@@ -137,6 +138,6 @@ pub(crate) fn load_from_stdin() -> Problem {
         }
         buf = parser.remaining.to_vec();
     }
-    assert!(buf.is_empty());
+    debug_assert!(buf.is_empty());
     builder.finish()
 }

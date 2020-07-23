@@ -76,17 +76,16 @@ impl TSTP {
         symbols: &Symbols,
         terms: &Terms,
         literals: &Literals,
-        clause: Clause,
+        mut clause: Range<Literal>,
     ) {
-        let mut range = clause.open();
-        if let Some(id) = range.next() {
+        if let Some(id) = clause.next() {
             let literal = &literals[id];
             self.print_literal(symbols, terms, literal);
         } else {
             print!("$false");
             return;
         }
-        for id in range {
+        for id in clause {
             let literal = &literals[id];
             print!(" | ");
             self.print_literal(symbols, terms, literal);
@@ -105,7 +104,7 @@ impl Record for TSTP {
         print!("cnf(c{}, axiom,\n\t", self.clause_number);
         self.premise_list.push(self.clause_number);
         self.clause_number += 1;
-        self.print_clause(symbols, terms, literals, axiom);
+        self.print_clause(symbols, terms, literals, axiom.open());
         println!(").");
     }
 
@@ -117,7 +116,7 @@ impl Record for TSTP {
         inference: &'static str,
         equations: I,
         literal: Option<&Literal>,
-        deductions: &[Clause],
+        deductions: &[Range<Literal>],
     ) {
         if let Some(literal) = literal {
             print!("cnf(c{}, plain,\n\t", self.clause_number);
@@ -140,7 +139,7 @@ impl Record for TSTP {
 
         for deduction in deductions {
             print!("cnf(c{}, plain,\n\t", self.clause_number);
-            if !deduction.is_empty() {
+            if Range::is_empty(*deduction) {
                 self.clause_stack.push(self.clause_number);
             }
             self.clause_number += 1;
@@ -215,8 +214,4 @@ impl Record for TSTP {
     fn statistic<T: Display>(&mut self, key: &'static str, value: T) {
         println!("% {}: {}", key, value);
     }
-}
-
-pub(crate) fn trivial_proof() {
-    println!("cnf(c0, axiom,\n\t$false).");
 }

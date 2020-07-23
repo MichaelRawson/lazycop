@@ -60,12 +60,13 @@ impl Atom {
         terms.arguments(symbols, self.get_predicate())
     }
 
+    #[cfg(feature = "nn")]
     pub(crate) fn graph(
         &self,
         graph: &mut Graph,
         symbols: &Symbols,
         terms: &Terms,
-        bindings: &Bindings,
+        bindings: &crate::binding::Bindings,
     ) -> Id<Node> {
         match self {
             Atom::Predicate(p) => bindings.graph(graph, symbols, terms, *p),
@@ -110,11 +111,12 @@ impl Atom {
                 let subst = terms.subst(symbols, *left, from, to);
                 if subst != *left {
                     constraints.assert_gt(*left, *right);
-                    return Atom::Equality(subst, *right);
+                    Atom::Equality(subst, *right)
+                } else {
+                    constraints.assert_gt(*right, *left);
+                    let subst = terms.subst(symbols, *right, from, to);
+                    Atom::Equality(*left, subst)
                 }
-                constraints.assert_gt(*right, *left);
-                let subst = terms.subst(symbols, *right, from, to);
-                Atom::Equality(*left, subst)
             }
         }
     }
