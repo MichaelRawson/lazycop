@@ -24,8 +24,8 @@ pub(crate) struct EqualityReduction {
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct EqualityExtension {
-    pub(crate) target: Id<Term>,
     pub(crate) occurrence: Id<EqualityOccurrence>,
+    pub(crate) target: Id<Term>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

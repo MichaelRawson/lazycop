@@ -15,8 +15,9 @@ pub(crate) struct RuleStore {
 impl RuleStore {
     pub(crate) fn get_list(
         &self,
-        mut current: Option<Id<RuleList>>,
+        leaf: Id<RuleList>,
     ) -> impl Iterator<Item = Rule> + '_ {
+        let mut current = Some(leaf);
         std::iter::from_fn(move || {
             let list = &self.tree[current?];
             let rule = Some(list.rule);
@@ -48,11 +49,9 @@ impl RuleStore {
         }
     }
 
-    pub(crate) fn mark_done(
-        &mut self,
-        mut current: Option<Id<RuleList>>,
-    ) -> u16 {
+    pub(crate) fn mark_done(&mut self, leaf: Id<RuleList>) -> u16 {
         let mut closed = 0;
+        let mut current = Some(leaf);
         while let Some(id) = current {
             let leaf = &mut self.tree[id];
             leaf.count -= 1;
