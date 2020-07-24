@@ -167,8 +167,8 @@ impl Tableau {
                 );
                 self.close_branches();
             }
-            Rule::PredicateReduction(reduction) => {
-                some(self.stack.last_mut()).predicate_reduction(
+            Rule::Reduction(reduction) => {
+                some(self.stack.last_mut()).reduction(
                     record,
                     &problem.symbols,
                     terms,
@@ -179,54 +179,71 @@ impl Tableau {
                 self.reduction_validity(reduction.literal);
                 self.close_branches();
             }
-            Rule::LREqualityReduction(reduction)
-            | Rule::RLEqualityReduction(reduction) => {
+            Rule::LRForwardDemodulation(demodulation)
+            | Rule::RLForwardDemodulation(demodulation) => {
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
                 let consequence = some(self.stack.last_mut())
-                    .equality_reduction(
+                    .forward_demodulation(
                         record,
                         &problem.symbols,
                         terms,
                         &mut self.literals,
                         constraints,
-                        reduction,
+                        demodulation,
                         rule.is_l2r(),
                     );
                 self.push(consequence);
-                self.reduction_validity(reduction.literal);
+                self.reduction_validity(demodulation.literal);
             }
-            Rule::LRSubtermReduction(reduction)
-            | Rule::RLSubtermReduction(reduction) => {
+            Rule::LRBackwardDemodulation(demodulation)
+            | Rule::RLBackwardDemodulation(demodulation) => {
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
                 let consequence = some(self.stack.last_mut())
-                    .subterm_reduction(
+                    .backward_demodulation(
                         record,
                         &problem.symbols,
                         terms,
                         &mut self.literals,
                         constraints,
-                        reduction,
+                        demodulation,
                         rule.is_l2r(),
                     );
                 self.push(consequence);
-                self.reduction_validity(reduction.literal);
+                self.reduction_validity(demodulation.literal);
             }
-            Rule::LazyPredicateExtension(extension) => {
+            Rule::StrictExtension(extension) => {
+                self.add_regularity_constraints(
+                    constraints,
+                    terms,
+                    &self.literals,
+                );
+                let extension = some(self.stack.last_mut()).strict_extension(
+                    record,
+                    problem,
+                    terms,
+                    &mut self.literals,
+                    constraints,
+                    extension,
+                );
+                self.push(extension);
+                self.close_branches();
+            }
+            Rule::LazyExtension(extension) => {
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
                 let (extension, consequence) = some(self.stack.last_mut())
-                    .lazy_predicate_extension(
+                    .lazy_extension(
                         record,
                         problem,
                         terms,
@@ -244,38 +261,20 @@ impl Tableau {
                 self.push(consequence);
                 self.close_branches();
             }
-            Rule::StrictPredicateExtension(extension) => {
-                self.add_regularity_constraints(
-                    constraints,
-                    terms,
-                    &self.literals,
-                );
-                let extension = some(self.stack.last_mut())
-                    .strict_predicate_extension(
-                        record,
-                        problem,
-                        terms,
-                        &mut self.literals,
-                        constraints,
-                        extension,
-                    );
-                self.push(extension);
-                self.close_branches();
-            }
-            Rule::StrictFunctionExtension(extension) => {
+            Rule::StrictBackwardParamodulation(paramodulation) => {
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
                 let (extension, consequence) = some(self.stack.last_mut())
-                    .strict_function_extension(
+                    .strict_backward_paramodulation(
                         record,
                         problem,
                         terms,
                         &mut self.literals,
                         constraints,
-                        extension,
+                        paramodulation,
                     );
                 self.push(extension);
                 self.extension_validity();
@@ -286,20 +285,20 @@ impl Tableau {
                 );
                 self.push(consequence);
             }
-            Rule::LazyFunctionExtension(extension) => {
+            Rule::LazyBackwardParamodulation(paramodulation) => {
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
                 let (extension, consequence) = some(self.stack.last_mut())
-                    .lazy_function_extension(
+                    .lazy_backward_paramodulation(
                         record,
                         problem,
                         terms,
                         &mut self.literals,
                         constraints,
-                        extension,
+                        paramodulation,
                     );
                 self.push(extension);
                 self.extension_validity();
@@ -310,20 +309,20 @@ impl Tableau {
                 );
                 self.push(consequence);
             }
-            Rule::VariableExtension(extension) => {
+            Rule::VariableBackwardParamodulation(paramodulation) => {
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
                 let (extension, consequence) = some(self.stack.last_mut())
-                    .variable_extension(
+                    .variable_backward_paramodulation(
                         record,
                         problem,
                         terms,
                         &mut self.literals,
                         constraints,
-                        extension,
+                        paramodulation,
                     );
                 self.push(extension);
                 self.extension_validity();
@@ -334,21 +333,21 @@ impl Tableau {
                 );
                 self.push(consequence);
             }
-            Rule::LRStrictSubtermExtension(extension)
-            | Rule::RLStrictSubtermExtension(extension) => {
+            Rule::LRStrictForwardParamodulation(paramodulation)
+            | Rule::RLStrictForwardParamodulation(paramodulation) => {
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
                 let (extension, consequence) = some(self.stack.last_mut())
-                    .strict_subterm_extension(
+                    .strict_forward_paramodulation(
                         record,
                         problem,
                         terms,
                         &mut self.literals,
                         constraints,
-                        extension,
+                        paramodulation,
                         rule.is_l2r(),
                     );
                 self.push(extension);
@@ -360,21 +359,21 @@ impl Tableau {
                 );
                 self.push(consequence);
             }
-            Rule::LRLazySubtermExtension(extension)
-            | Rule::RLLazySubtermExtension(extension) => {
+            Rule::LRLazyForwardParamodulation(paramodulation)
+            | Rule::RLLazyForwardParamodulation(paramodulation) => {
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
                 let (extension, consequence) = some(self.stack.last_mut())
-                    .lazy_subterm_extension(
+                    .lazy_forward_paramodulation(
                         record,
                         problem,
                         terms,
                         &mut self.literals,
                         constraints,
-                        extension,
+                        paramodulation,
                         rule.is_l2r(),
                     );
                 self.push(extension);

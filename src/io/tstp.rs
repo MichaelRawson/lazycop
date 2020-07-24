@@ -137,11 +137,18 @@ impl Record for TSTP {
             self.assumption_number += 1;
         }
 
+        let mut remaining_deductions = deductions.len();
         for deduction in deductions {
-            print!("cnf(c{}, plain,\n\t", self.clause_number);
+            remaining_deductions -= 1;
             if Range::is_empty(*deduction) {
+                if remaining_deductions > 0 {
+                    continue;
+                }
+            } else {
                 self.clause_stack.push(self.clause_number);
             }
+
+            print!("cnf(c{}, plain,\n\t", self.clause_number);
             self.clause_number += 1;
             self.print_clause(symbols, terms, literals, *deduction);
 

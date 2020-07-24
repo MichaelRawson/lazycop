@@ -18,7 +18,7 @@ pub(crate) fn rules<E: Extend<Rule>>(
     } else if literal.is_equality() {
         equality_rules(possible, tableau, problem, terms, literals, literal);
     }
-    equality_reduction_rules(
+    forward_demodulation_rules(
         possible,
         tableau,
         &problem.symbols,
@@ -26,7 +26,65 @@ pub(crate) fn rules<E: Extend<Rule>>(
         literals,
         literal,
     );
-    equality_extension_rules(possible, problem, terms, literal);
+    backward_paramodulation_rules(possible, problem, terms, literal);
+}
+
+fn forward_demodulation_rules<E: Extend<Rule>>(
+    possible: &mut E,
+    tableau: &Tableau,
+    symbols: &Symbols,
+    terms: &Terms,
+    literals: &Literals,
+    literal: &Literal,
+) {
+    for id in tableau.reduction_literals() {
+        let reduction = &literals[id];
+        if !reduction.polarity || !reduction.is_equality() {
+            continue;
+        }
+        let (left, right) = reduction.get_equality();
+        literal.subterms(symbols, terms, &mut |target| {
+            possible.extend(
+                demodulation(terms, id, target, left)
+                    .map(Rule::LRForwardDemodulation),
+            );
+            possible.extend(
+                demodulation(terms, id, target, right)
+                    .map(Rule::RLForwardDemodulation),
+            );
+        });
+    }
+}
+
+fn backward_paramodulation_rules<E: Extend<Rule>>(
+    possible: &mut E,
+    problem: &Problem,
+    terms: &Terms,
+    literal: &Literal,
+) {
+    literal.subterms(&problem.symbols, terms, &mut |target| {
+        possible.extend(
+            problem
+                .index
+                .query_variable_equalities()
+                .map(|occurrence| BackwardParamodulation {
+                    target,
+                    occurrence,
+                })
+                .map(Rule::VariableBackwardParamodulation),
+        );
+
+        let symbol = terms.symbol(target);
+        let backward_paramodulations = problem
+            .index
+            .query_function_equalities(symbol)
+            .map(|occurrence| BackwardParamodulation { target, occurrence });
+        for extension in backward_paramodulations {
+            possible.extend(once(Rule::LazyBackwardParamodulation(extension)));
+            possible
+                .extend(once(Rule::StrictBackwardParamodulation(extension)));
+        }
+    });
 }
 
 fn predicate_rules<E: Extend<Rule>>(
@@ -37,11 +95,11 @@ fn predicate_rules<E: Extend<Rule>>(
     literals: &Literals,
     literal: &Literal,
 ) {
-    predicate_reduction_rules(possible, tableau, terms, literals, literal);
-    predicate_extension_rules(possible, problem, terms, literal);
+    reduction_rules(possible, tableau, terms, literals, literal);
+    extension_rules(possible, problem, terms, literal);
 }
 
-fn predicate_reduction_rules<E: Extend<Rule>>(
+fn reduction_rules<E: Extend<Rule>>(
     possible: &mut E,
     tableau: &Tableau,
     terms: &Terms,
@@ -59,12 +117,12 @@ fn predicate_reduction_rules<E: Extend<Rule>>(
                     && reduction.is_predicate()
                     && reduction.get_predicate_symbol(terms) == symbol
             })
-            .map(|literal| PredicateReduction { literal })
-            .map(Rule::PredicateReduction),
+            .map(|literal| Reduction { literal })
+            .map(Rule::Reduction),
     );
 }
 
-fn predicate_extension_rules<E: Extend<Rule>>(
+fn extension_rules<E: Extend<Rule>>(
     possible: &mut E,
     problem: &Problem,
     terms: &Terms,
@@ -75,68 +133,14 @@ fn predicate_extension_rules<E: Extend<Rule>>(
     let extensions = problem
         .index
         .query_predicates(polarity, symbol)
-        .map(|occurrence| PredicateExtension { occurrence });
+        .map(|occurrence| Extension { occurrence });
 
     for extension in extensions {
         if problem.has_equality {
-            possible.extend(once(Rule::LazyPredicateExtension(extension)));
+            possible.extend(once(Rule::LazyExtension(extension)));
         }
-        possible.extend(once(Rule::StrictPredicateExtension(extension)));
+        possible.extend(once(Rule::StrictExtension(extension)));
     }
-}
-
-fn equality_reduction_rules<E: Extend<Rule>>(
-    possible: &mut E,
-    tableau: &Tableau,
-    symbols: &Symbols,
-    terms: &Terms,
-    literals: &Literals,
-    literal: &Literal,
-) {
-    for id in tableau.reduction_literals() {
-        let reduction = &literals[id];
-        if !reduction.polarity || !reduction.is_equality() {
-            continue;
-        }
-        let (left, right) = reduction.get_equality();
-        literal.subterms(symbols, terms, &mut |target| {
-            possible.extend(
-                equality_reduction(terms, id, target, left)
-                    .map(Rule::LREqualityReduction),
-            );
-            possible.extend(
-                equality_reduction(terms, id, target, right)
-                    .map(Rule::RLEqualityReduction),
-            );
-        });
-    }
-}
-
-fn equality_extension_rules<E: Extend<Rule>>(
-    possible: &mut E,
-    problem: &Problem,
-    terms: &Terms,
-    literal: &Literal,
-) {
-    literal.subterms(&problem.symbols, terms, &mut |target| {
-        possible.extend(
-            problem
-                .index
-                .query_variable_equalities()
-                .map(|occurrence| EqualityExtension { target, occurrence })
-                .map(Rule::VariableExtension),
-        );
-
-        let symbol = terms.symbol(target);
-        let function_extensions = problem
-            .index
-            .query_function_equalities(symbol)
-            .map(|occurrence| EqualityExtension { target, occurrence });
-        for extension in function_extensions {
-            possible.extend(once(Rule::LazyFunctionExtension(extension)));
-            possible.extend(once(Rule::StrictFunctionExtension(extension)));
-        }
-    });
 }
 
 fn equality_rules<E: Extend<Rule>>(
@@ -150,7 +154,7 @@ fn equality_rules<E: Extend<Rule>>(
     if !literal.polarity {
         possible.extend(once(Rule::Reflexivity));
     } else {
-        subterm_reductions(
+        backward_demodulations(
             possible,
             tableau,
             &problem.symbols,
@@ -158,11 +162,11 @@ fn equality_rules<E: Extend<Rule>>(
             literals,
             literal,
         );
-        subterm_extensions(possible, problem, terms, literal);
+        forward_paramodulations(possible, problem, terms, literal);
     }
 }
 
-fn subterm_reductions<E: Extend<Rule>>(
+fn backward_demodulations<E: Extend<Rule>>(
     possible: &mut E,
     tableau: &Tableau,
     symbols: &Symbols,
@@ -175,29 +179,29 @@ fn subterm_reductions<E: Extend<Rule>>(
         let reduction = &literals[id];
         reduction.subterms(symbols, terms, &mut |target| {
             possible.extend(
-                equality_reduction(terms, id, target, left)
-                    .map(Rule::LRSubtermReduction),
+                demodulation(terms, id, target, left)
+                    .map(Rule::LRBackwardDemodulation),
             );
             possible.extend(
-                equality_reduction(terms, id, target, right)
-                    .map(Rule::RLSubtermReduction),
+                demodulation(terms, id, target, right)
+                    .map(Rule::RLBackwardDemodulation),
             );
         });
     }
 }
 
-fn subterm_extensions<E: Extend<Rule>>(
+fn forward_paramodulations<E: Extend<Rule>>(
     possible: &mut E,
     problem: &Problem,
     terms: &Terms,
     literal: &Literal,
 ) {
     let (left, right) = literal.get_equality();
-    subterm_extensions_one_sided(possible, problem, terms, left, true);
-    subterm_extensions_one_sided(possible, problem, terms, right, false);
+    forward_paramodulations_one_sided(possible, problem, terms, left, true);
+    forward_paramodulations_one_sided(possible, problem, terms, right, false);
 }
 
-fn subterm_extensions_one_sided<E: Extend<Rule>>(
+fn forward_paramodulations_one_sided<E: Extend<Rule>>(
     possible: &mut E,
     problem: &Problem,
     terms: &Terms,
@@ -206,38 +210,42 @@ fn subterm_extensions_one_sided<E: Extend<Rule>>(
 ) {
     if terms.is_variable(from) {
         for occurrence in problem.index.query_all_subterms() {
-            subterm_extensions_single(possible, occurrence, lr);
+            forward_paramodulations_single(possible, occurrence, lr);
         }
     } else {
         for occurrence in problem.index.query_subterms(terms.symbol(from)) {
-            subterm_extensions_single(possible, occurrence, lr);
+            forward_paramodulations_single(possible, occurrence, lr);
         }
     }
 }
 
-fn subterm_extensions_single<E: Extend<Rule>>(
+fn forward_paramodulations_single<E: Extend<Rule>>(
     possible: &mut E,
     occurrence: Id<SubtermOccurrence>,
     lr: bool,
 ) {
-    let extension = SubtermExtension { occurrence };
+    let paramodulation = ForwardParamodulation { occurrence };
     if lr {
-        possible.extend(once(Rule::LRStrictSubtermExtension(extension)));
-        possible.extend(once(Rule::LRLazySubtermExtension(extension)));
+        possible
+            .extend(once(Rule::LRStrictForwardParamodulation(paramodulation)));
+        possible
+            .extend(once(Rule::LRLazyForwardParamodulation(paramodulation)));
     } else {
-        possible.extend(once(Rule::RLStrictSubtermExtension(extension)));
-        possible.extend(once(Rule::RLLazySubtermExtension(extension)));
+        possible
+            .extend(once(Rule::RLStrictForwardParamodulation(paramodulation)));
+        possible
+            .extend(once(Rule::RLLazyForwardParamodulation(paramodulation)));
     }
 }
 
-fn equality_reduction(
+fn demodulation(
     terms: &Terms,
     literal: Id<Literal>,
     target: Id<Term>,
     from: Id<Term>,
-) -> Option<EqualityReduction> {
+) -> Option<Demodulation> {
     if terms.is_variable(from) || terms.symbol(from) == terms.symbol(target) {
-        Some(EqualityReduction { literal, target })
+        Some(Demodulation { literal, target })
     } else {
         None
     }

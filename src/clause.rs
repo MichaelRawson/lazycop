@@ -101,14 +101,14 @@ impl Clause {
         );
     }
 
-    pub(crate) fn predicate_reduction<R: Record>(
+    pub(crate) fn reduction<R: Record>(
         &mut self,
         record: &mut R,
         symbols: &Symbols,
         terms: &Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
-        reduction: PredicateReduction,
+        reduction: Reduction,
     ) {
         let p = &literals[self.close_literal()];
         let q = &literals[reduction.literal];
@@ -118,7 +118,7 @@ impl Clause {
             symbols,
             terms,
             literals,
-            "predicate_reduction",
+            "reduction",
             assertions.clone(),
             Some(q),
             &[self.open()],
@@ -129,18 +129,18 @@ impl Clause {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn equality_reduction<R: Record>(
+    pub(crate) fn forward_demodulation<R: Record>(
         &mut self,
         record: &mut R,
         symbols: &Symbols,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
-        reduction: EqualityReduction,
+        demodulation: Demodulation,
         lr: bool,
     ) -> Self {
-        let target = reduction.target;
-        let (left, right) = literals[reduction.literal].get_equality();
+        let target = demodulation.target;
+        let (left, right) = literals[demodulation.literal].get_equality();
         let (from, to) = if lr { (left, right) } else { (right, left) };
 
         let (fresh, fresh_constraint) = if terms.is_variable(to) {
@@ -168,26 +168,26 @@ impl Clause {
             symbols,
             terms,
             literals,
-            "equality_reduction",
+            "forward_demodulation",
             once((target, from)).chain(fresh_constraint),
-            Some(&literals[reduction.literal]),
+            Some(&literals[demodulation.literal]),
             &[self.remaining(), consequence.open()],
         );
         consequence
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn subterm_reduction<R: Record>(
+    pub(crate) fn backward_demodulation<R: Record>(
         &mut self,
         record: &mut R,
         symbols: &Symbols,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
-        reduction: EqualityReduction,
+        demodulation: Demodulation,
         lr: bool,
     ) -> Self {
-        let target = reduction.target;
+        let target = demodulation.target;
         let (left, right) = literals[self.current].get_equality();
         let (from, to) = if lr { (left, right) } else { (right, left) };
 
@@ -200,7 +200,7 @@ impl Clause {
         };
 
         let start = literals.len();
-        literals.push(literals[reduction.literal].subst(
+        literals.push(literals[demodulation.literal].subst(
             symbols,
             terms,
             constraints,
@@ -216,24 +216,24 @@ impl Clause {
             symbols,
             terms,
             literals,
-            "subterm_reduction",
+            "backward_demodulation",
             once((target, from)).chain(fresh_constraint),
-            Some(&literals[reduction.literal]),
+            Some(&literals[demodulation.literal]),
             &[self.remaining(), consequence.open()],
         );
         consequence
     }
 
-    pub(crate) fn strict_predicate_extension<R: Record>(
+    pub(crate) fn strict_extension<R: Record>(
         self,
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
-        extension: PredicateExtension,
+        extension: Extension,
     ) -> Self {
-        let mut extension = Self::predicate_extension(
+        let mut extension = Self::extension(
             record,
             problem,
             terms,
@@ -248,7 +248,7 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "strict_predicate_extension",
+            "strict_extension",
             assertions.clone(),
             None,
             &[self.remaining(), extension.open()],
@@ -260,16 +260,16 @@ impl Clause {
         extension
     }
 
-    pub(crate) fn lazy_predicate_extension<R: Record>(
+    pub(crate) fn lazy_extension<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
-        extension: PredicateExtension,
+        extension: Extension,
     ) -> (Self, Self) {
-        let extension = Self::predicate_extension(
+        let extension = Self::extension(
             record,
             problem,
             terms,
@@ -301,7 +301,7 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "lazy_predicate_extension",
+            "lazy_extension",
             fresh.zip(pargs.map(|p| terms.resolve(p))),
             None,
             &[self.remaining(), extension.remaining(), disequations.open()],
@@ -309,23 +309,23 @@ impl Clause {
         (extension, disequations)
     }
 
-    pub(crate) fn strict_function_extension<R: Record>(
+    pub(crate) fn strict_backward_paramodulation<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
-        extension: EqualityExtension,
+        paramodulation: BackwardParamodulation,
     ) -> (Self, Self) {
-        let target = extension.target;
-        let (extension, from, to) = Self::equality_extension(
+        let target = paramodulation.target;
+        let (extension, from, to) = Self::backward_paramodulation(
             record,
             problem,
             terms,
             literals,
             constraints,
-            extension,
+            paramodulation,
         );
         let start = literals.len();
         let fresh = terms.add_variable();
@@ -347,7 +347,7 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "strict_function_extension",
+            "strict_backward_paramodulation",
             once((target, from)),
             None,
             &[self.remaining(), extension.remaining(), consequence.open()],
@@ -355,23 +355,23 @@ impl Clause {
         (extension, consequence)
     }
 
-    pub(crate) fn lazy_function_extension<R: Record>(
+    pub(crate) fn lazy_backward_paramodulation<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
-        extension: EqualityExtension,
+        paramodulation: BackwardParamodulation,
     ) -> (Self, Self) {
-        let target = extension.target;
-        let (extension, from, to) = Self::equality_extension(
+        let target = paramodulation.target;
+        let (extension, from, to) = Self::backward_paramodulation(
             record,
             problem,
             terms,
             literals,
             constraints,
-            extension,
+            paramodulation,
         );
         let start = literals.len();
         let fresh = terms.add_variable();
@@ -405,7 +405,7 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "lazy_function_extension",
+            "lazy_backward_paramodulation",
             once((placeholder, target)),
             None,
             &[self.remaining(), extension.remaining(), consequence.open()],
@@ -413,23 +413,23 @@ impl Clause {
         (extension, consequence)
     }
 
-    pub(crate) fn variable_extension<R: Record>(
+    pub(crate) fn variable_backward_paramodulation<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
-        extension: EqualityExtension,
+        paramodulation: BackwardParamodulation,
     ) -> (Self, Self) {
-        let target = extension.target;
-        let (extension, from, to) = Self::equality_extension(
+        let target = paramodulation.target;
+        let (extension, from, to) = Self::backward_paramodulation(
             record,
             problem,
             terms,
             literals,
             constraints,
-            extension,
+            paramodulation,
         );
 
         let start = literals.len();
@@ -451,7 +451,7 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "variable_extension",
+            "variable_backward_paramodulation",
             once((target, from)),
             None,
             &[self.remaining(), extension.remaining(), consequence.open()],
@@ -461,25 +461,25 @@ impl Clause {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn lazy_subterm_extension<R: Record>(
+    pub(crate) fn lazy_forward_paramodulation<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
-        extension: SubtermExtension,
+        paramodulation: ForwardParamodulation,
         lr: bool,
     ) -> (Self, Self) {
         let (left, right) = literals[self.current].get_equality();
         let (from, to) = if lr { (left, right) } else { (right, left) };
-        let (extension, target) = Self::subterm_extension(
+        let (extension, target) = Self::forward_paramodulation(
             record,
             problem,
             terms,
             literals,
             constraints,
-            extension,
+            paramodulation,
         );
         let (fresh, fresh_constraint) = if terms.is_variable(to) {
             (to, None)
@@ -519,7 +519,7 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "lazy_subterm_extension",
+            "lazy_forward_paramodulation",
             once((placeholder, from)).chain(fresh_constraint),
             None,
             &[self.remaining(), extension.remaining(), consequence.open()],
@@ -528,25 +528,25 @@ impl Clause {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn strict_subterm_extension<R: Record>(
+    pub(crate) fn strict_forward_paramodulation<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
-        extension: SubtermExtension,
+        paramodulation: ForwardParamodulation,
         lr: bool,
     ) -> (Self, Self) {
         let (left, right) = literals[self.current].get_equality();
         let (from, to) = if lr { (left, right) } else { (right, left) };
-        let (extension, target) = Self::subterm_extension(
+        let (extension, target) = Self::forward_paramodulation(
             record,
             problem,
             terms,
             literals,
             constraints,
-            extension,
+            paramodulation,
         );
         let (fresh, fresh_constraint) = if terms.is_variable(to) {
             (to, None)
@@ -574,7 +574,7 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "strict_subterm_extension",
+            "strict_forward_paramodulation",
             once((target, from)).chain(fresh_constraint),
             None,
             &[self.remaining(), extension.remaining(), consequence.open()],
@@ -582,17 +582,17 @@ impl Clause {
         (extension, consequence)
     }
 
-    fn predicate_extension<R: Record>(
+    fn extension<R: Record>(
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
-        extension: PredicateExtension,
+        extension: Extension,
     ) -> Self {
         let occurrence =
             &problem.index.predicate_occurrences[extension.occurrence];
-        Self::extension(
+        Self::extend(
             record,
             problem,
             terms,
@@ -603,17 +603,17 @@ impl Clause {
         )
     }
 
-    fn equality_extension<R: Record>(
+    fn backward_paramodulation<R: Record>(
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
-        extension: EqualityExtension,
+        paramodulation: BackwardParamodulation,
     ) -> (Self, Id<Term>, Id<Term>) {
         let occurrence =
-            &problem.index.equality_occurrences[extension.occurrence];
-        let extension = Self::extension(
+            &problem.index.equality_occurrences[paramodulation.occurrence];
+        let extension = Self::extend(
             record,
             problem,
             terms,
@@ -632,18 +632,18 @@ impl Clause {
         (extension, from, to)
     }
 
-    fn subterm_extension<R: Record>(
+    fn forward_paramodulation<R: Record>(
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
-        extension: SubtermExtension,
+        extension: ForwardParamodulation,
     ) -> (Self, Id<Term>) {
         let occurrence =
             &problem.index.subterm_occurrences[extension.occurrence];
         let target = occurrence.subterm + terms.current_offset();
-        let extension = Self::extension(
+        let extension = Self::extend(
             record,
             problem,
             terms,
@@ -656,7 +656,7 @@ impl Clause {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn extension<R: Record>(
+    fn extend<R: Record>(
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
