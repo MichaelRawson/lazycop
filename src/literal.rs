@@ -77,12 +77,11 @@ impl Literal {
         &self,
         symbols: &Symbols,
         terms: &mut Terms,
-        constraints: &mut Constraints,
         from: Id<Term>,
         to: Id<Term>,
     ) -> Self {
         let polarity = self.polarity;
-        let atom = self.atom.subst(symbols, terms, constraints, from, to);
+        let atom = self.atom.subst(symbols, terms, from, to);
         Self { polarity, atom }
     }
 

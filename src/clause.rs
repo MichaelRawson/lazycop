@@ -152,18 +152,12 @@ impl Clause {
         };
 
         let start = literals.len();
-        literals.push(literals[self.current].subst(
-            symbols,
-            terms,
-            constraints,
-            target,
-            fresh,
-        ));
+        literals
+            .push(literals[self.current].subst(symbols, terms, target, fresh));
         let end = literals.len();
         let consequence = Self::new(start, end);
 
         constraints.assert_eq(target, from);
-        constraints.assert_gt(from, to);
         record.inference(
             symbols,
             terms,
@@ -200,18 +194,14 @@ impl Clause {
         };
 
         let start = literals.len();
-        literals.push(literals[demodulation.literal].subst(
-            symbols,
-            terms,
-            constraints,
-            target,
-            fresh,
-        ));
+        literals.push(
+            literals[demodulation.literal]
+                .subst(symbols, terms, target, fresh),
+        );
         let end = literals.len();
         let consequence = Self::new(start, end);
 
         constraints.assert_eq(target, from);
-        constraints.assert_gt(from, to);
         record.inference(
             symbols,
             terms,
@@ -330,13 +320,11 @@ impl Clause {
         let start = literals.len();
         let fresh = terms.add_variable();
         constraints.assert_eq(target, from);
-        constraints.assert_gt(from, fresh);
 
         literals.push(Literal::disequation(fresh, to));
         literals.push(literals[self.current].subst(
             &problem.symbols,
             terms,
-            constraints,
             target,
             fresh,
         ));
@@ -379,7 +367,6 @@ impl Clause {
             terms.fresh_function(&problem.symbols, terms.symbol(from));
         constraints.assert_eq(target, placeholder);
         constraints.assert_neq(from, target);
-        constraints.assert_gt(placeholder, fresh);
 
         let ss = terms
             .arguments(&problem.symbols, placeholder)
@@ -394,7 +381,6 @@ impl Clause {
         literals.push(literals[self.current].subst(
             &problem.symbols,
             terms,
-            constraints,
             target,
             fresh,
         ));
@@ -438,7 +424,6 @@ impl Clause {
         literals.push(literals[self.current].subst(
             &problem.symbols,
             terms,
-            constraints,
             target,
             fresh,
         ));
@@ -446,7 +431,6 @@ impl Clause {
         let consequence = Self::new(start, end);
 
         constraints.assert_eq(target, from);
-        constraints.assert_gt(from, fresh);
         record.inference(
             &problem.symbols,
             terms,
@@ -492,7 +476,6 @@ impl Clause {
         let placeholder =
             terms.fresh_function(&problem.symbols, terms.symbol(target));
         constraints.assert_eq(placeholder, from);
-        constraints.assert_gt(from, to);
         constraints.assert_neq(target, from);
 
         let start = literals.len();
@@ -508,7 +491,6 @@ impl Clause {
         literals.push(literals[extension.current].subst(
             &problem.symbols,
             terms,
-            constraints,
             target,
             fresh,
         ));
@@ -557,13 +539,11 @@ impl Clause {
         };
 
         constraints.assert_eq(target, from);
-        constraints.assert_gt(from, to);
 
         let start = literals.len();
         literals.push(literals[extension.current].subst(
             &problem.symbols,
             terms,
-            constraints,
             target,
             fresh,
         ));

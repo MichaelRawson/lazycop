@@ -99,7 +99,6 @@ impl Atom {
         &self,
         symbols: &Symbols,
         terms: &mut Terms,
-        constraints: &mut Constraints,
         from: Id<Term>,
         to: Id<Term>,
     ) -> Self {
@@ -110,10 +109,8 @@ impl Atom {
             Atom::Equality(left, right) => {
                 let subst = terms.subst(symbols, *left, from, to);
                 if subst != *left {
-                    constraints.assert_gt(*left, *right);
                     Atom::Equality(subst, *right)
                 } else {
-                    constraints.assert_gt(*right, *left);
                     let subst = terms.subst(symbols, *right, from, to);
                     Atom::Equality(*left, subst)
                 }

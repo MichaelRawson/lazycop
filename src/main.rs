@@ -10,7 +10,6 @@ mod infer;
 mod io;
 mod literal;
 mod occurs;
-mod ordering_solver;
 mod prelude;
 mod problem;
 mod problem_builder;
