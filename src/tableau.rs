@@ -40,12 +40,12 @@ impl Tableau {
         some(self.stack.last())
     }
 
-    pub(crate) fn num_open_branches(&self) -> u16 {
+    pub(crate) fn num_literals(&self) -> i32 {
         self.stack
             .range()
-            .map(|id| Range::len(self.stack[id].remaining()) as u16)
-            .sum::<u16>()
-            + 1
+            .into_iter()
+            .map(|id| self.stack[id].open().len())
+            .sum()
     }
 
     pub(crate) fn reduction_literals(
@@ -54,6 +54,7 @@ impl Tableau {
         self.path_literals().chain(
             self.stack
                 .range()
+                .into_iter()
                 .flat_map(move |id| self.lemmata[id].iter().copied()),
         )
     }
@@ -63,6 +64,7 @@ impl Tableau {
     ) -> impl Iterator<Item = Id<Literal>> + '_ {
         self.stack
             .range()
+            .into_iter()
             .rev()
             .skip(1)
             .map(move |id| self.stack[id].current_literal())
@@ -408,11 +410,16 @@ impl Tableau {
         let valid_in = self
             .stack
             .range()
+            .into_iter()
             .find(|id| self.stack[*id].current_literal() == reduction)
             .map(|id| id + Offset::new(1))
             .unwrap_or(self.valid[reduction]);
 
-        for affected in Range::new(valid_in, self.stack.len()).rev().skip(1) {
+        for affected in Range::new(valid_in, self.stack.len())
+            .into_iter()
+            .rev()
+            .skip(1)
+        {
             let literal = self.stack[affected].current_literal();
             let existing = self.valid[literal];
             self.valid[literal] = std::cmp::max(existing, valid_in);

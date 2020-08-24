@@ -11,6 +11,11 @@ pub(crate) fn rules<E: Extend<Rule>>(
     terms: &Terms,
     literals: &Literals,
 ) {
+    if tableau.is_empty() {
+        start_rules(possible, problem);
+        return;
+    }
+
     let clause = tableau.current_clause();
     let literal = &literals[clause.current_literal()];
     if literal.is_predicate() {
@@ -27,6 +32,17 @@ pub(crate) fn rules<E: Extend<Rule>>(
         literal,
     );
     backward_paramodulation_rules(possible, problem, terms, literal);
+}
+
+fn start_rules<E: Extend<Rule>>(possible: &mut E, problem: &Problem) {
+    possible.extend(
+        problem
+            .start_clauses
+            .iter()
+            .copied()
+            .map(|clause| Start { clause })
+            .map(Rule::Start),
+    );
 }
 
 fn forward_demodulation_rules<E: Extend<Rule>>(

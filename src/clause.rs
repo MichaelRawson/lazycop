@@ -12,8 +12,8 @@ fn argument_pairs<'terms>(
 ) -> impl Iterator<Item = (Id<Term>, Id<Term>)> + Clone + 'terms {
     let pargs = p.get_predicate_arguments(symbols, terms);
     let qargs = q.get_predicate_arguments(symbols, terms);
-    let pterms = pargs.map(move |p| terms.resolve(p));
-    let qterms = qargs.map(move |q| terms.resolve(q));
+    let pterms = pargs.into_iter().map(move |p| terms.resolve(p));
+    let qterms = qargs.into_iter().map(move |q| terms.resolve(q));
     pterms.zip(qterms)
 }
 
@@ -281,7 +281,7 @@ impl Clause {
         let fresh = Range::new(fresh_start, fresh_end);
 
         let disequation_start = literals.len();
-        for (fresh, qarg) in fresh.zip(qargs) {
+        for (fresh, qarg) in fresh.into_iter().zip(qargs.into_iter()) {
             literals.push(Literal::disequation(terms.resolve(qarg), fresh));
         }
         let disequation_end = literals.len();
@@ -292,7 +292,9 @@ impl Clause {
             terms,
             literals,
             "lazy_extension",
-            fresh.zip(pargs.map(|p| terms.resolve(p))),
+            fresh
+                .into_iter()
+                .zip(pargs.into_iter().map(|p| terms.resolve(p))),
             None,
             &[self.remaining(), extension.remaining(), disequations.open()],
         );
@@ -370,9 +372,11 @@ impl Clause {
 
         let ss = terms
             .arguments(&problem.symbols, placeholder)
+            .into_iter()
             .map(|s| terms.resolve(s));
         let ts = terms
             .arguments(&problem.symbols, from)
+            .into_iter()
             .map(|t| terms.resolve(t));
         for (s, t) in ss.zip(ts) {
             literals.push(Literal::disequation(s, t));
@@ -481,9 +485,11 @@ impl Clause {
         let start = literals.len();
         let ss = terms
             .arguments(&problem.symbols, placeholder)
+            .into_iter()
             .map(|s| terms.resolve(s));
         let ts = terms
             .arguments(&problem.symbols, target)
+            .into_iter()
             .map(|t| terms.resolve(t));
         for (s, t) in ss.zip(ts) {
             literals.push(Literal::disequation(s, t));
@@ -651,7 +657,8 @@ impl Clause {
 
         let matching = literal + literal_offset;
         let mate = literals[matching];
-        for index in Range::new(extension.current, matching).rev() {
+        for index in Range::new(extension.current, matching).into_iter().rev()
+        {
             literals[index + Offset::new(1)] = literals[index];
         }
         literals[extension.current] = mate;
@@ -690,13 +697,13 @@ impl Clause {
         terms: &Terms,
         literals: &Literals,
     ) {
-        let open = self.open();
-        for id in open {
+        let mut open = self.open().into_iter();
+        while let Some(id) = open.next() {
             let literal = literals[id];
             if literal.polarity && literal.is_equality() {
                 literal.add_reflexivity_constraints(constraints);
             }
-            for other in open.skip(1).map(|id| &literals[id]) {
+            for other in open.clone().map(|id| &literals[id]) {
                 if literal.polarity != other.polarity {
                     literal.add_disequation_constraints(
                         constraints,

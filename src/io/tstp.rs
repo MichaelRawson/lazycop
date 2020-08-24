@@ -30,8 +30,9 @@ impl TSTP {
     ) {
         match terms.view(symbols, term) {
             TermView::Variable(x) => self.print_variable(x),
-            TermView::Function(symbol, mut args) => {
+            TermView::Function(symbol, args) => {
                 Self::print_symbol(symbols, symbol);
+                let mut args = args.into_iter();
                 if let Some(first) = args.next() {
                     print!("(");
                     let first = terms.resolve(first);
@@ -71,12 +72,12 @@ impl TSTP {
         }
     }
 
-    fn print_clause(
+    fn print_clause<I: Iterator<Item = Id<Literal>>>(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,
         literals: &Literals,
-        mut clause: Range<Literal>,
+        mut clause: I,
     ) {
         if let Some(id) = clause.next() {
             let literal = &literals[id];
@@ -104,7 +105,7 @@ impl Record for TSTP {
         print!("cnf(c{}, axiom,\n\t", self.clause_number);
         self.premise_list.push(self.clause_number);
         self.clause_number += 1;
-        self.print_clause(symbols, terms, literals, axiom.open());
+        self.print_clause(symbols, terms, literals, axiom.open().into_iter());
         println!(").");
     }
 
@@ -150,7 +151,7 @@ impl Record for TSTP {
 
             print!("cnf(c{}, plain,\n\t", self.clause_number);
             self.clause_number += 1;
-            self.print_clause(symbols, terms, literals, *deduction);
+            self.print_clause(symbols, terms, literals, deduction.into_iter());
 
             print!(",\n\tinference({}, [", inference);
             if assumption_start != self.assumption_number {

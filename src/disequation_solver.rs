@@ -119,6 +119,7 @@ impl DisequationSolver {
     ) -> bool {
         self.solved
             .range()
+            .into_iter()
             .rev()
             .map(|id| self.solved[id])
             .all(|solved| {
@@ -133,7 +134,7 @@ impl DisequationSolver {
         bindings: &Bindings,
         solved: Range<AtomicDisequation>,
     ) -> bool {
-        solved.map(|id| self.atomic[id]).any(|atomic| {
+        solved.into_iter().map(|id| self.atomic[id]).any(|atomic| {
             !bindings.is_bound(atomic.variable)
                 || self.check_disequation(
                     symbols,
@@ -163,7 +164,8 @@ impl DisequationSolver {
         {
             f != g
                 || ss
-                    .zip(ts)
+                    .into_iter()
+                    .zip(ts.into_iter())
                     .map(|(s, t)| (terms.resolve(s), terms.resolve(t)))
                     .any(|(s, t)| {
                         self.check_disequation(symbols, terms, bindings, s, t)
@@ -213,7 +215,8 @@ impl DisequationSolver {
             (TermView::Function(f, ss), TermView::Function(g, ts))
                 if f == g =>
             {
-                ss.zip(ts)
+                ss.into_iter()
+                    .zip(ts.into_iter())
                     .map(|(s, t)| (terms.resolve(s), terms.resolve(t)))
                     .any(|(s, t)| {
                         self.simplify_disequation(

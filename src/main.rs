@@ -15,12 +15,12 @@ mod problem;
 mod problem_builder;
 mod record;
 mod rule;
-mod rule_store;
 mod search;
 mod statistics;
 mod symbol;
 mod tableau;
 mod term;
+mod uctree;
 mod util;
 
 use crate::goal::Goal;

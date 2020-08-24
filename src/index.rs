@@ -56,6 +56,7 @@ impl Index {
     ) -> impl Iterator<Item = Id<SubtermOccurrence>> + '_ {
         self.symbol_subterms
             .range()
+            .into_iter()
             .flat_map(move |id| self.symbol_subterms[id].iter().copied())
     }
 

@@ -19,8 +19,8 @@ impl<T> Range<T> {
         range.start == range.stop
     }
 
-    pub(crate) fn len(range: Self) -> u32 {
-        (range.stop - range.start).offset as u32
+    pub(crate) fn len(&self) -> i32 {
+        (self.stop - self.start).offset
     }
 
     pub(crate) fn transmute<S>(self) -> Range<S> {
@@ -40,7 +40,31 @@ impl<T> Clone for Range<T> {
 
 impl<T> Copy for Range<T> {}
 
-impl<T> Iterator for Range<T> {
+impl<T> IntoIterator for Range<T> {
+    type Item = Id<T>;
+    type IntoIter = RangeIterator<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let start = self.start;
+        let stop = self.stop;
+        RangeIterator { start, stop }
+    }
+}
+
+pub(crate) struct RangeIterator<T> {
+    start: Id<T>,
+    stop: Id<T>,
+}
+
+impl<T> Clone for RangeIterator<T> {
+    fn clone(&self) -> Self {
+        let start = self.start;
+        let stop = self.stop;
+        Self { start, stop }
+    }
+}
+
+impl<T> Iterator for RangeIterator<T> {
     type Item = Id<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -59,7 +83,7 @@ impl<T> Iterator for Range<T> {
     }
 }
 
-impl<T> DoubleEndedIterator for Range<T> {
+impl<T> DoubleEndedIterator for RangeIterator<T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.start == self.stop {
             return None;
@@ -70,4 +94,4 @@ impl<T> DoubleEndedIterator for Range<T> {
     }
 }
 
-impl<T> ExactSizeIterator for Range<T> {}
+impl<T> ExactSizeIterator for RangeIterator<T> {}

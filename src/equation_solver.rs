@@ -97,7 +97,8 @@ impl EquationSolver {
             (TermView::Function(f, ss), TermView::Function(g, ts))
                 if f == g =>
             {
-                ss.zip(ts)
+                ss.into_iter()
+                    .zip(ts.into_iter())
                     .map(|(s, t)| (terms.resolve(s), terms.resolve(t)))
                     .all(|(s, t)| {
                         self.solve_equation::<O>(symbols, terms, s, t)
@@ -118,6 +119,7 @@ impl EquationSolver {
         match view {
             TermView::Variable(y) => x == y,
             TermView::Function(_, args) => args
+                .into_iter()
                 .map(|t| terms.resolve(t))
                 .any(|t| self.occurs(symbols, terms, x, t)),
         }

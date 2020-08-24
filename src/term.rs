@@ -129,7 +129,7 @@ impl Terms {
     ) {
         if let TermView::Function(_, args) = self.view(symbols, term) {
             f(term);
-            for subterm in args.map(|arg| self.resolve(arg)) {
+            for subterm in args.into_iter().map(|arg| self.resolve(arg)) {
                 self.subterms(symbols, subterm, f);
             }
         }
@@ -142,7 +142,7 @@ impl Terms {
         f: &mut F,
     ) {
         if let TermView::Function(_, args) = self.view(symbols, term) {
-            for subterm in args.map(|arg| self.resolve(arg)) {
+            for subterm in args.into_iter().map(|arg| self.resolve(arg)) {
                 self.subterms(symbols, subterm, f);
             }
         }

@@ -34,7 +34,7 @@ impl Bindings {
     pub(crate) fn items(
         &self,
     ) -> impl Iterator<Item = (Id<Variable>, Id<Term>)> + '_ {
-        self.bound.range().filter_map(move |variable| {
+        self.bound.range().into_iter().filter_map(move |variable| {
             self.bound[variable].map(|term| (variable, term))
         })
     }
@@ -96,6 +96,7 @@ impl Bindings {
         match view {
             TermView::Variable(y) => x == y,
             TermView::Function(_, args) => args
+                .into_iter()
                 .map(|t| terms.resolve(t))
                 .any(|t| self.occurs(symbols, terms, x, t)),
         }

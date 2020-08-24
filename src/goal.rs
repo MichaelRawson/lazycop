@@ -67,8 +67,8 @@ impl<'problem> Goal<'problem> {
         self.tableau.is_empty()
     }
 
-    pub(crate) fn num_open_branches(&self) -> u16 {
-        self.tableau.num_open_branches()
+    pub(crate) fn num_literals(&self) -> i32 {
+        self.tableau.num_literals()
     }
 
     pub(crate) fn apply_rule<R: Record>(
