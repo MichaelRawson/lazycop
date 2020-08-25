@@ -45,7 +45,7 @@ fn search_task(
                     return Some(rules);
                 }
 
-                let score = goal.num_literals();
+                let score = goal.num_open_branches();
                 data.push((rule, score));
                 statistics.increment_retained_goals();
             } else {

@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 const SCORE_BASE: f32 = 0.95;
-const EXPLORATION: f32 = 0.1;
+const EXPLORATION: f32 = 1.0;
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 struct UCTValue(f32);

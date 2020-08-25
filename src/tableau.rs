@@ -40,12 +40,13 @@ impl Tableau {
         some(self.stack.last())
     }
 
-    pub(crate) fn num_literals(&self) -> i32 {
+    pub(crate) fn num_open_branches(&self) -> i32 {
         self.stack
             .range()
             .into_iter()
-            .map(|id| self.stack[id].open().len())
-            .sum()
+            .map(|id| self.stack[id].remaining().len())
+            .sum::<i32>()
+            + 1
     }
 
     pub(crate) fn reduction_literals(
@@ -399,9 +400,9 @@ impl Tableau {
     }
 
     fn extension_validity(&mut self) {
-        self.valid.resize(self.literals.len());
         let valid_in = self.stack.len() + Offset::new(-1);
         let literal = some(self.stack.last()).current_literal();
+        self.valid.resize(self.literals.len());
         self.valid[literal] = valid_in;
     }
 
@@ -427,11 +428,11 @@ impl Tableau {
     }
 
     fn close_branches(&mut self) {
-        self.valid.resize(self.literals.len());
         let last = some(self.stack.last());
         if !last.is_empty() {
             return;
         }
+        self.valid.resize(self.literals.len());
         self.stack.pop();
         while let Some(parent) = self.stack.last_mut() {
             let id = parent.close_literal();
