@@ -1,8 +1,7 @@
 use crate::constraint::Constraints;
 use crate::prelude::*;
-use crate::record::Record;
+use crate::record::{Inference, Record};
 use crate::rule::*;
-use std::iter::once;
 
 fn argument_pairs<'terms>(
     symbols: &Symbols,
@@ -12,9 +11,9 @@ fn argument_pairs<'terms>(
 ) -> impl Iterator<Item = (Id<Term>, Id<Term>)> + Clone + 'terms {
     let pargs = p.get_predicate_arguments(symbols, terms);
     let qargs = q.get_predicate_arguments(symbols, terms);
-    let pterms = pargs.into_iter().map(move |p| terms.resolve(p));
-    let qterms = qargs.into_iter().map(move |q| terms.resolve(q));
-    pterms.zip(qterms)
+    let ss = pargs.into_iter().map(move |parg| terms.resolve(parg));
+    let ts = qargs.into_iter().map(move |qarg| terms.resolve(qarg));
+    ss.zip(ts)
 }
 
 #[derive(Clone, Copy)]
@@ -71,10 +70,7 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "start",
-            None,
-            None,
-            &[start.open()],
+            R::Inference::new("start").deduction(start.open()),
         );
         start
     }
@@ -94,10 +90,9 @@ impl Clause {
             symbols,
             terms,
             literals,
-            "reflexivity",
-            once((left, right)),
-            None,
-            &[self.open()],
+            R::Inference::new("reflexivity")
+                .equation(left, right)
+                .deduction(self.open()),
         );
     }
 
@@ -110,22 +105,20 @@ impl Clause {
         constraints: &mut Constraints,
         reduction: Reduction,
     ) {
+        let mut inference = R::Inference::new("reduction");
         let p = &literals[self.close_literal()];
         let q = &literals[reduction.literal];
-        let assertions = argument_pairs(symbols, terms, p, q);
+        for (s, t) in argument_pairs(symbols, terms, p, q) {
+            constraints.assert_eq(s, t);
+            inference = inference.equation(s, t);
+        }
 
         record.inference(
             symbols,
             terms,
             literals,
-            "reduction",
-            assertions.clone(),
-            Some(q),
-            &[self.open()],
+            inference.literal(reduction.literal).deduction(self.open()),
         );
-        for (s, t) in assertions {
-            constraints.assert_eq(s, t);
-        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -142,14 +135,9 @@ impl Clause {
         let target = demodulation.target;
         let (left, right) = literals[demodulation.literal].get_equality();
         let (from, to) = if lr { (left, right) } else { (right, left) };
-
-        let (fresh, fresh_constraint) = if terms.is_variable(to) {
-            (to, None)
-        } else {
-            let fresh = terms.add_variable();
-            constraints.assert_eq(to, fresh);
-            (fresh, Some((to, fresh)))
-        };
+        let fresh = terms.add_variable();
+        constraints.assert_eq(to, fresh);
+        constraints.assert_eq(target, from);
 
         let start = literals.len();
         literals
@@ -157,15 +145,16 @@ impl Clause {
         let end = literals.len();
         let consequence = Self::new(start, end);
 
-        constraints.assert_eq(target, from);
         record.inference(
             symbols,
             terms,
             literals,
-            "forward_demodulation",
-            once((target, from)).chain(fresh_constraint),
-            Some(&literals[demodulation.literal]),
-            &[self.remaining(), consequence.open()],
+            R::Inference::new("forward_demodulation")
+                .equation(to, fresh)
+                .equation(target, from)
+                .literal(demodulation.literal)
+                .deduction(self.remaining())
+                .deduction(consequence.open()),
         );
         consequence
     }
@@ -179,19 +168,14 @@ impl Clause {
         literals: &mut Literals,
         constraints: &mut Constraints,
         demodulation: Demodulation,
-        lr: bool,
+        l2r: bool,
     ) -> Self {
         let target = demodulation.target;
         let (left, right) = literals[self.current].get_equality();
-        let (from, to) = if lr { (left, right) } else { (right, left) };
-
-        let (fresh, fresh_constraint) = if terms.is_variable(to) {
-            (to, None)
-        } else {
-            let fresh = terms.add_variable();
-            constraints.assert_eq(to, fresh);
-            (fresh, Some((to, fresh)))
-        };
+        let (from, to) = if l2r { (left, right) } else { (right, left) };
+        let fresh = terms.add_variable();
+        constraints.assert_eq(to, fresh);
+        constraints.assert_eq(target, from);
 
         let start = literals.len();
         literals.push(
@@ -201,15 +185,16 @@ impl Clause {
         let end = literals.len();
         let consequence = Self::new(start, end);
 
-        constraints.assert_eq(target, from);
         record.inference(
             symbols,
             terms,
             literals,
-            "backward_demodulation",
-            once((target, from)).chain(fresh_constraint),
-            Some(&literals[demodulation.literal]),
-            &[self.remaining(), consequence.open()],
+            R::Inference::new("backward_demodulation")
+                .equation(to, fresh)
+                .equation(target, from)
+                .literal(demodulation.literal)
+                .deduction(self.remaining())
+                .deduction(consequence.open()),
         );
         consequence
     }
@@ -223,6 +208,7 @@ impl Clause {
         constraints: &mut Constraints,
         extension: Extension,
     ) -> Self {
+        let mut inference = R::Inference::new("strict_extension");
         let mut extension = Self::extension(
             record,
             problem,
@@ -233,20 +219,19 @@ impl Clause {
         );
         let p = &literals[self.current];
         let q = &literals[extension.close_literal()];
-        let assertions = argument_pairs(&problem.symbols, terms, p, q);
+        for (s, t) in argument_pairs(&problem.symbols, terms, p, q) {
+            constraints.assert_eq(s, t);
+            inference = inference.equation(s, t);
+        }
+
         record.inference(
             &problem.symbols,
             terms,
             literals,
-            "strict_extension",
-            assertions.clone(),
-            None,
-            &[self.remaining(), extension.open()],
+            inference
+                .deduction(self.remaining())
+                .deduction(extension.open()),
         );
-
-        for (parg, qarg) in assertions {
-            constraints.assert_eq(parg, qarg);
-        }
         extension
     }
 
@@ -259,6 +244,7 @@ impl Clause {
         constraints: &mut Constraints,
         extension: Extension,
     ) -> (Self, Self) {
+        let mut inference = R::Inference::new("lazy_extension");
         let extension = Self::extension(
             record,
             problem,
@@ -269,20 +255,21 @@ impl Clause {
         );
         let p = &literals[self.current];
         let q = &literals[extension.current];
-        let pargs = p.get_predicate_arguments(&problem.symbols, terms);
-        let qargs = q.get_predicate_arguments(&problem.symbols, terms);
+        let disequation_start = literals.len();
 
         let fresh_start = terms.len();
-        for parg in pargs {
-            let fresh = terms.add_variable();
-            constraints.assert_eq(fresh, terms.resolve(parg));
+        for _ in p.get_predicate_arguments(&problem.symbols, terms) {
+            terms.add_variable();
         }
         let fresh_end = terms.len();
         let fresh = Range::new(fresh_start, fresh_end);
 
-        let disequation_start = literals.len();
-        for (fresh, qarg) in fresh.into_iter().zip(qargs.into_iter()) {
-            literals.push(Literal::disequation(terms.resolve(qarg), fresh));
+        for ((s, t), fresh) in
+            argument_pairs(&problem.symbols, terms, p, q).zip(fresh)
+        {
+            constraints.assert_eq(fresh, s);
+            inference = inference.equation(fresh, s);
+            literals.push(Literal::disequation(t, fresh));
         }
         let disequation_end = literals.len();
         let disequations = Self::new(disequation_start, disequation_end);
@@ -291,12 +278,10 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "lazy_extension",
-            fresh
-                .into_iter()
-                .zip(pargs.into_iter().map(|p| terms.resolve(p))),
-            None,
-            &[self.remaining(), extension.remaining(), disequations.open()],
+            inference
+                .deduction(self.remaining())
+                .deduction(extension.remaining())
+                .deduction(disequations.open()),
         );
         (extension, disequations)
     }
@@ -337,10 +322,11 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "strict_backward_paramodulation",
-            once((target, from)),
-            None,
-            &[self.remaining(), extension.remaining(), consequence.open()],
+            R::Inference::new("strict_backward_paramodulation")
+                .equation(target, from)
+                .deduction(self.remaining())
+                .deduction(extension.remaining())
+                .deduction(consequence.open()),
         );
         (extension, consequence)
     }
@@ -395,10 +381,11 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "lazy_backward_paramodulation",
-            once((placeholder, target)),
-            None,
-            &[self.remaining(), extension.remaining(), consequence.open()],
+            R::Inference::new("lazy_backward_paramodulation")
+                .equation(placeholder, target)
+                .deduction(self.remaining())
+                .deduction(extension.remaining())
+                .deduction(consequence.open()),
         );
         (extension, consequence)
     }
@@ -439,10 +426,11 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "variable_backward_paramodulation",
-            once((target, from)),
-            None,
-            &[self.remaining(), extension.remaining(), consequence.open()],
+            R::Inference::new("variable_backward_paramodulation")
+                .equation(target, from)
+                .deduction(self.remaining())
+                .deduction(extension.remaining())
+                .deduction(consequence.open()),
         );
 
         (extension, consequence)
@@ -457,10 +445,10 @@ impl Clause {
         literals: &mut Literals,
         constraints: &mut Constraints,
         paramodulation: ForwardParamodulation,
-        lr: bool,
+        l2r: bool,
     ) -> (Self, Self) {
         let (left, right) = literals[self.current].get_equality();
-        let (from, to) = if lr { (left, right) } else { (right, left) };
+        let (from, to) = if l2r { (left, right) } else { (right, left) };
         let (extension, target) = Self::forward_paramodulation(
             record,
             problem,
@@ -469,16 +457,10 @@ impl Clause {
             constraints,
             paramodulation,
         );
-        let (fresh, fresh_constraint) = if terms.is_variable(to) {
-            (to, None)
-        } else {
-            let fresh = terms.add_variable();
-            constraints.assert_eq(to, fresh);
-            (fresh, Some((to, fresh)))
-        };
-
+        let fresh = terms.add_variable();
         let placeholder =
             terms.fresh_function(&problem.symbols, terms.symbol(target));
+        constraints.assert_eq(to, fresh);
         constraints.assert_eq(placeholder, from);
         constraints.assert_neq(target, from);
 
@@ -507,10 +489,12 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "lazy_forward_paramodulation",
-            once((placeholder, from)).chain(fresh_constraint),
-            None,
-            &[self.remaining(), extension.remaining(), consequence.open()],
+            R::Inference::new("lazy_forward_paramodulation")
+                .equation(to, fresh)
+                .equation(placeholder, from)
+                .deduction(self.remaining())
+                .deduction(extension.remaining())
+                .deduction(consequence.open()),
         );
         (extension, consequence)
     }
@@ -524,10 +508,12 @@ impl Clause {
         literals: &mut Literals,
         constraints: &mut Constraints,
         paramodulation: ForwardParamodulation,
-        lr: bool,
+        l2r: bool,
     ) -> (Self, Self) {
         let (left, right) = literals[self.current].get_equality();
-        let (from, to) = if lr { (left, right) } else { (right, left) };
+        let (from, to) = if l2r { (left, right) } else { (right, left) };
+        let fresh = terms.add_variable();
+
         let (extension, target) = Self::forward_paramodulation(
             record,
             problem,
@@ -536,14 +522,7 @@ impl Clause {
             constraints,
             paramodulation,
         );
-        let (fresh, fresh_constraint) = if terms.is_variable(to) {
-            (to, None)
-        } else {
-            let fresh = terms.add_variable();
-            constraints.assert_eq(to, fresh);
-            (fresh, Some((to, fresh)))
-        };
-
+        constraints.assert_eq(to, fresh);
         constraints.assert_eq(target, from);
 
         let start = literals.len();
@@ -560,10 +539,12 @@ impl Clause {
             &problem.symbols,
             terms,
             literals,
-            "strict_forward_paramodulation",
-            once((target, from)).chain(fresh_constraint),
-            None,
-            &[self.remaining(), extension.remaining(), consequence.open()],
+            R::Inference::new("strict_forward_paramodulation")
+                .equation(to, fresh)
+                .equation(target, from)
+                .deduction(self.remaining())
+                .deduction(extension.remaining())
+                .deduction(consequence.open()),
         );
         (extension, consequence)
     }

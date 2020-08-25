@@ -2,7 +2,25 @@ use crate::clause::Clause;
 use crate::prelude::*;
 use std::fmt::Display;
 
+pub(crate) trait Inference: Sized {
+    fn new(name: &'static str) -> Self;
+
+    fn equation(self, _left: Id<Term>, _right: Id<Term>) -> Self {
+        self
+    }
+
+    fn literal(self, _literal: Id<Literal>) -> Self {
+        self
+    }
+
+    fn deduction(self, _literals: Range<Literal>) -> Self {
+        self
+    }
+}
+
 pub(crate) trait Record {
+    type Inference: Inference;
+
     fn axiom(
         &mut self,
         _symbols: &Symbols,
@@ -12,16 +30,12 @@ pub(crate) trait Record {
     ) {
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn inference<I: IntoIterator<Item = (Id<Term>, Id<Term>)>>(
+    fn inference(
         &mut self,
         _symbols: &Symbols,
         _terms: &Terms,
         _literals: &Literals,
-        _inference: &'static str,
-        _equations: I,
-        _literal: Option<&Literal>,
-        _deductions: &[Range<Literal>],
+        _inference: Self::Inference,
     ) {
     }
 
@@ -36,5 +50,16 @@ pub(crate) trait Record {
     fn statistic<T: Display>(&mut self, _key: &'static str, _value: T) {}
 }
 
+pub(crate) struct SilentInference;
+
+impl Inference for SilentInference {
+    fn new(_name: &'static str) -> Self {
+        Self
+    }
+}
+
 pub(crate) struct Silent;
-impl Record for Silent {}
+
+impl Record for Silent {
+    type Inference = SilentInference;
+}

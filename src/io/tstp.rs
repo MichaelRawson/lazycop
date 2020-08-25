@@ -1,8 +1,44 @@
 use crate::clause::Clause;
 use crate::prelude::*;
-use crate::record::Record;
+use crate::record::{Inference, Record};
 use crate::util::fresh::Fresh;
 use std::fmt::Display;
+
+pub(crate) struct TSTPInference {
+    name: &'static str,
+    literal: Option<Id<Literal>>,
+    equations: Vec<(Id<Term>, Id<Term>)>,
+    deductions: Vec<Range<Literal>>,
+}
+
+impl Inference for TSTPInference {
+    fn new(name: &'static str) -> Self {
+        let literal = None;
+        let equations = vec![];
+        let deductions = vec![];
+        Self {
+            name,
+            literal,
+            equations,
+            deductions,
+        }
+    }
+
+    fn literal(mut self, literal: Id<Literal>) -> Self {
+        self.literal = Some(literal);
+        self
+    }
+
+    fn equation(mut self, left: Id<Term>, right: Id<Term>) -> Self {
+        self.equations.push((left, right));
+        self
+    }
+
+    fn deduction(mut self, deduction: Range<Literal>) -> Self {
+        self.deductions.push(deduction);
+        self
+    }
+}
 
 #[derive(Default)]
 pub(crate) struct TSTP {
@@ -95,6 +131,8 @@ impl TSTP {
 }
 
 impl Record for TSTP {
+    type Inference = TSTPInference;
+
     fn axiom(
         &mut self,
         symbols: &Symbols,
@@ -109,27 +147,24 @@ impl Record for TSTP {
         println!(").");
     }
 
-    fn inference<I: IntoIterator<Item = (Id<Term>, Id<Term>)>>(
+    fn inference(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,
         literals: &Literals,
-        inference: &'static str,
-        equations: I,
-        literal: Option<&Literal>,
-        deductions: &[Range<Literal>],
+        inference: TSTPInference,
     ) {
-        if let Some(literal) = literal {
+        if let Some(literal) = inference.literal {
             print!("cnf(c{}, plain,\n\t", self.clause_number);
             self.premise_list.push(self.clause_number);
             self.clause_number += 1;
-            self.print_literal(symbols, terms, literal);
+            self.print_literal(symbols, terms, &literals[literal]);
             println!(").");
         }
 
         let parent = self.clause_stack.pop();
         let assumption_start = self.assumption_number;
-        for (left, right) in equations {
+        for (left, right) in inference.equations {
             print!("cnf(a{}, assumption,\n\t", self.assumption_number);
             self.print_term(symbols, terms, left);
             print!(" = ");
@@ -138,10 +173,10 @@ impl Record for TSTP {
             self.assumption_number += 1;
         }
 
-        let mut remaining_deductions = deductions.len();
-        for deduction in deductions {
+        let mut remaining_deductions = inference.deductions.len();
+        for deduction in inference.deductions {
             remaining_deductions -= 1;
-            if Range::is_empty(*deduction) {
+            if Range::is_empty(deduction) {
                 if remaining_deductions > 0 {
                     continue;
                 }
@@ -153,7 +188,7 @@ impl Record for TSTP {
             self.clause_number += 1;
             self.print_clause(symbols, terms, literals, deduction.into_iter());
 
-            print!(",\n\tinference({}, [", inference);
+            print!(",\n\tinference({}, [", inference.name);
             if assumption_start != self.assumption_number {
                 print!("assumptions([");
                 let mut assumptions = assumption_start..self.assumption_number;
