@@ -24,17 +24,17 @@ impl Inference for TSTPInference {
         }
     }
 
-    fn literal(mut self, literal: Id<Literal>) -> Self {
+    fn literal(&mut self, literal: Id<Literal>) -> &mut Self {
         self.literal = Some(literal);
         self
     }
 
-    fn equation(mut self, left: Id<Term>, right: Id<Term>) -> Self {
+    fn equation(&mut self, left: Id<Term>, right: Id<Term>) -> &mut Self {
         self.equations.push((left, right));
         self
     }
 
-    fn deduction(mut self, deduction: Range<Literal>) -> Self {
+    fn deduction(&mut self, deduction: Range<Literal>) -> &mut Self {
         self.deductions.push(deduction);
         self
     }
@@ -152,7 +152,7 @@ impl Record for TSTP {
         symbols: &Symbols,
         terms: &Terms,
         literals: &Literals,
-        inference: TSTPInference,
+        inference: &mut TSTPInference,
     ) {
         if let Some(literal) = inference.literal {
             print!("cnf(c{}, plain,\n\t", self.clause_number);
@@ -164,7 +164,7 @@ impl Record for TSTP {
 
         let parent = self.clause_stack.pop();
         let assumption_start = self.assumption_number;
-        for (left, right) in inference.equations {
+        for (left, right) in inference.equations.drain(..) {
             print!("cnf(a{}, assumption,\n\t", self.assumption_number);
             self.print_term(symbols, terms, left);
             print!(" = ");
@@ -174,7 +174,7 @@ impl Record for TSTP {
         }
 
         let mut remaining_deductions = inference.deductions.len();
-        for deduction in inference.deductions {
+        for deduction in inference.deductions.drain(..) {
             remaining_deductions -= 1;
             if Range::is_empty(deduction) {
                 if remaining_deductions > 0 {

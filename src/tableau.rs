@@ -44,9 +44,8 @@ impl Tableau {
         self.stack
             .range()
             .into_iter()
-            .map(|id| self.stack[id].remaining().len())
-            .sum::<i32>()
-            + 1
+            .map(|id| self.stack[id].open().len())
+            .sum()
     }
 
     pub(crate) fn reduction_literals(
@@ -99,7 +98,6 @@ impl Tableau {
         );
     }
 
-    #[cfg(feature = "nn")]
     pub(crate) fn graph(
         &self,
         graph: &mut Graph,
@@ -121,7 +119,7 @@ impl Tableau {
             }
             clause
         };
-        let mut clauses = self.stack.range();
+        let mut clauses = self.stack.range().into_iter();
         let mut previous = add_clause(graph, some(clauses.next()));
         for next in clauses {
             let next = add_clause(graph, next);

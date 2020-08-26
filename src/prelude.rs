@@ -5,7 +5,6 @@ pub(crate) use crate::rule::Rule;
 pub(crate) use crate::symbol::{Symbol, Symbols};
 pub(crate) use crate::term::{Argument, Term, TermView, Terms, Variable};
 pub(crate) use crate::util::block::Block;
-#[cfg(feature = "nn")]
 pub(crate) use crate::util::graph::{Graph, Node};
 pub(crate) use crate::util::id::Id;
 pub(crate) use crate::util::lut::LUT;

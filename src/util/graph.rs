@@ -14,32 +14,32 @@ pub(crate) enum Node {
 
 #[derive(Default)]
 pub(crate) struct Graph {
-    pub(crate) subgraphs: u32,
-    pub(crate) nodes: Block<Node>,
-    pub(crate) from: Vec<u32>,
-    pub(crate) to: Vec<u32>,
-    pub(crate) node_batch: Vec<u32>,
-    pub(crate) edge_batch: Vec<u32>,
+    pub(crate) nodes: Block<u32>,
+    pub(crate) sources: Vec<u32>,
+    pub(crate) targets: Vec<u32>,
+    pub(crate) batch: Vec<u32>,
+    subgraphs: u32,
     symbols: LUT<Symbol, Option<Id<Node>>>,
     terms: LUT<Term, Option<Id<Node>>>,
 }
 
 impl Graph {
+    pub(crate) fn node_labels(&self) -> &[u32] {
+        self.nodes.slice()
+    }
+
     pub(crate) fn clear(&mut self) {
-        self.subgraphs = 0;
         self.nodes.clear();
-        self.from.clear();
-        self.to.clear();
-        self.node_batch.clear();
-        self.edge_batch.clear();
+        self.sources.clear();
+        self.targets.clear();
+        self.batch.clear();
+        self.subgraphs = 0;
         self.symbols.resize(Id::default());
         self.terms.resize(Id::default());
     }
 
     pub(crate) fn finish_subgraph(&mut self) {
         self.subgraphs += 1;
-        self.node_batch.push(self.nodes.len().index());
-        self.edge_batch.push(self.from.len() as u32);
         self.symbols.resize(Id::default());
         self.terms.resize(Id::default());
     }
@@ -49,9 +49,9 @@ impl Graph {
         self.terms.resize(terms.len());
     }
 
-    pub(crate) fn connect(&mut self, from: Id<Node>, to: Id<Node>) {
-        self.from.push(from.index());
-        self.to.push(to.index());
+    pub(crate) fn connect(&mut self, sources: Id<Node>, targets: Id<Node>) {
+        self.sources.push(sources.index());
+        self.targets.push(targets.index());
     }
 
     pub(crate) fn symbol(&mut self, symbol: Id<Symbol>) -> Id<Node> {
@@ -106,9 +106,9 @@ impl Graph {
         equality
     }
 
-    pub(crate) fn negation(&mut self, atom: Id<Node>) -> Id<Node> {
+    pub(crate) fn negation(&mut self, atargetsm: Id<Node>) -> Id<Node> {
         let negation = self.node(Node::Negation);
-        self.connect(negation, atom);
+        self.connect(negation, atargetsm);
         negation
     }
 
@@ -117,6 +117,7 @@ impl Graph {
     }
 
     fn node(&mut self, node: Node) -> Id<Node> {
-        self.nodes.push(node)
+        self.batch.push(self.subgraphs);
+        self.nodes.push(node as u32).transmute()
     }
 }

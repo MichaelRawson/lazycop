@@ -39,7 +39,6 @@ impl Bindings {
         })
     }
 
-    #[cfg(feature = "nn")]
     pub(crate) fn graph(
         &self,
         graph: &mut Graph,

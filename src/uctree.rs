@@ -1,14 +1,11 @@
 use crate::prelude::*;
 
-const SCORE_BASE: f32 = 0.95;
-const EXPLORATION: f32 = 1.0;
-
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 struct UCTValue(f32);
 
 impl UCTValue {
     fn new(value: f32) -> Self {
-        debug_assert!(value.is_normal());
+        debug_assert!(value.is_finite());
         debug_assert!(value >= 0.0);
         Self(value)
     }
@@ -52,24 +49,29 @@ impl UCTNode {
         !self.closed && Range::is_empty(self.children)
     }
 
-    fn uct(&self, lpv: f32) -> UCTValue {
+    fn puct(&self, max_score: i32, sqrt_pv: f32) -> UCTValue {
+        let score = (max_score - self.score) as f32;
+        let max_score = max_score as f32;
+        let exploitation = score / max_score;
+
         let visits = self.visits as f32;
-        let exploitation = SCORE_BASE.powi(self.score);
-        let exploration = EXPLORATION * self.prior * (lpv / visits).sqrt();
-        let uct = exploitation + exploration;
-        UCTValue::new(uct)
+        let exploration = self.prior * sqrt_pv / visits;
+
+        UCTValue::new(exploitation + exploration)
     }
 }
 
 pub(crate) struct UCTree {
     nodes: Block<UCTNode>,
+    max_score: i32,
 }
 
 impl Default for UCTree {
     fn default() -> Self {
         let mut nodes = Block::default();
         nodes.push(UCTNode::new(Id::default(), Rule::Reflexivity, 0, 1.0));
-        Self { nodes }
+        let max_score = 1;
+        Self { nodes, max_score }
     }
 }
 
@@ -82,14 +84,25 @@ impl UCTree {
         debug_assert!(!self.is_closed());
         let mut current = Id::default();
         while !self.nodes[current].is_leaf() {
+            /*
+            for node in self.nodes[current].children {
+                print!(" {}", self.nodes[node].score);
+                if self.nodes[node].closed {
+                    print!("*");
+                }
+            }
+            println!();
+            */
+
             let node = &self.nodes[current];
-            let lpv = (node.visits as f32).ln();
+            let sqrt_pv = (node.visits as f32).sqrt();
             let eligible = node
                 .children
                 .into_iter()
                 .filter(|child| !self.nodes[*child].closed);
-            let next =
-                some(eligible.max_by_key(|child| self.nodes[*child].uct(lpv)));
+            let next = some(eligible.max_by_key(|child| {
+                self.nodes[*child].puct(self.max_score, sqrt_pv)
+            }));
             list.push(self.nodes[next].rule);
             self.nodes[current].visits += 1;
             current = next;
@@ -101,6 +114,7 @@ impl UCTree {
         let prior = 1.0 / data.len() as f32;
         let start = self.nodes.len();
         for (rule, score) in data {
+            self.max_score = std::cmp::max(self.max_score, *score);
             self.nodes.push(UCTNode::new(parent, *rule, *score, prior));
         }
         let end = self.nodes.len();
@@ -127,5 +141,43 @@ impl UCTree {
             }
             current = self.nodes[current].parent;
         }
+    }
+
+    pub(crate) fn eligible_training_nodes(
+        &self,
+        limit: u32,
+    ) -> impl Iterator<Item = Id<UCTNode>> + '_ {
+        self.nodes
+            .range()
+            .into_iter()
+            .filter(move |id| !self.nodes[*id].closed)
+            .filter(move |id| self.nodes[*id].visits > limit)
+    }
+
+    pub(crate) fn rules_for_node(
+        &self,
+        node: Id<UCTNode>,
+        rules: &mut Vec<Rule>,
+    ) {
+        rules.clear();
+        let mut current = node;
+        while current != Id::default() {
+            rules.push(self.nodes[current].rule);
+            current = self.nodes[current].parent;
+        }
+        rules.reverse();
+    }
+
+    pub(crate) fn child_scores(
+        &self,
+        node: Id<UCTNode>,
+    ) -> impl Iterator<Item = i32> + '_ {
+        self.nodes[node].children.into_iter().map(move |id| {
+            if self.nodes[id].closed {
+                i32::MAX
+            } else {
+                self.nodes[id].score
+            }
+        })
     }
 }

@@ -110,7 +110,7 @@ impl Clause {
         let q = &literals[reduction.literal];
         for (s, t) in argument_pairs(symbols, terms, p, q) {
             constraints.assert_eq(s, t);
-            inference = inference.equation(s, t);
+            inference.equation(s, t);
         }
 
         record.inference(
@@ -221,7 +221,7 @@ impl Clause {
         let q = &literals[extension.close_literal()];
         for (s, t) in argument_pairs(&problem.symbols, terms, p, q) {
             constraints.assert_eq(s, t);
-            inference = inference.equation(s, t);
+            inference.equation(s, t);
         }
 
         record.inference(
@@ -268,7 +268,7 @@ impl Clause {
             argument_pairs(&problem.symbols, terms, p, q).zip(fresh)
         {
             constraints.assert_eq(fresh, s);
-            inference = inference.equation(fresh, s);
+            inference.equation(fresh, s);
             literals.push(Literal::disequation(t, fresh));
         }
         let disequation_end = literals.len();

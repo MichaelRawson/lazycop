@@ -2,7 +2,8 @@
 
 CARGO_PROFILE_RELEASE_LTO=fat
 CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
-RUSTFLAGS="-C debuginfo=0 -C target-feature=avx"
+CARGO_PROFILE_RELEASE_DEBUG=0
+CARGO_PROFILE_RELEASE_PANIC="abort"
 cargo build --release --target x86_64-unknown-linux-musl
 
 rm -rf lazycop.zip bin/

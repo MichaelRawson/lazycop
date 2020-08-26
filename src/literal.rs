@@ -48,7 +48,6 @@ impl Literal {
         self.atom.get_equality()
     }
 
-    #[cfg(feature = "nn")]
     pub(crate) fn graph(
         &self,
         graph: &mut Graph,

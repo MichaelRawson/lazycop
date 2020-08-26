@@ -3,12 +3,17 @@ name = "lazycop"
 version = "0.1.0"
 authors = ["Michael Rawson <michael@rawsons.uk>"]
 edition = "2018"
+description = "an automatic theorem prover for first-order logic with equality"
+readme = "README.md"
+homepage = "https://github.com/MichaelRawson/lazycop"
+repository = "https://github.com/MichaelRawson/lazycop"
 license = "MIT"
 
 [features]
 nn = ["lazynn"]
 
 [dependencies]
+structopt = "0.3"
 crossbeam-utils = "0.7"
 fnv = "1.0"
 num_cpus = "1.13"
@@ -18,6 +23,3 @@ tptp = "0.23"
 [dependencies.lazynn]
 optional = true
 path = "lazynn"
-
-[profile.release]
-panic = "abort"

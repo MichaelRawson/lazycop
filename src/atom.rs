@@ -60,7 +60,6 @@ impl Atom {
         terms.arguments(symbols, self.get_predicate())
     }
 
-    #[cfg(feature = "nn")]
     pub(crate) fn graph(
         &self,
         graph: &mut Graph,

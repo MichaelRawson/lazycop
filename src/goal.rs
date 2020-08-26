@@ -140,7 +140,6 @@ impl<'problem> Goal<'problem> {
         );
     }
 
-    #[cfg(feature = "nn")]
     pub(crate) fn graph(&mut self, graph: &mut Graph) {
         graph.initialise(&self.problem.symbols, &self.terms);
         self.tableau.graph(

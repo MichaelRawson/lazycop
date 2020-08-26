@@ -5,15 +5,15 @@ use std::fmt::Display;
 pub(crate) trait Inference: Sized {
     fn new(name: &'static str) -> Self;
 
-    fn equation(self, _left: Id<Term>, _right: Id<Term>) -> Self {
+    fn equation(&mut self, _left: Id<Term>, _right: Id<Term>) -> &mut Self {
         self
     }
 
-    fn literal(self, _literal: Id<Literal>) -> Self {
+    fn literal(&mut self, _literal: Id<Literal>) -> &mut Self {
         self
     }
 
-    fn deduction(self, _literals: Range<Literal>) -> Self {
+    fn deduction(&mut self, _literals: Range<Literal>) -> &mut Self {
         self
     }
 }
@@ -35,7 +35,7 @@ pub(crate) trait Record {
         _symbols: &Symbols,
         _terms: &Terms,
         _literals: &Literals,
-        _inference: Self::Inference,
+        _inference: &mut Self::Inference,
     ) {
     }
 

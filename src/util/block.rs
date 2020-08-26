@@ -47,6 +47,10 @@ impl<T> Block<T> {
     pub(crate) fn truncate(&mut self, len: Id<T>) {
         self.items.truncate(len.index() as usize);
     }
+
+    pub(crate) fn slice(&self) -> &[T] {
+        &self.items
+    }
 }
 
 impl<T: Copy> Block<T> {
