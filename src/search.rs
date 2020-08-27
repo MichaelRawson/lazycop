@@ -102,7 +102,7 @@ pub(crate) fn search(
     (statistics, proof)
 }
 
-fn dump_array(data: &[u32]) {
+fn dump_array<T: std::fmt::Display>(data: &[T]) {
     let mut data = data.iter();
     print!("[");
     if let Some(first) = data.next() {
@@ -116,47 +116,47 @@ fn dump_array(data: &[u32]) {
 
 fn dump_training_data(problem: &Problem, tree: &UCTree, limit: u32) {
     let mut rules = vec![];
-    let mut possible = vec![];
     let mut scores = vec![];
     let mut goal = Goal::new(problem);
     let mut graph = Graph::default();
 
     for id in tree.eligible_training_nodes(limit) {
-        print!("{{");
-        scores.extend(tree.child_scores(id));
-        print!("\"scores\":{:?}", &scores);
-
         tree.rules_for_node(id, &mut rules);
         for rule in &rules {
             goal.apply_rule(&mut Silent, rule);
         }
         let constraints_ok = goal.simplify_constraints();
         debug_assert!(constraints_ok);
-        goal.possible_rules(&mut possible);
         goal.save();
 
-        for rule in possible.drain(..) {
+        for (rule, score) in tree.child_rule_scores(id) {
+            scores.push(score);
             goal.apply_rule(&mut Silent, &rule);
-            if goal.solve_constraints() {
-                debug_assert!(!goal.is_closed());
-                goal.graph(&mut graph);
-                graph.finish_subgraph();
-            }
+            let constraints_ok = goal.solve_constraints();
+            debug_assert!(constraints_ok);
+            debug_assert!(!goal.is_closed());
+            goal.graph(&mut graph);
+            graph.finish_subgraph();
             goal.restore();
         }
 
-        print!(",\"nodes\":");
-        dump_array(graph.node_labels());
-        print!(",\"sources\":");
-        dump_array(&graph.sources);
-        print!(",\"targets\":");
-        dump_array(&graph.targets);
-        print!(",\"batch\":");
-        dump_array(&graph.batch);
+        if scores.len() > 1 {
+            print!("{{");
+            print!("\"nodes\":");
+            dump_array(graph.node_labels());
+            print!(",\"sources\":");
+            dump_array(&graph.sources);
+            print!(",\"targets\":");
+            dump_array(&graph.targets);
+            print!(",\"batch\":");
+            dump_array(&graph.batch);
+            print!(",\"scores\":");
+            dump_array(&scores);
+            println!("}}");
+        }
 
         goal.clear();
         graph.clear();
         scores.clear();
-        println!("}}");
     }
 }

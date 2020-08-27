@@ -40,11 +40,11 @@ impl Tableau {
         some(self.stack.last())
     }
 
-    pub(crate) fn num_open_branches(&self) -> i32 {
+    pub(crate) fn num_open_branches(&self) -> u32 {
         self.stack
             .range()
             .into_iter()
-            .map(|id| self.stack[id].open().len())
+            .map(|id| self.stack[id].open().len() as u32)
             .sum()
     }
 

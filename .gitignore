@@ -2,12 +2,13 @@
 /m2k
 /Axioms
 /Problems
+/data
 /lazycop.zip
 /lazynn/example.h
 /lazynn/weights.h
 /lazynn/test
-/lazynn/data.gz
 /lazynn/runs
+/lazynn/target
 __pycache__
 *.a
 *.o

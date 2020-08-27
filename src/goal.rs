@@ -67,7 +67,7 @@ impl<'problem> Goal<'problem> {
         self.tableau.is_empty()
     }
 
-    pub(crate) fn num_open_branches(&self) -> i32 {
+    pub(crate) fn num_open_branches(&self) -> u32 {
         self.tableau.num_open_branches()
     }
 

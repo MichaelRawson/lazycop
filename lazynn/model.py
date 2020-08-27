@@ -3,9 +3,9 @@ from torch.nn import Embedding, Linear, Module, ModuleList
 from torch.nn.functional import relu
 
 NODE_TYPES = 7
-CHANNELS = 64
+CHANNELS = 32
 HIDDEN = 1024
-LAYERS = 4
+LAYERS = 8
 
 class Conv(Module):
     def __init__(self):
@@ -44,26 +44,29 @@ class Model(Module):
         self.embedding = Embedding(NODE_TYPES, CHANNELS)
         self.conv = ModuleList([BiConv() for i in range(LAYERS)])
         self.hidden = Linear(CHANNELS, HIDDEN)
-        self.output = Linear(HIDDEN, 1)
+        self.output = Linear(HIDDEN, 1, bias=False)
 
     def forward(
         self,
         nodes,
-        node_counts,
         sources,
         targets,
-        assignment,
-        graph_count
+        batch
     ):
+        num_graphs = batch.max() + 1
+        node_counts = torch.zeros(
+            num_graphs,
+            device=batch.device
+        ).index_add_(0, batch, torch.ones(batch.shape, device=batch.device))
         norm, norm_t = compute_norms(nodes, sources, targets)
+
         x = self.embedding(nodes)
         for conv in self.conv:
             x = x + conv(x, sources, targets, norm, norm_t)
         x = torch.zeros(
-            (graph_count, CHANNELS),
+            (num_graphs, CHANNELS),
             device=x.device
-        ).index_add_(0, assignment, x) / node_counts.unsqueeze(dim=1)
+        ).index_add_(0, batch, x) / node_counts.unsqueeze(dim=1)
         x = self.hidden(x)
         x = relu(x)
-        x = self.output(x)
-        return x.squeeze()
+        return self.output(x).squeeze()

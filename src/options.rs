@@ -45,7 +45,7 @@ pub(crate) struct Options {
     #[structopt(
         long,
         help = "training data visit minimum",
-        default_value = "100"
+        default_value = "1000"
     )]
     pub(crate) visit_minimum: u32,
 }

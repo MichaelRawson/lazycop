@@ -24,13 +24,13 @@ pub(crate) struct UCTNode {
     children: Range<UCTNode>,
     rule: Rule,
     visits: u32,
-    score: i32,
+    score: u32,
     prior: f32,
     closed: bool,
 }
 
 impl UCTNode {
-    fn new(parent: Id<UCTNode>, rule: Rule, score: i32, prior: f32) -> Self {
+    fn new(parent: Id<UCTNode>, rule: Rule, score: u32, prior: f32) -> Self {
         let children = Range::new(Id::default(), Id::default());
         let visits = 1;
         let closed = false;
@@ -49,7 +49,7 @@ impl UCTNode {
         !self.closed && Range::is_empty(self.children)
     }
 
-    fn puct(&self, max_score: i32, sqrt_pv: f32) -> UCTValue {
+    fn puct(&self, max_score: u32, sqrt_pv: f32) -> UCTValue {
         let score = (max_score - self.score) as f32;
         let max_score = max_score as f32;
         let exploitation = score / max_score;
@@ -63,7 +63,7 @@ impl UCTNode {
 
 pub(crate) struct UCTree {
     nodes: Block<UCTNode>,
-    max_score: i32,
+    max_score: u32,
 }
 
 impl Default for UCTree {
@@ -110,7 +110,7 @@ impl UCTree {
         current
     }
 
-    pub(crate) fn give(&mut self, parent: Id<UCTNode>, data: &[(Rule, i32)]) {
+    pub(crate) fn give(&mut self, parent: Id<UCTNode>, data: &[(Rule, u32)]) {
         let prior = 1.0 / data.len() as f32;
         let start = self.nodes.len();
         for (rule, score) in data {
@@ -168,16 +168,14 @@ impl UCTree {
         rules.reverse();
     }
 
-    pub(crate) fn child_scores(
+    pub(crate) fn child_rule_scores(
         &self,
         node: Id<UCTNode>,
-    ) -> impl Iterator<Item = i32> + '_ {
-        self.nodes[node].children.into_iter().map(move |id| {
-            if self.nodes[id].closed {
-                i32::MAX
-            } else {
-                self.nodes[id].score
-            }
-        })
+    ) -> impl Iterator<Item = (Rule, u32)> + '_ {
+        self.nodes[node]
+            .children
+            .into_iter()
+            .filter(move |id| !self.nodes[*id].closed)
+            .map(move |id| (self.nodes[id].rule, self.nodes[id].score))
     }
 }
