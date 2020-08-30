@@ -74,34 +74,6 @@ fn search_task(
     None
 }
 
-pub(crate) fn search(
-    problem: &Problem,
-    options: &Options,
-) -> (Statistics, Option<Vec<Rule>>) {
-    let mut statistics = Statistics::new(problem);
-    let mut proof = None;
-    let tree = Mutex::new(UCTree::default());
-    let steps = options.steps.unwrap_or(usize::MAX);
-
-    thread::scope(|scope| {
-        scope
-            .builder()
-            .name("search".into())
-            .stack_size(STACK_SIZE)
-            .spawn(|_| {
-                proof = search_task(problem, &mut statistics, &tree, steps)
-            })
-            .expect("failed to spawn search thread");
-    })
-    .unwrap_or_else(|_| panic!("worker thread crashed"));
-
-    if options.dump_training_data {
-        let tree = tree.into_inner();
-        dump_training_data(problem, &tree, options.visit_minimum);
-    }
-    (statistics, proof)
-}
-
 fn dump_array<T: std::fmt::Display>(data: &[T]) {
     let mut data = data.iter();
     print!("[");
@@ -159,4 +131,32 @@ fn dump_training_data(problem: &Problem, tree: &UCTree, limit: u32) {
         graph.clear();
         scores.clear();
     }
+}
+
+pub(crate) fn search(
+    problem: &Problem,
+    options: &Options,
+) -> (Statistics, Option<Vec<Rule>>) {
+    let mut statistics = Statistics::new(problem);
+    let mut proof = None;
+    let tree = Mutex::new(UCTree::default());
+    let steps = options.steps.unwrap_or(usize::MAX);
+
+    thread::scope(|scope| {
+        scope
+            .builder()
+            .name("search".into())
+            .stack_size(STACK_SIZE)
+            .spawn(|_| {
+                proof = search_task(problem, &mut statistics, &tree, steps)
+            })
+            .expect("failed to spawn search thread");
+    })
+    .unwrap_or_else(|_| panic!("worker thread crashed"));
+
+    if options.dump_training_data {
+        let tree = tree.into_inner();
+        dump_training_data(problem, &tree, options.visit_minimum);
+    }
+    (statistics, proof)
 }

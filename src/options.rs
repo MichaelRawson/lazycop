@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use std::path::PathBuf;
 use structopt::StructOpt;
 
 const NAME: &str = "lazyCoP";
@@ -27,6 +28,9 @@ impl Output {
 #[derive(StructOpt)]
 #[structopt(name = NAME, author, about = ABOUT)]
 pub(crate) struct Options {
+    #[structopt(parse(from_os_str), help = "path to input problem")]
+    pub(crate) path: PathBuf,
+
     #[structopt(
         long,
         help="proof output",

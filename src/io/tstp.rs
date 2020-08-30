@@ -51,7 +51,12 @@ pub(crate) struct TSTP {
 
 impl TSTP {
     fn print_symbol(symbols: &Symbols, symbol: Id<Symbol>) {
-        print!("{}", &symbols[symbol].name);
+        match &symbols[symbol].name {
+            Name::Regular(word) => print!("{}", word),
+            Name::Quoted(quoted) => print!("'{}'", quoted),
+            Name::Skolem(skolem) => print!("sK{}", skolem),
+            Name::Definition(definition) => print!("sP{}", definition),
+        }
     }
 
     fn print_variable(&mut self, x: Id<Variable>) {

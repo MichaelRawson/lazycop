@@ -4,7 +4,7 @@ use fnv::FnvHashMap;
 use std::mem;
 
 #[derive(Default)]
-pub(crate) struct ProblemBuilder {
+pub(crate) struct ProblemBuilder<'a> {
     has_equality: bool,
     symbols: Symbols,
     clauses: Block<ProblemClause>,
@@ -16,14 +16,14 @@ pub(crate) struct ProblemBuilder {
     conjecture_clauses: Vec<Id<ProblemClause>>,
 
     terms: Terms,
-    symbol_map: FnvHashMap<(String, u32), Id<Symbol>>,
-    variable_map: FnvHashMap<String, Id<Term>>,
+    symbol_map: FnvHashMap<(&'a str, u32), Id<Symbol>>,
+    variable_map: FnvHashMap<&'a str, Id<Term>>,
     saved_terms: Vec<Id<Term>>,
     saved_literals: Literals,
     clause_negative: bool,
 }
 
-impl ProblemBuilder {
+impl<'a> ProblemBuilder<'a> {
     pub(crate) fn finish(mut self) -> Problem {
         let start = if let Some(empty) = self.empty_clause {
             vec![empty]
@@ -42,7 +42,7 @@ impl ProblemBuilder {
         )
     }
 
-    pub(crate) fn variable(&mut self, variable: String) {
+    pub(crate) fn variable(&mut self, variable: &'a str) {
         let terms = &mut self.terms;
         let id = *self
             .variable_map
@@ -51,12 +51,13 @@ impl ProblemBuilder {
         self.saved_terms.push(id);
     }
 
-    pub(crate) fn function(&mut self, name: String, arity: u32) {
+    pub(crate) fn function(&mut self, name: &'a str, arity: u32) {
         let symbols = &mut self.symbols;
         let symbol = *self
             .symbol_map
-            .entry((name.clone(), arity))
+            .entry((name, arity))
             .or_insert_with(|| {
+                let name = name.into();
                 let symbol = Symbol { arity, name };
                 symbols.push(symbol)
             });

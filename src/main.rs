@@ -1,6 +1,7 @@
 mod atom;
 mod binding;
 mod clause;
+mod cnf;
 mod constraint;
 mod disequation_solver;
 mod equation_solver;
@@ -13,7 +14,7 @@ mod occurs;
 mod options;
 mod prelude;
 mod problem;
-mod problem_builder;
+//mod problem_builder;
 mod record;
 mod rule;
 mod search;
@@ -25,13 +26,20 @@ mod uctree;
 mod util;
 
 use crate::goal::Goal;
-use crate::io::tstp;
+use crate::io::tstp::TSTP;
 use crate::io::{exit, szs, tptp};
-use tstp::TSTP;
 
 fn main() {
+    let mut symbols = symbol::Symbols::default();
     let options = options::Options::parse();
-    let problem = tptp::load_from_stdin();
+    let mut loader = tptp::Loader::new(&options.path);
+    let mut clausifier = cnf::Clausifier::default();
+
+    while let Some((_origin, formula)) = loader.next(&mut symbols) {
+        clausifier.clausify(&mut symbols, formula);
+    }
+
+    let problem = todo!();
     let (statistics, result) = search::search(&problem, &options);
 
     if let options::Output::TSTP = options.output {
