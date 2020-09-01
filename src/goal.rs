@@ -3,6 +3,7 @@ use crate::constraint::Constraints;
 use crate::disequation_solver::DisequationSolver;
 use crate::equation_solver::EquationSolver;
 use crate::occurs::{Check, SkipCheck};
+use crate::ordering_solver::OrderingSolver;
 use crate::prelude::*;
 use crate::record::Record;
 use crate::tableau::Tableau;
@@ -15,6 +16,7 @@ pub(crate) struct Goal<'problem> {
     constraints: Constraints,
     disequation_solver: DisequationSolver,
     equation_solver: EquationSolver,
+    ordering_solver: OrderingSolver,
 }
 
 impl<'problem> Goal<'problem> {
@@ -25,6 +27,7 @@ impl<'problem> Goal<'problem> {
         let constraints = Constraints::default();
         let disequation_solver = DisequationSolver::default();
         let equation_solver = EquationSolver::default();
+        let ordering_solver = OrderingSolver::default();
         Self {
             problem,
             terms,
@@ -33,6 +36,7 @@ impl<'problem> Goal<'problem> {
             constraints,
             disequation_solver,
             equation_solver,
+            ordering_solver,
         }
     }
 
@@ -43,6 +47,7 @@ impl<'problem> Goal<'problem> {
         self.constraints.clear();
         self.disequation_solver.clear();
         self.equation_solver.clear();
+        self.ordering_solver.clear();
     }
 
     pub(crate) fn save(&mut self) {
@@ -52,6 +57,7 @@ impl<'problem> Goal<'problem> {
         self.constraints.save();
         self.disequation_solver.save();
         self.equation_solver.save();
+        self.ordering_solver.save();
     }
 
     pub(crate) fn restore(&mut self) {
@@ -61,6 +67,7 @@ impl<'problem> Goal<'problem> {
         self.constraints.restore();
         self.disequation_solver.restore();
         self.equation_solver.restore();
+        self.ordering_solver.restore();
     }
 
     pub(crate) fn is_closed(&self) -> bool {
@@ -106,6 +113,11 @@ impl<'problem> Goal<'problem> {
             &self.terms,
             &self.bindings,
             self.constraints.drain_symmetric_disequations(),
+        ) && self.ordering_solver.simplify(
+            &self.problem.symbols,
+            &self.terms,
+            &self.bindings,
+            self.constraints.drain_orderings(),
         )
     }
 
@@ -126,6 +138,15 @@ impl<'problem> Goal<'problem> {
             &self.bindings,
             self.constraints.drain_symmetric_disequations(),
         ) && self.disequation_solver.check(
+            &self.problem.symbols,
+            &self.terms,
+            &self.bindings,
+        ) && self.ordering_solver.simplify(
+            &self.problem.symbols,
+            &self.terms,
+            &self.bindings,
+            self.constraints.drain_orderings(),
+        ) && self.ordering_solver.check(
             &self.problem.symbols,
             &self.terms,
             &self.bindings,

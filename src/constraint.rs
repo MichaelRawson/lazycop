@@ -12,6 +12,7 @@ pub(crate) struct Constraints {
     equations: Vec<(Id<Term>, Id<Term>)>,
     disequations: Vec<(Id<Term>, Id<Term>)>,
     symmetric_disequations: Vec<SymmetricDisequation>,
+    orderings: Vec<(Id<Term>, Id<Term>)>,
 }
 
 impl Constraints {
@@ -19,6 +20,7 @@ impl Constraints {
         self.equations.clear();
         self.disequations.clear();
         self.symmetric_disequations.clear();
+        self.orderings.clear();
     }
 
     pub(crate) fn save(&mut self) {}
@@ -27,6 +29,7 @@ impl Constraints {
         self.equations.clear();
         self.disequations.clear();
         self.symmetric_disequations.clear();
+        self.orderings.clear();
     }
 
     pub(crate) fn assert_eq(&mut self, left: Id<Term>, right: Id<Term>) {
@@ -39,6 +42,10 @@ impl Constraints {
 
     pub(crate) fn assert_symmetric_neq(&mut self, item: SymmetricDisequation) {
         self.symmetric_disequations.push(item);
+    }
+
+    pub(crate) fn assert_gt(&mut self, left: Id<Term>, right: Id<Term>) {
+        self.orderings.push((left, right));
     }
 
     pub(crate) fn drain_equations(
@@ -57,5 +64,11 @@ impl Constraints {
         &mut self,
     ) -> impl Iterator<Item = SymmetricDisequation> + '_ {
         self.symmetric_disequations.drain(..)
+    }
+
+    pub(crate) fn drain_orderings(
+        &mut self,
+    ) -> impl Iterator<Item = (Id<Term>, Id<Term>)> + '_ {
+        self.orderings.drain(..)
     }
 }

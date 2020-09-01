@@ -145,13 +145,13 @@ impl UCTree {
 
     pub(crate) fn eligible_training_nodes(
         &self,
-        limit: u32,
+        threshold: u32,
     ) -> impl Iterator<Item = Id<UCTNode>> + '_ {
         self.nodes
             .range()
             .into_iter()
             .filter(move |id| !self.nodes[*id].closed)
-            .filter(move |id| self.nodes[*id].visits > limit)
+            .filter(move |id| self.nodes[*id].visits > threshold)
     }
 
     pub(crate) fn rules_for_node(

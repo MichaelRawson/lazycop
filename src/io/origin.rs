@@ -1,7 +1,8 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
+#[derive(Clone)]
 pub(crate) struct Origin {
     pub(crate) conjecture: bool,
-    pub(crate) path: Rc<String>,
-    pub(crate) name: String,
+    pub(crate) path: Arc<String>,
+    pub(crate) name: Arc<String>,
 }

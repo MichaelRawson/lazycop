@@ -67,7 +67,10 @@ impl Atom {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
+pub(crate) struct Literal(pub(crate) bool, pub(crate) Atom);
+
+#[derive(Clone, Debug)]
 pub(crate) enum Formula {
     Atom(Atom),
     Not(Box<Formula>),
@@ -84,15 +87,7 @@ impl Formula {
     }
 }
 
-#[derive(Clone, Debug)]
-pub(crate) struct Literal(bool, Atom);
-
 impl Literal {
-    fn negated(mut self) -> Self {
-        self.0 = !self.0;
-        self
-    }
-
     fn vars<E: Extend<Variable>>(&self, vars: &mut E) {
         self.1.vars(vars);
     }
@@ -103,29 +98,12 @@ enum SkNNF {
     Lit(Literal),
     And(Vec<SkNNF>),
     Or(Vec<SkNNF>),
-    Equiv(Box<SkNNF>, Box<SkNNF>),
 }
 
 #[derive(Debug)]
 pub(crate) struct CNF(pub(crate) Vec<Literal>);
 
 impl SkNNF {
-    fn literal(self) -> Literal {
-        if let SkNNF::Lit(literal) = self {
-            literal
-        } else {
-            unreachable()
-        }
-    }
-
-    fn is_literal(&self) -> bool {
-        if let SkNNF::Lit(_) = self {
-            true
-        } else {
-            false
-        }
-    }
-
     fn vars<E: Extend<Variable>>(&self, vars: &mut E) {
         match self {
             SkNNF::Lit(lit) => lit.vars(vars),
@@ -133,10 +111,6 @@ impl SkNNF {
                 for f in fs {
                     f.vars(vars);
                 }
-            }
-            SkNNF::Equiv(left, right) => {
-                left.vars(vars);
-                right.vars(vars);
             }
         }
     }
@@ -146,7 +120,7 @@ impl SkNNF {
 pub(crate) struct SkNNFTransform {
     bound: Vec<Variable>,
     skolems: Vec<(Variable, Term)>,
-    fresh: u32,
+    fresh: usize,
 }
 
 impl SkNNFTransform {
@@ -180,9 +154,16 @@ impl SkNNFTransform {
                 SkNNF::Or(fs)
             }
             (_, Formula::Equiv(p, q)) => {
-                let p = Box::new(self.formula(symbols, polarity, *p));
-                let q = Box::new(self.formula(symbols, true, *q));
-                SkNNF::Equiv(p, q)
+                let p = *p;
+                let q = *q;
+                let notp = self.formula(symbols, !polarity, p.clone());
+                let p = self.formula(symbols, polarity, p);
+                let notq = self.formula(symbols, false, q.clone());
+                let q = self.formula(symbols, true, q);
+                SkNNF::And(vec![
+                    SkNNF::Or(vec![notp, q]),
+                    SkNNF::Or(vec![notq, p]),
+                ])
             }
             (true, Formula::Forall(x, f)) | (false, Formula::Exists(x, f)) => {
                 self.bound.push(x);
@@ -214,7 +195,7 @@ impl SkNNFTransform {
 pub(crate) struct CNFTransform {
     todo: Vec<SkNNF>,
     vars: Vec<Variable>,
-    fresh: u32,
+    fresh: usize,
 }
 
 impl CNFTransform {
@@ -233,47 +214,21 @@ impl CNFTransform {
         let term =
             Term::Fun(symbol, self.vars.drain(..).map(Term::Var).collect());
         let atom = Atom::Pred(term);
-        self.todo.push(SkNNF::Or(vec![
-            SkNNF::Lit(Literal(false, atom.clone())),
-            formula,
-        ]));
-        Literal(true, atom)
-    }
 
-    fn flatten(
-        &mut self,
-        symbols: &mut Symbols,
-        mut fs: Vec<SkNNF>,
-        f: SkNNF,
-    ) {
-        match f {
-            SkNNF::Lit(_) => unreachable(),
-            SkNNF::And(gs) if fs.len() == 1 && fs[0].is_literal() => {
-                let literal = some(fs.pop());
-                for g in gs {
-                    let definition = SkNNF::Lit(self.define(symbols, g));
-                    self.todo
-                        .push(SkNNF::Or(vec![literal.clone(), definition]));
-                }
+        if let SkNNF::And(fs) = formula {
+            for f in fs {
+                self.todo.push(SkNNF::Or(vec![
+                    SkNNF::Lit(Literal(false, atom.clone())),
+                    f,
+                ]));
             }
-            SkNNF::And(_) => {
-                fs.push(SkNNF::Lit(self.define(symbols, f)));
-                self.todo.push(SkNNF::Or(fs));
-            }
-            SkNNF::Or(gs) => {
-                fs.extend(gs);
-                self.todo.push(SkNNF::Or(fs));
-            }
-            SkNNF::Equiv(left, right) => {
-                let p = self.define(symbols, *left);
-                let q = self.define(symbols, *right);
-                let notp = p.clone().negated();
-                let notq = q.clone().negated();
-                fs.push(SkNNF::And(vec![SkNNF::Lit(p), SkNNF::Lit(q)]));
-                fs.push(SkNNF::And(vec![SkNNF::Lit(notp), SkNNF::Lit(notq)]));
-                self.todo.push(SkNNF::Or(fs));
-            }
+        } else {
+            self.todo.push(SkNNF::Or(vec![
+                SkNNF::Lit(Literal(false, atom.clone())),
+                formula,
+            ]));
         }
+        Literal(true, atom)
     }
 
     fn next(&mut self, symbols: &mut Symbols) -> Option<CNF> {
@@ -284,43 +239,30 @@ impl CNFTransform {
                 SkNNF::And(fs) => {
                     self.todo.extend(fs.into_iter());
                 }
-                SkNNF::Equiv(left, right) => {
-                    let left = self.define(symbols, *left);
-                    let right = self.define(symbols, *right);
-                    self.todo.push(SkNNF::Or(vec![
-                        SkNNF::Lit(left.clone().negated()),
-                        SkNNF::Lit(right.clone()),
-                    ]));
-                    self.todo.push(SkNNF::Or(vec![
-                        SkNNF::Lit(right.negated()),
-                        SkNNF::Lit(left.clone()),
-                    ]));
-                }
                 SkNNF::Or(mut fs) => {
-                    if let Some(position) =
-                        fs.iter().position(|f| !f.is_literal())
-                    {
-                        let f = fs.swap_remove(position);
-                        self.flatten(symbols, fs, f);
-                    } else {
-                        return Some(CNF(fs
-                            .into_iter()
-                            .map(|f| f.literal())
-                            .collect()));
+                    let mut literals = vec![];
+                    while let Some(f) = fs.pop() {
+                        match f {
+                            SkNNF::Lit(literal) => {
+                                literals.push(literal);
+                            }
+                            SkNNF::And(_) => {
+                                fs.push(SkNNF::Lit(self.define(symbols, f)));
+                            }
+                            SkNNF::Or(gs) => {
+                                fs.extend(gs);
+                            }
+                        }
                     }
+                    return Some(CNF(literals));
                 }
             }
         }
     }
 
-    fn formula<'it, 'me: 'it, 'sym: 'it>(
-        &'me mut self,
-        symbols: &'sym mut Symbols,
-        formula: SkNNF,
-    ) -> impl Iterator<Item = CNF> + 'it {
+    fn formula(&mut self, formula: SkNNF) {
         debug_assert!(self.todo.is_empty());
         self.todo.push(formula);
-        std::iter::from_fn(move || self.next(symbols))
     }
 }
 
@@ -331,14 +273,12 @@ pub(crate) struct Clausifier {
 }
 
 impl Clausifier {
-    pub(crate) fn clausify(
-        &mut self,
-        symbols: &mut Symbols,
-        formula: Formula,
-    ) {
+    pub(crate) fn formula(&mut self, symbols: &mut Symbols, formula: Formula) {
         let sknnf = self.sknnf.formula(symbols, true, formula);
-        for formula in self.cnf.formula(symbols, sknnf) {
-            println!("{:?}", formula);
-        }
+        self.cnf.formula(sknnf);
+    }
+
+    pub(crate) fn next(&mut self, symbols: &mut Symbols) -> Option<CNF> {
+        self.cnf.next(symbols)
     }
 }

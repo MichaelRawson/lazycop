@@ -1,4 +1,4 @@
-use crate::clause::Clause;
+use crate::cnf;
 use crate::prelude::*;
 use crate::record::{Inference, Record};
 use crate::util::fresh::Fresh;
@@ -57,6 +57,71 @@ impl TSTP {
             Name::Skolem(skolem) => print!("sK{}", skolem),
             Name::Definition(definition) => print!("sP{}", definition),
         }
+    }
+
+    fn print_cnf_term(symbols: &Symbols, term: &cnf::Term) {
+        match term {
+            cnf::Term::Var(cnf::Variable(n)) => print!("X{}", n),
+            cnf::Term::Fun(f, args) => {
+                Self::print_symbol(symbols, *f);
+                let mut args = args.iter();
+                if let Some(first) = args.next() {
+                    print!("(");
+                    Self::print_cnf_term(symbols, first);
+                    for rest in args {
+                        print!(",");
+                        Self::print_cnf_term(symbols, rest);
+                    }
+                    print!(")");
+                }
+            }
+        }
+    }
+
+    fn print_cnf_literal(symbols: &Symbols, literal: &cnf::Literal) {
+        let cnf::Literal(polarity, atom) = literal;
+        match atom {
+            cnf::Atom::Pred(term) => {
+                if !*polarity {
+                    print!("~");
+                }
+                Self::print_cnf_term(symbols, term);
+            }
+            cnf::Atom::Eq(left, right) => {
+                Self::print_cnf_term(symbols, left);
+                if *polarity {
+                    print!(" = ");
+                } else {
+                    print!(" != ");
+                }
+                Self::print_cnf_term(symbols, right);
+            }
+        }
+    }
+
+    pub(crate) fn print_cnf(
+        symbols: &Symbols,
+        number: usize,
+        conjecture: bool,
+        cnf: &cnf::CNF,
+    ) {
+        let role = if conjecture {
+            "negated_conjecture"
+        } else {
+            "axiom"
+        };
+        print!("cnf(c{}, {}, ", number, role);
+        let mut literals = cnf.0.iter();
+        if let Some(first) = literals.next() {
+            Self::print_cnf_literal(symbols, first);
+        } else {
+            print!("$false");
+        }
+        for rest in literals {
+            print!(" | ");
+            Self::print_cnf_literal(symbols, rest);
+        }
+        println!(").");
     }
 
     fn print_variable(&mut self, x: Id<Variable>) {
@@ -138,18 +203,26 @@ impl TSTP {
 impl Record for TSTP {
     type Inference = TSTPInference;
 
-    fn axiom(
-        &mut self,
-        symbols: &Symbols,
-        terms: &Terms,
-        literals: &Literals,
-        axiom: Clause,
-    ) {
-        print!("cnf(c{}, axiom,\n\t", self.clause_number);
+    fn axiom(&mut self, problem: &Problem, clause: Id<ProblemClause>) {
+        let clause = &problem.clauses[clause];
+        let role = if clause.origin.conjecture {
+            "negated_conjecture"
+        } else {
+            "axiom"
+        };
+        print!("cnf(c{}, {},\n\t", self.clause_number, role);
         self.premise_list.push(self.clause_number);
         self.clause_number += 1;
-        self.print_clause(symbols, terms, literals, axiom.open().into_iter());
-        println!(").");
+        self.print_clause(
+            &problem.symbols,
+            &clause.terms,
+            &clause.literals,
+            clause.literals.range().into_iter(),
+        );
+        println!(
+            "\n\tinference(clausify, [status(esa)], [file('{}', {})])).",
+            clause.origin.path, clause.origin.name,
+        );
     }
 
     fn inference(

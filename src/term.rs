@@ -55,7 +55,7 @@ impl Terms {
     pub(crate) fn add_function(
         &mut self,
         symbol: Id<Symbol>,
-        args: &[Id<Term>],
+        args: Vec<Id<Term>>,
     ) -> Id<Term> {
         let id = self.items.push(Item::Symbol(symbol));
         for arg in args {

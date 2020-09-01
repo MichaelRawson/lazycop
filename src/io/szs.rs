@@ -10,18 +10,18 @@ pub(crate) fn inappropriate() {
     println!("% SZS status Inappropriate");
 }
 
-pub(crate) fn unknown() {
-    println!("% SZS status Unknown");
+pub(crate) fn gave_up(name: &str) {
+    println!("% SZS status GaveUp for {}", name);
 }
 
-pub(crate) fn unsatisfiable() {
-    println!("% SZS status Unsatisfiable");
+pub(crate) fn unsatisfiable(name: &str) {
+    println!("% SZS status Unsatisfiable for {}", name);
 }
 
-pub(crate) fn begin_incomplete_proof() {
-    println!("% SZS output begin IncompleteProof");
+pub(crate) fn begin_cnf_refutation(name: &str) {
+    println!("% SZS output begin CNFRefutation for {}", name);
 }
 
-pub(crate) fn end_incomplete_proof() {
-    println!("% SZS output end IncompleteProof");
+pub(crate) fn end_cnf_refutation(name: &str) {
+    println!("% SZS output end CNFRefutation for {}", name);
 }

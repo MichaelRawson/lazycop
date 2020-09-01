@@ -1,3 +1,0 @@
-#!/bin/sh
-
-exec vampire --mode clausify -updr off -nm 2 -erd input_only -icip on $1

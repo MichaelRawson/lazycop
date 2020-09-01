@@ -4,6 +4,7 @@ use crate::prelude::*;
 pub(crate) struct ProblemClause {
     pub(crate) literals: Literals,
     pub(crate) terms: Terms,
+    pub(crate) origin: Origin,
 }
 
 #[derive(Default)]

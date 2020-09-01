@@ -4,8 +4,8 @@ use crate::prelude::*;
 pub(crate) enum Name {
     Regular(String),
     Quoted(String),
-    Skolem(u32),
-    Definition(u32),
+    Skolem(usize),
+    Definition(usize),
 }
 
 #[derive(Debug)]

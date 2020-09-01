@@ -86,13 +86,13 @@ fn dump_array<T: std::fmt::Display>(data: &[T]) {
     print!("]");
 }
 
-fn dump_training_data(problem: &Problem, tree: &UCTree, limit: u32) {
+fn dump_training_data(problem: &Problem, tree: &UCTree, threshold: u32) {
     let mut rules = vec![];
     let mut scores = vec![];
     let mut goal = Goal::new(problem);
     let mut graph = Graph::default();
 
-    for id in tree.eligible_training_nodes(limit) {
+    for id in tree.eligible_training_nodes(threshold) {
         tree.rules_for_node(id, &mut rules);
         for rule in &rules {
             goal.apply_rule(&mut Silent, rule);
@@ -154,9 +154,9 @@ pub(crate) fn search(
     })
     .unwrap_or_else(|_| panic!("worker thread crashed"));
 
-    if options.dump_training_data {
+    if options.training_data {
         let tree = tree.into_inner();
-        dump_training_data(problem, &tree, options.visit_minimum);
+        dump_training_data(problem, &tree, options.training_threshold);
     }
     (statistics, proof)
 }

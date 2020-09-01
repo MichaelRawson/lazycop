@@ -7,7 +7,7 @@ use memmap::Mmap;
 use std::fmt;
 use std::fs::File;
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::Arc;
 use tptp::parsers::TPTPIterator;
 use tptp::syntax as st;
 
@@ -32,7 +32,7 @@ fn report_inappropriate<T: fmt::Display>(t: T) -> ! {
 struct TPTPFile<'a> {
     _map: Mmap,
     parser: TPTPIterator<'a, ()>,
-    path: Rc<String>,
+    path: Arc<String>,
 }
 
 impl<'a> TPTPFile<'a> {
@@ -44,7 +44,7 @@ impl<'a> TPTPFile<'a> {
         let bytes = _map.as_ref();
         let bytes: &'a [u8] = unsafe { std::mem::transmute(bytes) };
         let parser = TPTPIterator::new(bytes);
-        let path = Rc::new(format!("{}", path.display()));
+        let path = Arc::new(format!("{}", path.display()));
         Self { _map, parser, path }
     }
 
@@ -89,7 +89,7 @@ impl<'a> TPTPProblem<'a> {
         }
     }
 
-    fn current_path(&self) -> Rc<String> {
+    fn current_path(&self) -> Arc<String> {
         some(self.stack.last()).path.clone()
     }
 }
@@ -126,6 +126,7 @@ impl<'a> Loader<'a> {
         let path = self.problem.current_path();
         let (conjecture, name, formula) =
             self.annotated_formula(symbols, annotated);
+        let name = Arc::new(name);
         let origin = Origin {
             conjecture,
             path,

@@ -1,4 +1,3 @@
-use crate::clause::Clause;
 use crate::prelude::*;
 use std::fmt::Display;
 
@@ -21,14 +20,7 @@ pub(crate) trait Inference: Sized {
 pub(crate) trait Record {
     type Inference: Inference;
 
-    fn axiom(
-        &mut self,
-        _symbols: &Symbols,
-        _terms: &Terms,
-        _literals: &Literals,
-        _axiom: Clause,
-    ) {
-    }
+    fn axiom(&mut self, _problem: &Problem, _axiom: Id<ProblemClause>) {}
 
     fn inference(
         &mut self,
