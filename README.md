@@ -21,7 +21,6 @@ As well as these predicate refinements, lazyCoP implements some obvious modifica
  - reflexivity elimination: no clause may contain `s = t` if `s`, `t` are identical
  - reflexive regularity: if `s != t` is a literal in the tableau and `s`, `t` are identical, it must be closed immediately
  - symmetric path regularity: neither `s = t` nor `t = s` may appear in a path if `s = t` does
- - strong equality regularity: a branch cannot be extended by an equality if said equality is available by path or lemma
 
 One practical issue with the lazy paramodulation calculus is that proofs may be significantly longer, particularly if "lazy" steps could in fact be "strict".
 lazyCoP avoids this by implementing both lazy and strict versions of all lazy inferences.
@@ -54,12 +53,12 @@ Please let me know if you succeed in doing this!
 
 ## Usage
 
-lazyCoP understands the [TPTP](http://tptp.org) FOF and CNF dialects and writes proofs in the corresponding SZS/TSTP output format.
+lazyCoP understands the [TPTP](http://tptp.org) FOF and CNF dialects and writes proofs in the corresponding [TSTP](http://www.tptp.org/TSTP/) output format.
 `lazycop --help` will print a help message.
 After a problem has been loaded successfully and preprocessed, lazyCoP will attempt to prove it.
 
 One of three things will then happen:
- 1. lazyCoP finds a proof, which it will print to standard output in [TSTP](http://www.tptp.org/TSTP/) format. Hooray!
+ 1. lazyCoP finds a proof, which it will print to standard output. Hooray!
  2. lazyCoP exhausts its search space without finding a proof. This means that the conjecture does not follow from the axioms, or that the set of clauses is satisfiable. This is reported `SZS status GaveUp`.
  3. lazyCoP runs until you get bored. If a proof exists, it will be found eventually, but perhaps not in reasonable time.
  
