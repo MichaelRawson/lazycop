@@ -17,9 +17,9 @@ fn report_os_error(path: &Path, e: std::io::Error) -> ! {
     exit::failure()
 }
 
-fn report_input_error() -> ! {
-    println!("% unsupported syntax");
-    szs::input_error();
+fn report_syntax_error() -> ! {
+    println!("% unsupported syntax or syntax error");
+    szs::syntax_error();
     exit::failure()
 }
 
@@ -50,7 +50,7 @@ impl<'a> TPTPFile<'a> {
 
     fn next(&mut self) -> Option<st::TPTPInput<'a>> {
         let result = self.parser.next()?;
-        let input = result.unwrap_or_else(|_| report_input_error());
+        let input = result.unwrap_or_else(|_| report_syntax_error());
         Some(input)
     }
 }
@@ -124,10 +124,11 @@ impl<'a> Loader<'a> {
     ) -> Option<(Origin, cnf::Formula)> {
         let annotated = self.problem.next()?;
         let path = self.problem.current_path();
-        let (conjecture, name, formula) =
+        let (fof, conjecture, name, formula) =
             self.annotated_formula(symbols, annotated);
         let name = Arc::new(name);
         let origin = Origin {
+            fof,
             conjecture,
             path,
             name,
@@ -429,16 +430,16 @@ impl<'a> Loader<'a> {
         &mut self,
         symbols: &mut Symbols,
         formula: st::AnnotatedFormula<'a>,
-    ) -> (bool, String, cnf::Formula) {
-        let (name, mut role, mut formula) = match formula {
+    ) -> (bool, bool, String, cnf::Formula) {
+        let (fof, name, mut role, mut formula) = match formula {
             st::AnnotatedFormula::Fof(fof) => {
                 let formula =
                     self.fof_logic_formula(symbols, (*fof.formula).0);
-                (format!("{}", fof.name), fof.role, formula)
+                (true, format!("{}", fof.name), fof.role, formula)
             }
             st::AnnotatedFormula::Cnf(cnf) => {
                 let formula = self.cnf_formula(symbols, *cnf.formula);
-                (format!("{}", cnf.name), cnf.role, formula)
+                (false, format!("{}", cnf.name), cnf.role, formula)
             }
         };
         debug_assert!(self.bound.is_empty());
@@ -450,6 +451,6 @@ impl<'a> Loader<'a> {
             role = st::FormulaRole::NegatedConjecture;
         }
         let conjecture = role == st::FormulaRole::NegatedConjecture;
-        (conjecture, name, formula)
+        (fof, conjecture, name, formula)
     }
 }

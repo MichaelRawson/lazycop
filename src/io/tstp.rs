@@ -267,16 +267,15 @@ impl Record for TSTP {
             self.print_clause(symbols, terms, literals, deduction.into_iter());
 
             print!(",\n\tinference({}, [", inference.name);
-            if assumption_start != self.assumption_number {
-                print!("assumptions([");
-                let mut assumptions = assumption_start..self.assumption_number;
-                let first = some(assumptions.next());
+            print!("assumptions([");
+            let mut assumptions = assumption_start..self.assumption_number;
+            if let Some(first) = assumptions.next() {
                 print!("a{}", first);
-                for rest in assumptions {
-                    print!(", a{}", rest);
-                }
-                print!("])");
             }
+            for rest in assumptions {
+                print!(", a{}", rest);
+            }
+            print!("]), status(thm)");
             print!("], [");
 
             let mut first_premise = true;

@@ -4,11 +4,13 @@ use crate::prelude::*;
 
 #[derive(Default)]
 pub(crate) struct ProblemBuilder {
+    is_fof: bool,
     has_equality: bool,
     clauses: Block<ProblemClause>,
     index: Index,
 
-    have_axioms: bool,
+    has_axioms: bool,
+    has_conjecture: bool,
     empty_clause: Option<Id<ProblemClause>>,
     negative_clauses: Vec<Id<ProblemClause>>,
     conjecture_clauses: Vec<Id<ProblemClause>>,
@@ -20,7 +22,7 @@ impl ProblemBuilder {
     pub(crate) fn finish(mut self, symbols: Symbols) -> Problem {
         let start = if let Some(empty) = self.empty_clause {
             vec![empty]
-        } else if !self.have_axioms || self.conjecture_clauses.is_empty() {
+        } else if !self.has_axioms || self.conjecture_clauses.is_empty() {
             self.negative_clauses
         } else {
             self.conjecture_clauses
@@ -31,7 +33,9 @@ impl ProblemBuilder {
             self.clauses,
             start,
             self.index,
+            self.is_fof,
             self.has_equality,
+            self.has_conjecture,
         )
     }
 
@@ -132,6 +136,7 @@ impl ProblemBuilder {
         origin: Origin,
         cnf: cnf::CNF,
     ) {
+        let is_fof = origin.fof;
         let is_conjecture = origin.conjecture;
         let is_empty = cnf.0.is_empty();
         let is_negative = cnf.0.iter().all(|literal| !literal.0);
@@ -143,10 +148,14 @@ impl ProblemBuilder {
             origin,
         });
 
+        if is_fof {
+            self.is_fof = true;
+        }
         if is_conjecture {
             self.conjecture_clauses.push(problem_clause);
+            self.has_conjecture = true;
         } else {
-            self.have_axioms = true;
+            self.has_axioms = true;
         }
         if is_negative {
             self.negative_clauses.push(problem_clause);

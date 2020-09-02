@@ -141,12 +141,8 @@ impl Clause {
         constraints.assert_gt(from, to);
 
         let start = literals.len();
-        literals.push(literals[self.current].subst(
-            symbols,
-            terms,
-            target,
-            fresh,
-        ));
+        literals
+            .push(literals[self.current].subst(symbols, terms, target, fresh));
         let end = literals.len();
         let consequence = Self::new(start, end);
 
@@ -184,12 +180,10 @@ impl Clause {
         constraints.assert_gt(from, to);
 
         let start = literals.len();
-        literals.push(literals[demodulation.literal].subst(
-            symbols,
-            terms,
-            target,
-            fresh,
-        ));
+        literals.push(
+            literals[demodulation.literal]
+                .subst(symbols, terms, target, fresh),
+        );
         let end = literals.len();
         let consequence = Self::new(start, end);
 

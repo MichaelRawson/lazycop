@@ -2,20 +2,32 @@ pub(crate) fn os_error() {
     println!("% SZS status OSError");
 }
 
-pub(crate) fn input_error() {
-    println!("% SZS status InputError");
+pub(crate) fn syntax_error() {
+    println!("% SZS status SyntaxError");
 }
 
 pub(crate) fn inappropriate() {
     println!("% SZS status Inappropriate");
 }
 
-pub(crate) fn gave_up(name: &str) {
-    println!("% SZS status GaveUp for {}", name);
+pub(crate) fn resource_out(name: &str) {
+    println!("% SZS status ResourceOut for {}", name);
+}
+
+pub(crate) fn theorem(name: &str) {
+    println!("% SZS status Theorem for {}", name);
 }
 
 pub(crate) fn unsatisfiable(name: &str) {
     println!("% SZS status Unsatisfiable for {}", name);
+}
+
+pub(crate) fn counter_satisfiable(name: &str) {
+    println!("% SZS status CounterSatisfiable for {}", name);
+}
+
+pub(crate) fn satisfiable(name: &str) {
+    println!("% SZS status Satisfiable for {}", name);
 }
 
 pub(crate) fn begin_cnf_refutation(name: &str) {

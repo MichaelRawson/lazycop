@@ -3,34 +3,50 @@ use crate::options::Options;
 use crate::prelude::*;
 use crate::record::Silent;
 use crate::statistics::Statistics;
-use crate::uctree::{UCTNode, UCTree};
+use crate::training;
+use crate::uctree::UCTree;
 use crossbeam_utils::thread;
 use parking_lot::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 const STACK_SIZE: usize = 0x10_00000;
 
-fn take(tree: &mut UCTree, rules: &mut Vec<Rule>) -> Option<Id<UCTNode>> {
-    rules.clear();
-    if tree.is_closed() {
-        return None;
-    }
-    Some(tree.take(rules))
+pub(crate) enum SearchResult {
+    Proof(Vec<Rule>),
+    Exhausted,
+    ResourceOut,
 }
 
-fn search_task(
+fn task(
     problem: &Problem,
+    options: &Options,
     statistics: &mut Statistics,
     tree: &Mutex<UCTree>,
-    steps: usize,
-) -> Option<Vec<Rule>> {
+    stop: &AtomicBool,
+    steps: &AtomicUsize,
+) -> SearchResult {
     let mut rules = vec![];
     let mut proof = None;
     let mut possible = vec![];
     let mut goal = Goal::new(problem);
     let mut data = vec![];
-    let mut leaf = take(&mut tree.lock(), &mut rules)?;
 
-    for _ in 0..steps {
+    loop {
+        let should_stop = stop.load(Ordering::Relaxed);
+        let steps_so_far = steps.fetch_add(1, Ordering::Relaxed);
+        if should_stop || !options.within_resource_limits(steps_so_far) {
+            return SearchResult::ResourceOut;
+        }
+
+        rules.clear();
+        let leaf = {
+            let mut tree = tree.lock();
+            if tree.is_closed() {
+                return SearchResult::Exhausted;
+            }
+            tree.take(&mut rules)
+        };
+
         let mut record = Silent; //crate::io::tstp::TSTP::default();
         for rule in &rules {
             goal.apply_rule(&mut record, rule);
@@ -64,83 +80,21 @@ fn search_task(
         tree.give(leaf, &*data);
         data.clear();
 
-        if proof.is_some() {
-            return proof;
+        if let Some(proof) = proof {
+            return SearchResult::Proof(proof);
         }
-
-        leaf = take(&mut tree, &mut rules)?;
-    }
-
-    None
-}
-
-fn dump_array<T: std::fmt::Display>(data: &[T]) {
-    let mut data = data.iter();
-    print!("[");
-    if let Some(first) = data.next() {
-        print!("{}", first);
-    }
-    for rest in data {
-        print!(",{}", rest);
-    }
-    print!("]");
-}
-
-fn dump_training_data(problem: &Problem, tree: &UCTree, threshold: u32) {
-    let mut rules = vec![];
-    let mut scores = vec![];
-    let mut goal = Goal::new(problem);
-    let mut graph = Graph::default();
-
-    for id in tree.eligible_training_nodes(threshold) {
-        tree.rules_for_node(id, &mut rules);
-        for rule in &rules {
-            goal.apply_rule(&mut Silent, rule);
-        }
-        let constraints_ok = goal.simplify_constraints();
-        debug_assert!(constraints_ok);
-        goal.save();
-
-        for (rule, score) in tree.child_rule_scores(id) {
-            scores.push(score);
-            goal.apply_rule(&mut Silent, &rule);
-            let constraints_ok = goal.solve_constraints();
-            debug_assert!(constraints_ok);
-            debug_assert!(!goal.is_closed());
-            goal.graph(&mut graph);
-            graph.finish_subgraph();
-            goal.restore();
-        }
-
-        if scores.len() > 1 {
-            print!("{{");
-            print!("\"nodes\":");
-            dump_array(graph.node_labels());
-            print!(",\"sources\":");
-            dump_array(&graph.sources);
-            print!(",\"targets\":");
-            dump_array(&graph.targets);
-            print!(",\"batch\":");
-            dump_array(&graph.batch);
-            print!(",\"scores\":");
-            dump_array(&scores);
-            println!("}}");
-        }
-
-        goal.clear();
-        graph.clear();
-        scores.clear();
     }
 }
 
 pub(crate) fn search(
     problem: &Problem,
     options: &Options,
-) -> (Statistics, Option<Vec<Rule>>) {
+) -> (Statistics, SearchResult) {
     let mut statistics = Statistics::new(problem);
-    let mut proof = None;
+    let result = Mutex::new(SearchResult::ResourceOut);
     let tree = Mutex::new(UCTree::default());
-    let steps = options.steps.unwrap_or(usize::MAX);
+    let steps = AtomicUsize::default();
+    let stop = AtomicBool::new(false);
 
     thread::scope(|scope| {
         scope
@@ -148,15 +102,34 @@ pub(crate) fn search(
             .name("search".into())
             .stack_size(STACK_SIZE)
             .spawn(|_| {
-                proof = search_task(problem, &mut statistics, &tree, steps)
+                let task_result = task(
+                    problem,
+                    options,
+                    &mut statistics,
+                    &tree,
+                    &stop,
+                    &steps,
+                );
+                stop.store(true, Ordering::Relaxed);
+
+                let mut result = result.lock();
+                match (&task_result, &*result) {
+                    (SearchResult::Proof(_), _)
+                    | (SearchResult::Exhausted, SearchResult::ResourceOut) => {
+                        *result = task_result;
+                    }
+                    (SearchResult::ResourceOut, _)
+                    | (SearchResult::Exhausted, _) => {}
+                }
             })
             .expect("failed to spawn search thread");
     })
     .unwrap_or_else(|_| panic!("worker thread crashed"));
+    let result = result.into_inner();
+    let tree = tree.into_inner();
 
     if options.training_data {
-        let tree = tree.into_inner();
-        dump_training_data(problem, &tree, options.training_threshold);
+        training::dump(problem, &tree, options.training_threshold);
     }
-    (statistics, proof)
+    (statistics, result)
 }

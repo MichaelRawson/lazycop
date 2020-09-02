@@ -37,6 +37,14 @@ impl Options {
         Self::from_args()
     }
 
+    pub(crate) fn within_resource_limits(&self, steps: usize) -> bool {
+        if let Some(max_step) = self.steps {
+            steps < max_step
+        } else {
+            true
+        }
+    }
+
     pub(crate) fn problem_name(&self) -> String {
         self.path
             .file_stem()
