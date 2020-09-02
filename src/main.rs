@@ -73,8 +73,7 @@ fn main() {
         SearchResult::Proof(proof) => {
             if problem.is_fof {
                 szs::theorem(&name);
-            }
-            else {
+            } else {
                 szs::unsatisfiable(&name);
             }
             szs::begin_cnf_refutation(&name);
@@ -92,8 +91,7 @@ fn main() {
         SearchResult::Exhausted => {
             if problem.has_conjecture {
                 szs::counter_satisfiable(&name);
-            }
-            else {
+            } else {
                 szs::satisfiable(&name);
             }
         }

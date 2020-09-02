@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Instant;
 use structopt::StructOpt;
 
 const NAME: &str = "lazyCoP";
@@ -15,6 +16,9 @@ pub(crate) struct Options {
     #[structopt(parse(from_os_str), help = "path to input problem")]
     pub(crate) path: PathBuf,
 
+    #[structopt(long, help = "time limit in seconds")]
+    pub(crate) time: Option<u64>,
+
     #[structopt(long, help = "limit number of inference steps")]
     pub(crate) steps: Option<usize>,
 
@@ -30,6 +34,9 @@ pub(crate) struct Options {
         default_value = "1000"
     )]
     pub(crate) training_threshold: u32,
+
+    #[structopt(skip = Instant::now())]
+    start_time: Instant,
 }
 
 impl Options {
@@ -39,10 +46,19 @@ impl Options {
 
     pub(crate) fn within_resource_limits(&self, steps: usize) -> bool {
         if let Some(max_step) = self.steps {
-            steps < max_step
-        } else {
-            true
+            if steps >= max_step {
+                return false;
+            }
         }
+
+        if let Some(time_limit) = self.time {
+            let elapsed = self.start_time.elapsed().as_secs();
+            if elapsed >= time_limit {
+                return false;
+            }
+        }
+
+        true
     }
 
     pub(crate) fn problem_name(&self) -> String {
