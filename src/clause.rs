@@ -3,12 +3,25 @@ use crate::prelude::*;
 use crate::record::{Inference, Record};
 use crate::rule::*;
 
-fn argument_pairs<'terms>(
+fn term_argument_pairs<'terms>(
+    symbols: &Symbols,
+    terms: &'terms Terms,
+    s: Id<Term>,
+    t: Id<Term>,
+) -> impl Iterator<Item = (Id<Term>, Id<Term>)> + 'terms {
+    let sargs = terms.arguments(symbols, s);
+    let targs = terms.arguments(symbols, t);
+    let ss = sargs.into_iter().map(move |sarg| terms.resolve(sarg));
+    let ts = targs.into_iter().map(move |targ| terms.resolve(targ));
+    ss.zip(ts)
+}
+
+fn predicate_argument_pairs<'terms>(
     symbols: &Symbols,
     terms: &'terms Terms,
     p: &Literal,
     q: &Literal,
-) -> impl Iterator<Item = (Id<Term>, Id<Term>)> + Clone + 'terms {
+) -> impl Iterator<Item = (Id<Term>, Id<Term>)> + 'terms {
     let pargs = p.get_predicate_arguments(symbols, terms);
     let qargs = q.get_predicate_arguments(symbols, terms);
     let ss = pargs.into_iter().map(move |parg| terms.resolve(parg));
@@ -108,7 +121,7 @@ impl Clause {
         let mut inference = R::Inference::new("reduction");
         let p = &literals[self.close_literal()];
         let q = &literals[reduction.literal];
-        for (s, t) in argument_pairs(symbols, terms, p, q) {
+        for (s, t) in predicate_argument_pairs(symbols, terms, p, q) {
             constraints.assert_eq(s, t);
             inference.equation(s, t);
         }
@@ -130,34 +143,18 @@ impl Clause {
         literals: &mut Literals,
         constraints: &mut Constraints,
         demodulation: Demodulation,
-        lr: bool,
+        l2r: bool,
     ) -> Self {
-        let target = demodulation.target;
-        let (left, right) = literals[demodulation.literal].get_equality();
-        let (from, to) = if lr { (left, right) } else { (right, left) };
-        let fresh = terms.add_variable();
-        constraints.assert_eq(to, fresh);
-        constraints.assert_eq(target, from);
-        constraints.assert_gt(from, to);
-
-        let start = literals.len();
-        literals
-            .push(literals[self.current].subst(symbols, terms, target, fresh));
-        let end = literals.len();
-        let consequence = Self::new(start, end);
-
-        record.inference(
+        self.demodulation(
+            record,
             symbols,
             terms,
             literals,
-            R::Inference::new("forward_demodulation")
-                .equation(to, fresh)
-                .equation(target, from)
-                .literal(demodulation.literal)
-                .deduction(self.remaining())
-                .deduction(consequence.open()),
-        );
-        consequence
+            constraints,
+            demodulation,
+            true,
+            l2r,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -171,34 +168,16 @@ impl Clause {
         demodulation: Demodulation,
         l2r: bool,
     ) -> Self {
-        let target = demodulation.target;
-        let (left, right) = literals[self.current].get_equality();
-        let (from, to) = if l2r { (left, right) } else { (right, left) };
-        let fresh = terms.add_variable();
-        constraints.assert_eq(to, fresh);
-        constraints.assert_eq(target, from);
-        constraints.assert_gt(from, to);
-
-        let start = literals.len();
-        literals.push(
-            literals[demodulation.literal]
-                .subst(symbols, terms, target, fresh),
-        );
-        let end = literals.len();
-        let consequence = Self::new(start, end);
-
-        record.inference(
+        self.demodulation(
+            record,
             symbols,
             terms,
             literals,
-            R::Inference::new("backward_demodulation")
-                .equation(to, fresh)
-                .equation(target, from)
-                .literal(demodulation.literal)
-                .deduction(self.remaining())
-                .deduction(consequence.open()),
-        );
-        consequence
+            constraints,
+            demodulation,
+            false,
+            l2r,
+        )
     }
 
     pub(crate) fn strict_extension<R: Record>(
@@ -221,7 +200,7 @@ impl Clause {
         );
         let p = &literals[self.current];
         let q = &literals[extension.close_literal()];
-        for (s, t) in argument_pairs(&problem.symbols, terms, p, q) {
+        for (s, t) in predicate_argument_pairs(&problem.symbols, terms, p, q) {
             constraints.assert_eq(s, t);
             inference.equation(s, t);
         }
@@ -267,7 +246,7 @@ impl Clause {
         let fresh = Range::new(fresh_start, fresh_end);
 
         for ((s, t), fresh) in
-            argument_pairs(&problem.symbols, terms, p, q).zip(fresh)
+            predicate_argument_pairs(&problem.symbols, terms, p, q).zip(fresh)
         {
             constraints.assert_eq(fresh, s);
             inference.equation(fresh, s);
@@ -360,15 +339,9 @@ impl Clause {
         constraints.assert_neq(from, target);
         constraints.assert_gt(placeholder, fresh);
 
-        let ss = terms
-            .arguments(&problem.symbols, placeholder)
-            .into_iter()
-            .map(|s| terms.resolve(s));
-        let ts = terms
-            .arguments(&problem.symbols, from)
-            .into_iter()
-            .map(|t| terms.resolve(t));
-        for (s, t) in ss.zip(ts) {
+        for (s, t) in
+            term_argument_pairs(&problem.symbols, terms, placeholder, from)
+        {
             literals.push(Literal::disequation(s, t));
         }
         literals.push(Literal::disequation(fresh, to));
@@ -443,70 +416,6 @@ impl Clause {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn lazy_forward_paramodulation<R: Record>(
-        &mut self,
-        record: &mut R,
-        problem: &Problem,
-        terms: &mut Terms,
-        literals: &mut Literals,
-        constraints: &mut Constraints,
-        paramodulation: ForwardParamodulation,
-        l2r: bool,
-    ) -> (Self, Self) {
-        let (left, right) = literals[self.current].get_equality();
-        let (from, to) = if l2r { (left, right) } else { (right, left) };
-        let (extension, target) = Self::forward_paramodulation(
-            record,
-            problem,
-            terms,
-            literals,
-            constraints,
-            paramodulation,
-        );
-        let fresh = terms.add_variable();
-        let placeholder =
-            terms.fresh_function(&problem.symbols, terms.symbol(target));
-        constraints.assert_eq(to, fresh);
-        constraints.assert_eq(placeholder, from);
-        constraints.assert_neq(target, from);
-        constraints.assert_gt(from, to);
-
-        let start = literals.len();
-        let ss = terms
-            .arguments(&problem.symbols, placeholder)
-            .into_iter()
-            .map(|s| terms.resolve(s));
-        let ts = terms
-            .arguments(&problem.symbols, target)
-            .into_iter()
-            .map(|t| terms.resolve(t));
-        for (s, t) in ss.zip(ts) {
-            literals.push(Literal::disequation(s, t));
-        }
-        literals.push(literals[extension.current].subst(
-            &problem.symbols,
-            terms,
-            target,
-            fresh,
-        ));
-        let end = literals.len();
-        let consequence = Self::new(start, end);
-
-        record.inference(
-            &problem.symbols,
-            terms,
-            literals,
-            R::Inference::new("lazy_forward_paramodulation")
-                .equation(to, fresh)
-                .equation(placeholder, from)
-                .deduction(self.remaining())
-                .deduction(extension.remaining())
-                .deduction(consequence.open()),
-        );
-        (extension, consequence)
-    }
-
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn strict_forward_paramodulation<R: Record>(
         &mut self,
         record: &mut R,
@@ -557,6 +466,65 @@ impl Clause {
         (extension, consequence)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn lazy_forward_paramodulation<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        constraints: &mut Constraints,
+        paramodulation: ForwardParamodulation,
+        l2r: bool,
+    ) -> (Self, Self) {
+        let (left, right) = literals[self.current].get_equality();
+        let (from, to) = if l2r { (left, right) } else { (right, left) };
+        let (extension, target) = Self::forward_paramodulation(
+            record,
+            problem,
+            terms,
+            literals,
+            constraints,
+            paramodulation,
+        );
+        let fresh = terms.add_variable();
+        let placeholder =
+            terms.fresh_function(&problem.symbols, terms.symbol(target));
+        constraints.assert_eq(to, fresh);
+        constraints.assert_eq(placeholder, from);
+        constraints.assert_neq(target, from);
+        constraints.assert_gt(from, to);
+
+        let start = literals.len();
+        for (s, t) in
+            term_argument_pairs(&problem.symbols, terms, placeholder, target)
+        {
+            literals.push(Literal::disequation(s, t));
+        }
+
+        literals.push(literals[extension.current].subst(
+            &problem.symbols,
+            terms,
+            target,
+            fresh,
+        ));
+        let end = literals.len();
+        let consequence = Self::new(start, end);
+
+        record.inference(
+            &problem.symbols,
+            terms,
+            literals,
+            R::Inference::new("lazy_forward_paramodulation")
+                .equation(to, fresh)
+                .equation(placeholder, from)
+                .deduction(self.remaining())
+                .deduction(extension.remaining())
+                .deduction(consequence.open()),
+        );
+        (extension, consequence)
+    }
+
     fn extension<R: Record>(
         record: &mut R,
         problem: &Problem,
@@ -576,6 +544,50 @@ impl Clause {
             occurrence.clause,
             occurrence.literal,
         )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn demodulation<R: Record>(
+        &mut self,
+        record: &mut R,
+        symbols: &Symbols,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        constraints: &mut Constraints,
+        demodulation: Demodulation,
+        forward: bool,
+        l2r: bool,
+    ) -> Self {
+        let (inference, equality, onto) = if forward {
+            ("forward_demodulation", demodulation.literal, self.current)
+        } else {
+            ("backward_demodulation", self.current, demodulation.literal)
+        };
+        let target = demodulation.target;
+        let (left, right) = literals[equality].get_equality();
+        let (from, to) = if l2r { (left, right) } else { (right, left) };
+        let fresh = terms.add_variable();
+        constraints.assert_eq(to, fresh);
+        constraints.assert_eq(target, from);
+        constraints.assert_gt(from, to);
+
+        let start = literals.len();
+        literals.push(literals[onto].subst(symbols, terms, target, fresh));
+        let end = literals.len();
+        let consequence = Self::new(start, end);
+
+        record.inference(
+            symbols,
+            terms,
+            literals,
+            R::Inference::new(inference)
+                .equation(to, fresh)
+                .equation(target, from)
+                .literal(demodulation.literal)
+                .deduction(self.remaining())
+                .deduction(consequence.open()),
+        );
+        consequence
     }
 
     fn backward_paramodulation<R: Record>(
