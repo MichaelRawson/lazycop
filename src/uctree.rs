@@ -63,15 +63,13 @@ impl UCTNode {
 
 pub(crate) struct UCTree {
     nodes: Block<UCTNode>,
-    max_score: u32,
 }
 
 impl Default for UCTree {
     fn default() -> Self {
         let mut nodes = Block::default();
         nodes.push(UCTNode::new(Id::default(), Rule::Reflexivity, 0, 1.0));
-        let max_score = 1;
-        Self { nodes, max_score }
+        Self { nodes }
     }
 }
 
@@ -100,8 +98,11 @@ impl UCTree {
                 .children
                 .into_iter()
                 .filter(|child| !self.nodes[*child].closed);
+            let max_score = some(
+                eligible.clone().map(|child| self.nodes[child].score).max(),
+            );
             let next = some(eligible.max_by_key(|child| {
-                self.nodes[*child].puct(self.max_score, sqrt_pv)
+                self.nodes[*child].puct(max_score, sqrt_pv)
             }));
             list.push(self.nodes[next].rule);
             self.nodes[current].visits += 1;
@@ -114,7 +115,6 @@ impl UCTree {
         let prior = 1.0 / data.len() as f32;
         let start = self.nodes.len();
         for (rule, score) in data {
-            self.max_score = std::cmp::max(self.max_score, *score);
             self.nodes.push(UCTNode::new(parent, *rule, *score, prior));
         }
         let end = self.nodes.len();

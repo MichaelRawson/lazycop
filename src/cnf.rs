@@ -1,9 +1,9 @@
 use crate::prelude::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Variable(pub(crate) u32);
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) enum Term {
     Var(Variable),
     Fun(Id<Symbol>, Vec<Term>),
@@ -40,7 +40,7 @@ impl Term {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) enum Atom {
     Pred(Term),
     Eq(Term, Term),
@@ -67,10 +67,10 @@ impl Atom {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct Literal(pub(crate) bool, pub(crate) Atom);
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) enum Formula {
     Atom(Atom),
     Not(Box<Formula>),
@@ -93,14 +93,13 @@ impl Literal {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 enum SkNNF {
     Lit(Literal),
     And(Vec<SkNNF>),
     Or(Vec<SkNNF>),
 }
 
-#[derive(Debug)]
 pub(crate) struct CNF(pub(crate) Vec<Literal>);
 
 impl SkNNF {

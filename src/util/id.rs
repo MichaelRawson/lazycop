@@ -1,6 +1,5 @@
 use crate::prelude::*;
 use std::cmp::Ordering;
-use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::{Add, Sub};
@@ -10,11 +9,14 @@ pub(crate) struct Id<T> {
     _phantom: PhantomData<T>,
 }
 
+/*
+use std::fmt;
 impl<T> fmt::Debug for Id<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Id({})", self.id)
     }
 }
+*/
 
 impl<T> Id<T> {
     pub(super) fn new(id: u32) -> Self {

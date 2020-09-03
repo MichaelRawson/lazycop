@@ -44,9 +44,8 @@ impl Tableau {
         self.stack
             .range()
             .into_iter()
-            .map(|id| self.stack[id].remaining().len() as u32)
+            .map(|id| self.stack[id].open().len() as u32)
             .sum::<u32>()
-            + 1
     }
 
     pub(crate) fn reduction_literals(
