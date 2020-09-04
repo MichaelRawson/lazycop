@@ -6,34 +6,42 @@ const NAME: &str = "lazyCoP";
 
 const ABOUT: &str = "
 lazyCoP is an automatic theorem prover for first-order logic with equality.
-The system can read the TPTP FOF and CNF dialects and outputs SZS/TSTP.
+The system can read the TPTP FOF and CNF dialects and outputs TSTP.
 For more information, see the project repository.
 ";
 
 #[derive(StructOpt)]
-#[structopt(name = NAME, author, about = ABOUT)]
+#[structopt(
+    name = NAME,
+    author,
+    about = ABOUT,
+    help_message = "print help information and exit",
+    version_message = "print version information and exit"
+)]
 pub(crate) struct Options {
-    #[structopt(parse(from_os_str), help = "path to input problem")]
+    /// input problem to attempt
+    #[structopt(parse(from_os_str))]
     pub(crate) path: PathBuf,
 
-    #[structopt(long, help = "time limit in seconds")]
+    /// time limit (s)
+    #[structopt(long)]
     pub(crate) time: Option<u64>,
 
-    #[structopt(long, help = "limit number of inference steps")]
+    /// step limit
+    #[structopt(long)]
     pub(crate) steps: Option<usize>,
 
-    #[structopt(long, help = "convert input to clause normal form and exit")]
+    /// print clause normal form and exit
+    #[structopt(long)]
     pub(crate) clausify: bool,
 
-    #[structopt(long, help = "dump training data on exit")]
-    pub(crate) training_data: bool,
+    /// dump training data instead of TSTP
+    #[structopt(long)]
+    pub(crate) dump_training_data: bool,
 
-    #[structopt(
-        long,
-        help = "training data visit threshold",
-        default_value = "1000"
-    )]
-    pub(crate) training_threshold: u32,
+    /// maximum # training examples
+    #[structopt(long, default_value = "1000")]
+    pub(crate) max_training_data: usize,
 
     #[structopt(skip = Instant::now())]
     start_time: Instant,

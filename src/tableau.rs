@@ -161,7 +161,7 @@ impl Tableau {
             Rule::Reflexivity => {
                 some(self.stack.last_mut()).reflexivity(
                     record,
-                    &problem.symbols,
+                    problem,
                     terms,
                     &self.literals,
                     constraints,
@@ -171,7 +171,7 @@ impl Tableau {
             Rule::Reduction(reduction) => {
                 some(self.stack.last_mut()).reduction(
                     record,
-                    &problem.symbols,
+                    problem,
                     terms,
                     &mut self.literals,
                     constraints,
@@ -190,7 +190,7 @@ impl Tableau {
                 let consequence = some(self.stack.last_mut())
                     .forward_demodulation(
                         record,
-                        &problem.symbols,
+                        problem,
                         terms,
                         &mut self.literals,
                         constraints,
@@ -210,7 +210,7 @@ impl Tableau {
                 let consequence = some(self.stack.last_mut())
                     .backward_demodulation(
                         record,
-                        &problem.symbols,
+                        problem,
                         terms,
                         &mut self.literals,
                         constraints,

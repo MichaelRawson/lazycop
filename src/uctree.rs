@@ -145,13 +145,18 @@ impl UCTree {
 
     pub(crate) fn eligible_training_nodes(
         &self,
-        threshold: u32,
-    ) -> impl Iterator<Item = Id<UCTNode>> + '_ {
-        self.nodes
+        max: usize,
+    ) -> Vec<Id<UCTNode>> {
+        let mut nodes: Vec<_> = self
+            .nodes
             .range()
             .into_iter()
+            .filter(move |id| !self.nodes[*id].is_leaf())
             .filter(move |id| !self.nodes[*id].closed)
-            .filter(move |id| self.nodes[*id].visits > threshold)
+            .collect();
+        nodes.sort_unstable_by_key(|id| -(self.nodes[*id].visits as i64));
+        nodes.truncate(max);
+        nodes
     }
 
     pub(crate) fn rules_for_node(

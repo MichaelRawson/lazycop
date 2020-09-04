@@ -6,26 +6,38 @@ use std::fmt::Display;
 
 pub(crate) struct TSTPInference {
     name: &'static str,
-    literal: Option<Id<Literal>>,
+    axioms: Vec<(Id<ProblemClause>, Range<Literal>)>,
+    lemmas: Vec<Id<Literal>>,
     equations: Vec<(Id<Term>, Id<Term>)>,
     deductions: Vec<Range<Literal>>,
 }
 
 impl Inference for TSTPInference {
     fn new(name: &'static str) -> Self {
-        let literal = None;
+        let axioms = vec![];
+        let lemmas = vec![];
         let equations = vec![];
         let deductions = vec![];
         Self {
             name,
-            literal,
+            axioms,
+            lemmas,
             equations,
             deductions,
         }
     }
 
-    fn literal(&mut self, literal: Id<Literal>) -> &mut Self {
-        self.literal = Some(literal);
+    fn axiom(
+        &mut self,
+        id: Id<ProblemClause>,
+        literals: Range<Literal>,
+    ) -> &mut Self {
+        self.axioms.push((id, literals));
+        self
+    }
+
+    fn lemma(&mut self, lemma: Id<Literal>) -> &mut Self {
+        self.lemmas.push(lemma);
         self
     }
 
@@ -203,58 +215,54 @@ impl TSTP {
 impl Record for TSTP {
     type Inference = TSTPInference;
 
-    fn axiom(&mut self, problem: &Problem, clause: Id<ProblemClause>) {
-        let clause = &problem.clauses[clause];
-        let role = if clause.origin.conjecture {
-            "negated_conjecture"
-        } else {
-            "axiom"
-        };
-        print!("cnf(c{}, {},\n\t", self.clause_number, role);
-        self.premise_list.push(self.clause_number);
-        self.clause_number += 1;
-        self.print_clause(
-            &problem.symbols,
-            &clause.terms,
-            &clause.literals,
-            clause.literals.range().into_iter(),
-        );
-        println!(
-            "\n\tinference(clausify, [status(esa)], [file('{}', {})])).",
-            clause.origin.path, clause.origin.name,
-        );
-    }
-
     fn inference(
         &mut self,
-        symbols: &Symbols,
+        problem: &Problem,
         terms: &Terms,
         literals: &Literals,
-        inference: &mut TSTPInference,
+        inference: &TSTPInference,
     ) {
-        if let Some(literal) = inference.literal {
-            print!("cnf(c{}, plain,\n\t", self.clause_number);
+        let symbols = &problem.symbols;
+        for (id, axiom) in &inference.axioms {
+            let origin = &problem.clauses[*id].origin;
+            let role = if origin.conjecture {
+                "negated_conjecture"
+            } else {
+                "axiom"
+            };
+            print!("cnf(c{}, {},\n\t", self.clause_number, role);
             self.premise_list.push(self.clause_number);
             self.clause_number += 1;
-            self.print_literal(symbols, terms, &literals[literal]);
+            self.print_clause(symbols, terms, literals, axiom.into_iter());
+            println!(
+                "\n\tinference(clausify, [status(esa)], [file('{}', {})])).",
+                origin.path, origin.name,
+            );
+        }
+
+        for lemma in &inference.lemmas {
+            print!("cnf(c{}, lemma,\n\t", self.clause_number);
+            self.premise_list.push(self.clause_number);
+            self.clause_number += 1;
+            self.print_literal(symbols, terms, &literals[*lemma]);
             println!(").");
         }
 
         let parent = self.clause_stack.pop();
         let assumption_start = self.assumption_number;
-        for (left, right) in inference.equations.drain(..) {
+        for (left, right) in &inference.equations {
             print!("cnf(a{}, assumption,\n\t", self.assumption_number);
-            self.print_term(symbols, terms, left);
+            self.print_term(symbols, terms, *left);
             print!(" = ");
-            self.print_term(symbols, terms, right);
+            self.print_term(symbols, terms, *right);
             println!(").");
             self.assumption_number += 1;
         }
 
         let mut remaining_deductions = inference.deductions.len();
-        for deduction in inference.deductions.drain(..) {
+        for deduction in &inference.deductions {
             remaining_deductions -= 1;
-            if Range::is_empty(deduction) {
+            if Range::is_empty(*deduction) {
                 if remaining_deductions > 0 {
                     continue;
                 }

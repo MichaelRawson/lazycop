@@ -128,8 +128,8 @@ pub(crate) fn search(
     let result = result.into_inner();
     let tree = tree.into_inner();
 
-    if options.training_data {
-        training::dump(problem, &tree, options.training_threshold);
+    if options.dump_training_data {
+        training::dump(problem, &tree, options.max_training_data);
     }
     (statistics, result)
 }

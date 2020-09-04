@@ -67,6 +67,9 @@ fn main() {
 
     let problem = builder.finish(symbols);
     let (statistics, result) = search::search(&problem, &options);
+    if options.dump_training_data {
+        return;
+    }
 
     let mut record = TSTP::default();
     match result {

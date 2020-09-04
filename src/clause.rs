@@ -71,27 +71,21 @@ impl Clause {
         constraints: &mut Constraints,
         start: Start,
     ) -> Self {
-        let start = Self::copy(
-            record,
+        let axiom =
+            Self::copy(problem, terms, literals, constraints, start.clause);
+        record.inference(
             problem,
             terms,
             literals,
-            constraints,
-            start.clause,
+            &R::Inference::new("start").axiom(start.clause, axiom.open()),
         );
-        record.inference(
-            &problem.symbols,
-            terms,
-            literals,
-            R::Inference::new("start").deduction(start.open()),
-        );
-        start
+        axiom
     }
 
     pub(crate) fn reflexivity<R: Record>(
         &mut self,
         record: &mut R,
-        symbols: &Symbols,
+        problem: &Problem,
         terms: &Terms,
         literals: &Literals,
         constraints: &mut Constraints,
@@ -100,7 +94,7 @@ impl Clause {
         let (left, right) = literal.get_equality();
         constraints.assert_eq(left, right);
         record.inference(
-            symbols,
+            problem,
             terms,
             literals,
             R::Inference::new("reflexivity")
@@ -112,7 +106,7 @@ impl Clause {
     pub(crate) fn reduction<R: Record>(
         &mut self,
         record: &mut R,
-        symbols: &Symbols,
+        problem: &Problem,
         terms: &Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
@@ -121,16 +115,16 @@ impl Clause {
         let mut inference = R::Inference::new("reduction");
         let p = &literals[self.close_literal()];
         let q = &literals[reduction.literal];
-        for (s, t) in predicate_argument_pairs(symbols, terms, p, q) {
+        for (s, t) in predicate_argument_pairs(&problem.symbols, terms, p, q) {
             constraints.assert_eq(s, t);
             inference.equation(s, t);
         }
 
         record.inference(
-            symbols,
+            problem,
             terms,
             literals,
-            inference.literal(reduction.literal).deduction(self.open()),
+            inference.lemma(reduction.literal).deduction(self.open()),
         );
     }
 
@@ -138,7 +132,7 @@ impl Clause {
     pub(crate) fn forward_demodulation<R: Record>(
         &mut self,
         record: &mut R,
-        symbols: &Symbols,
+        problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
@@ -147,7 +141,7 @@ impl Clause {
     ) -> Self {
         self.demodulation(
             record,
-            symbols,
+            problem,
             terms,
             literals,
             constraints,
@@ -161,7 +155,7 @@ impl Clause {
     pub(crate) fn backward_demodulation<R: Record>(
         &mut self,
         record: &mut R,
-        symbols: &Symbols,
+        problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
@@ -170,7 +164,7 @@ impl Clause {
     ) -> Self {
         self.demodulation(
             record,
-            symbols,
+            problem,
             terms,
             literals,
             constraints,
@@ -180,8 +174,28 @@ impl Clause {
         )
     }
 
+    fn extension(
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        constraints: &mut Constraints,
+        extension: Extension,
+    ) -> (Id<ProblemClause>, Self) {
+        let occurrence =
+            &problem.index.predicate_occurrences[extension.occurrence];
+        let extension = Self::extend(
+            problem,
+            terms,
+            literals,
+            constraints,
+            occurrence.clause,
+            occurrence.literal,
+        );
+        (occurrence.clause, extension)
+    }
+
     pub(crate) fn strict_extension<R: Record>(
-        self,
+        &mut self,
         record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
@@ -189,15 +203,10 @@ impl Clause {
         constraints: &mut Constraints,
         extension: Extension,
     ) -> Self {
+        let (problem_clause, mut extension) =
+            Self::extension(problem, terms, literals, constraints, extension);
         let mut inference = R::Inference::new("strict_extension");
-        let mut extension = Self::extension(
-            record,
-            problem,
-            terms,
-            literals,
-            constraints,
-            extension,
-        );
+        inference.axiom(problem_clause, extension.open());
         let p = &literals[self.current];
         let q = &literals[extension.close_literal()];
         for (s, t) in predicate_argument_pairs(&problem.symbols, terms, p, q) {
@@ -206,7 +215,7 @@ impl Clause {
         }
 
         record.inference(
-            &problem.symbols,
+            problem,
             terms,
             literals,
             inference
@@ -225,15 +234,8 @@ impl Clause {
         constraints: &mut Constraints,
         extension: Extension,
     ) -> (Self, Self) {
-        let mut inference = R::Inference::new("lazy_extension");
-        let extension = Self::extension(
-            record,
-            problem,
-            terms,
-            literals,
-            constraints,
-            extension,
-        );
+        let (problem_clause, extension) =
+            Self::extension(problem, terms, literals, constraints, extension);
         let p = &literals[self.current];
         let q = &literals[extension.current];
         let disequation_start = literals.len();
@@ -245,6 +247,7 @@ impl Clause {
         let fresh_end = terms.len();
         let fresh = Range::new(fresh_start, fresh_end);
 
+        let mut inference = R::Inference::new("lazy_extension");
         for ((s, t), fresh) in
             predicate_argument_pairs(&problem.symbols, terms, p, q).zip(fresh)
         {
@@ -256,10 +259,11 @@ impl Clause {
         let disequations = Self::new(disequation_start, disequation_end);
 
         record.inference(
-            &problem.symbols,
+            problem,
             terms,
             literals,
             inference
+                .axiom(problem_clause, extension.open())
                 .deduction(self.remaining())
                 .deduction(extension.remaining())
                 .deduction(disequations.open()),
@@ -277,14 +281,14 @@ impl Clause {
         paramodulation: BackwardParamodulation,
     ) -> (Self, Self) {
         let target = paramodulation.target;
-        let (extension, from, to) = Self::backward_paramodulation(
-            record,
-            problem,
-            terms,
-            literals,
-            constraints,
-            paramodulation,
-        );
+        let (problem_clause, extension, from, to) =
+            Self::backward_paramodulation(
+                problem,
+                terms,
+                literals,
+                constraints,
+                paramodulation,
+            );
         let start = literals.len();
         let fresh = terms.add_variable();
         constraints.assert_eq(target, from);
@@ -301,10 +305,11 @@ impl Clause {
         let consequence = Self::new(start, end);
 
         record.inference(
-            &problem.symbols,
+            problem,
             terms,
             literals,
             R::Inference::new("strict_backward_paramodulation")
+                .axiom(problem_clause, extension.open())
                 .equation(target, from)
                 .deduction(self.remaining())
                 .deduction(extension.remaining())
@@ -323,14 +328,14 @@ impl Clause {
         paramodulation: BackwardParamodulation,
     ) -> (Self, Self) {
         let target = paramodulation.target;
-        let (extension, from, to) = Self::backward_paramodulation(
-            record,
-            problem,
-            terms,
-            literals,
-            constraints,
-            paramodulation,
-        );
+        let (problem_clause, extension, from, to) =
+            Self::backward_paramodulation(
+                problem,
+                terms,
+                literals,
+                constraints,
+                paramodulation,
+            );
         let start = literals.len();
         let fresh = terms.add_variable();
         let placeholder =
@@ -355,10 +360,11 @@ impl Clause {
         let consequence = Self::new(start, end);
 
         record.inference(
-            &problem.symbols,
+            problem,
             terms,
             literals,
             R::Inference::new("lazy_backward_paramodulation")
+                .axiom(problem_clause, extension.open())
                 .equation(placeholder, target)
                 .deduction(self.remaining())
                 .deduction(extension.remaining())
@@ -377,14 +383,14 @@ impl Clause {
         paramodulation: BackwardParamodulation,
     ) -> (Self, Self) {
         let target = paramodulation.target;
-        let (extension, from, to) = Self::backward_paramodulation(
-            record,
-            problem,
-            terms,
-            literals,
-            constraints,
-            paramodulation,
-        );
+        let (problem_clause, extension, from, to) =
+            Self::backward_paramodulation(
+                problem,
+                terms,
+                literals,
+                constraints,
+                paramodulation,
+            );
 
         let start = literals.len();
         let fresh = terms.add_variable();
@@ -402,10 +408,11 @@ impl Clause {
         constraints.assert_gt(from, fresh);
 
         record.inference(
-            &problem.symbols,
+            problem,
             terms,
             literals,
             R::Inference::new("variable_backward_paramodulation")
+                .axiom(problem_clause, extension.open())
                 .equation(target, from)
                 .deduction(self.remaining())
                 .deduction(extension.remaining())
@@ -426,21 +433,16 @@ impl Clause {
         paramodulation: ForwardParamodulation,
         l2r: bool,
     ) -> (Self, Self) {
-        let (left, right) = literals[self.current].get_equality();
-        let (from, to) = if l2r { (left, right) } else { (right, left) };
-        let fresh = terms.add_variable();
-
-        let (extension, target) = Self::forward_paramodulation(
-            record,
-            problem,
-            terms,
-            literals,
-            constraints,
-            paramodulation,
-        );
-        constraints.assert_eq(to, fresh);
+        let (problem_clause, extension, target, fresh, from, to) = self
+            .forward_paramodulation(
+                problem,
+                terms,
+                literals,
+                constraints,
+                paramodulation,
+                l2r,
+            );
         constraints.assert_eq(target, from);
-        constraints.assert_gt(from, to);
 
         let start = literals.len();
         literals.push(literals[extension.current].subst(
@@ -453,10 +455,11 @@ impl Clause {
         let consequence = Self::new(start, end);
 
         record.inference(
-            &problem.symbols,
+            problem,
             terms,
             literals,
             R::Inference::new("strict_forward_paramodulation")
+                .axiom(problem_clause, extension.open())
                 .equation(to, fresh)
                 .equation(target, from)
                 .deduction(self.remaining())
@@ -477,23 +480,19 @@ impl Clause {
         paramodulation: ForwardParamodulation,
         l2r: bool,
     ) -> (Self, Self) {
-        let (left, right) = literals[self.current].get_equality();
-        let (from, to) = if l2r { (left, right) } else { (right, left) };
-        let (extension, target) = Self::forward_paramodulation(
-            record,
-            problem,
-            terms,
-            literals,
-            constraints,
-            paramodulation,
-        );
-        let fresh = terms.add_variable();
+        let (problem_clause, extension, target, fresh, from, to) = self
+            .forward_paramodulation(
+                problem,
+                terms,
+                literals,
+                constraints,
+                paramodulation,
+                l2r,
+            );
         let placeholder =
             terms.fresh_function(&problem.symbols, terms.symbol(target));
-        constraints.assert_eq(to, fresh);
         constraints.assert_eq(placeholder, from);
         constraints.assert_neq(target, from);
-        constraints.assert_gt(from, to);
 
         let start = literals.len();
         for (s, t) in
@@ -512,10 +511,11 @@ impl Clause {
         let consequence = Self::new(start, end);
 
         record.inference(
-            &problem.symbols,
+            problem,
             terms,
             literals,
             R::Inference::new("lazy_forward_paramodulation")
+                .axiom(problem_clause, extension.open())
                 .equation(to, fresh)
                 .equation(placeholder, from)
                 .deduction(self.remaining())
@@ -525,32 +525,11 @@ impl Clause {
         (extension, consequence)
     }
 
-    fn extension<R: Record>(
-        record: &mut R,
-        problem: &Problem,
-        terms: &mut Terms,
-        literals: &mut Literals,
-        constraints: &mut Constraints,
-        extension: Extension,
-    ) -> Self {
-        let occurrence =
-            &problem.index.predicate_occurrences[extension.occurrence];
-        Self::extend(
-            record,
-            problem,
-            terms,
-            literals,
-            constraints,
-            occurrence.clause,
-            occurrence.literal,
-        )
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn demodulation<R: Record>(
         &mut self,
         record: &mut R,
-        symbols: &Symbols,
+        problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
@@ -572,36 +551,39 @@ impl Clause {
         constraints.assert_gt(from, to);
 
         let start = literals.len();
-        literals.push(literals[onto].subst(symbols, terms, target, fresh));
+        literals.push(literals[onto].subst(
+            &problem.symbols,
+            terms,
+            target,
+            fresh,
+        ));
         let end = literals.len();
         let consequence = Self::new(start, end);
 
         record.inference(
-            symbols,
+            problem,
             terms,
             literals,
             R::Inference::new(inference)
+                .lemma(demodulation.literal)
                 .equation(to, fresh)
                 .equation(target, from)
-                .literal(demodulation.literal)
                 .deduction(self.remaining())
                 .deduction(consequence.open()),
         );
         consequence
     }
 
-    fn backward_paramodulation<R: Record>(
-        record: &mut R,
+    fn backward_paramodulation(
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
         paramodulation: BackwardParamodulation,
-    ) -> (Self, Id<Term>, Id<Term>) {
+    ) -> (Id<ProblemClause>, Self, Id<Term>, Id<Term>) {
         let occurrence =
             &problem.index.equality_occurrences[paramodulation.occurrence];
         let extension = Self::extend(
-            record,
             problem,
             terms,
             literals,
@@ -616,22 +598,32 @@ impl Clause {
         } else {
             (right, left)
         };
-        (extension, from, to)
+        (occurrence.clause, extension, from, to)
     }
 
-    fn forward_paramodulation<R: Record>(
-        record: &mut R,
+    #[allow(clippy::type_complexity)]
+    fn forward_paramodulation(
+        &self,
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
         extension: ForwardParamodulation,
-    ) -> (Self, Id<Term>) {
+        l2r: bool,
+    ) -> (
+        Id<ProblemClause>,
+        Self,
+        Id<Term>,
+        Id<Term>,
+        Id<Term>,
+        Id<Term>,
+    ) {
+        let (left, right) = literals[self.current].get_equality();
+        let (from, to) = if l2r { (left, right) } else { (right, left) };
         let occurrence =
             &problem.index.subterm_occurrences[extension.occurrence];
         let target = occurrence.subterm + terms.current_offset();
         let extension = Self::extend(
-            record,
             problem,
             terms,
             literals,
@@ -639,12 +631,14 @@ impl Clause {
             occurrence.clause,
             occurrence.literal,
         );
-        (extension, target)
+        let fresh = terms.add_variable();
+        constraints.assert_eq(to, fresh);
+        constraints.assert_gt(from, to);
+        (occurrence.clause, extension, target, fresh, from, to)
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn extend<R: Record>(
-        record: &mut R,
+    fn extend(
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
@@ -654,7 +648,7 @@ impl Clause {
     ) -> Self {
         let literal_offset = literals.offset();
         let extension =
-            Self::copy(record, problem, terms, literals, constraints, clause);
+            Self::copy(problem, terms, literals, constraints, clause);
 
         let matching = literal + literal_offset;
         let mate = literals[matching];
@@ -666,16 +660,13 @@ impl Clause {
         extension
     }
 
-    fn copy<R: Record>(
-        record: &mut R,
+    fn copy(
         problem: &Problem,
         terms: &mut Terms,
         literals: &mut Literals,
         constraints: &mut Constraints,
         clause: Id<ProblemClause>,
     ) -> Self {
-        record.axiom(&problem, clause);
-
         let start = literals.len();
         let offset = terms.current_offset();
         let clause = &problem.clauses[clause];
@@ -693,7 +684,7 @@ impl Clause {
     }
 
     fn add_tautology_constraints(
-        self,
+        &self,
         constraints: &mut Constraints,
         terms: &Terms,
         literals: &Literals,
