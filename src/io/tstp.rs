@@ -236,7 +236,8 @@ impl Record for TSTP {
             self.print_clause(symbols, terms, literals, axiom.into_iter());
             println!(
                 "\n\tinference(clausify, [status(esa)], [file('{}', {})])).",
-                origin.path, origin.name,
+                origin.path.display(),
+                origin.name,
             );
         }
 

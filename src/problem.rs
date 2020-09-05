@@ -13,9 +13,7 @@ pub(crate) struct Problem {
     pub(crate) clauses: Block<ProblemClause>,
     pub(crate) start_clauses: Vec<Id<ProblemClause>>,
     pub(crate) index: Index,
-    pub(crate) is_fof: bool,
     pub(crate) has_equality: bool,
-    pub(crate) has_conjecture: bool,
 }
 
 impl Problem {
@@ -24,18 +22,14 @@ impl Problem {
         clauses: Block<ProblemClause>,
         start_clauses: Vec<Id<ProblemClause>>,
         index: Index,
-        is_fof: bool,
         has_equality: bool,
-        has_conjecture: bool,
     ) -> Self {
         Self {
             symbols,
             clauses,
             start_clauses,
             index,
-            is_fof,
             has_equality,
-            has_conjecture,
         }
     }
 

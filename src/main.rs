@@ -44,8 +44,14 @@ fn main() {
     let mut clausifier = Clausifier::default();
     let mut builder = ProblemBuilder::default();
     let mut clause_number = 0;
+    let mut problem_is_cnf = false;
+    let mut problem_has_axioms = false;
+    let mut problem_has_conjecture = false;
 
-    while let Some((origin, formula)) = loader.next(&mut symbols) {
+    while let Some((is_cnf, origin, formula)) = loader.next(&mut symbols) {
+        problem_is_cnf |= is_cnf;
+        problem_has_axioms |= !origin.conjecture;
+        problem_has_conjecture |= origin.conjecture;
         clausifier.formula(&mut symbols, formula);
         while let Some(cnf) = clausifier.next(&mut symbols) {
             if options.clausify {
@@ -66,6 +72,7 @@ fn main() {
     }
 
     let problem = builder.finish(symbols);
+    std::mem::drop(loader);
     let (statistics, result) = search::search(&problem, &options);
     if options.dump_training_data {
         return;
@@ -74,7 +81,7 @@ fn main() {
     let mut record = TSTP::default();
     match result {
         SearchResult::Proof(proof) => {
-            if problem.is_fof {
+            if !problem_is_cnf && problem_has_conjecture {
                 szs::theorem(&name);
             } else {
                 szs::unsatisfiable(&name);
@@ -92,10 +99,17 @@ fn main() {
             exit::success()
         }
         SearchResult::Exhausted => {
-            if problem.has_conjecture {
-                szs::counter_satisfiable(&name);
-            } else {
-                szs::satisfiable(&name);
+            match (problem_is_cnf, problem_has_axioms, problem_has_conjecture)
+            {
+                (false, false, true) => {
+                    szs::counter_satisfiable(&name);
+                }
+                (_, true, true) => {
+                    szs::unknown(&name);
+                }
+                (true, _, _) | (false, true, _) | (false, false, false) => {
+                    szs::satisfiable(&name);
+                }
             }
         }
         SearchResult::ResourceOut => {

@@ -4,15 +4,17 @@ use crate::io::szs;
 use crate::prelude::*;
 use fnv::FnvHashMap;
 use memmap::Mmap;
+use std::env;
 use std::fmt;
 use std::fs::File;
-use std::path::Path;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tptp::parsers::TPTPIterator;
 use tptp::syntax as st;
 
-fn report_os_error(path: &Path, e: std::io::Error) -> ! {
-    println!("% error reading {}: {}", path.display(), e);
+fn report_os_error<D: fmt::Display>(path: D, e: std::io::Error) -> ! {
+    println!("% error reading {}: {}", path, e);
     szs::os_error();
     exit::failure()
 }
@@ -32,19 +34,45 @@ fn report_inappropriate<T: fmt::Display>(t: T) -> ! {
 struct TPTPFile<'a> {
     _map: Mmap,
     parser: TPTPIterator<'a, ()>,
-    path: Arc<String>,
+    path: Arc<PathBuf>,
+}
+
+fn open_relative(old: &Path, path: &Path) -> Option<File> {
+    let mut directory: PathBuf = old.parent()?.into();
+    directory.push(path);
+    File::open(directory).ok()
+}
+
+fn open_root(path: &Path) -> io::Result<File> {
+    let mut directory = env::var("TPTP_DIR")
+        .map(PathBuf::from)
+        .or_else(|_| env::current_dir())
+        .unwrap_or_else(|e| report_os_error("TPTP_DIR", e));
+    directory.push(path);
+    File::open(directory)
+}
+
+fn open_include(old: &Path, path: &Path) -> io::Result<File> {
+    open_relative(old, path)
+        .map(Ok)
+        .unwrap_or_else(|| open_root(path))
 }
 
 impl<'a> TPTPFile<'a> {
-    fn new(path: &Path) -> Self {
-        let _map = File::open(path)
+    fn new(old: Option<&Path>, path: &Path) -> Self {
+        let file = if let Some(old) = old {
+            open_include(old, path)
+        } else {
+            open_root(path)
+        };
+        let _map = file
             .and_then(|file| unsafe { Mmap::map(&file) })
-            .unwrap_or_else(|e| report_os_error(path, e));
+            .unwrap_or_else(|e| report_os_error(path.display(), e));
 
         let bytes = _map.as_ref();
         let bytes: &'a [u8] = unsafe { std::mem::transmute(bytes) };
         let parser = TPTPIterator::new(bytes);
-        let path = Arc::new(format!("{}", path.display()));
+        let path = Arc::new(path.into());
         Self { _map, parser, path }
     }
 
@@ -62,7 +90,7 @@ struct TPTPProblem<'a> {
 
 impl<'a> TPTPProblem<'a> {
     fn new(path: &Path) -> Self {
-        let stack = vec![TPTPFile::new(path)];
+        let stack = vec![TPTPFile::new(None, path)];
         let empty = vec![];
         Self { stack, empty }
     }
@@ -81,15 +109,17 @@ impl<'a> TPTPProblem<'a> {
             match input {
                 st::TPTPInput::Annotated(annotated) => break Some(annotated),
                 st::TPTPInput::Include(include) => {
-                    self.stack.push(TPTPFile::new(Path::new(
-                        include.file_name.as_ref().as_ref().as_ref(),
-                    )));
+                    let path = include.file_name.as_ref().as_ref().as_ref();
+                    let path = Path::new(path);
+                    let old = self.current_path();
+                    let old = Some(old.as_ref().as_ref());
+                    self.stack.push(TPTPFile::new(old, path));
                 }
             };
         }
     }
 
-    fn current_path(&self) -> Arc<String> {
+    fn current_path(&self) -> Arc<PathBuf> {
         some(self.stack.last()).path.clone()
     }
 }
@@ -121,19 +151,18 @@ impl<'a> Loader<'a> {
     pub(crate) fn next(
         &mut self,
         symbols: &mut Symbols,
-    ) -> Option<(Origin, cnf::Formula)> {
+    ) -> Option<(bool, Origin, cnf::Formula)> {
         let annotated = self.problem.next()?;
         let path = self.problem.current_path();
-        let (fof, conjecture, name, formula) =
+        let (is_cnf, conjecture, name, formula) =
             self.annotated_formula(symbols, annotated);
         let name = Arc::new(name);
         let origin = Origin {
-            fof,
             conjecture,
             path,
             name,
         };
-        Some((origin, formula))
+        Some((is_cnf, origin, formula))
     }
 
     fn functor(
@@ -431,15 +460,15 @@ impl<'a> Loader<'a> {
         symbols: &mut Symbols,
         formula: st::AnnotatedFormula<'a>,
     ) -> (bool, bool, String, cnf::Formula) {
-        let (fof, name, mut role, mut formula) = match formula {
+        let (is_cnf, name, mut role, mut formula) = match formula {
             st::AnnotatedFormula::Fof(fof) => {
                 let formula =
                     self.fof_logic_formula(symbols, (*fof.formula).0);
-                (true, format!("{}", fof.name), fof.role, formula)
+                (false, format!("{}", fof.name), fof.role, formula)
             }
             st::AnnotatedFormula::Cnf(cnf) => {
                 let formula = self.cnf_formula(symbols, *cnf.formula);
-                (false, format!("{}", cnf.name), cnf.role, formula)
+                (true, format!("{}", cnf.name), cnf.role, formula)
             }
         };
         debug_assert!(self.bound.is_empty());
@@ -451,6 +480,6 @@ impl<'a> Loader<'a> {
             role = st::FormulaRole::NegatedConjecture;
         }
         let conjecture = role == st::FormulaRole::NegatedConjecture;
-        (fof, conjecture, name, formula)
+        (is_cnf, conjecture, name, formula)
     }
 }

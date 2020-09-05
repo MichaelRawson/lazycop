@@ -4,7 +4,6 @@ use crate::prelude::*;
 
 #[derive(Default)]
 pub(crate) struct ProblemBuilder {
-    is_fof: bool,
     has_equality: bool,
     clauses: Block<ProblemClause>,
     index: Index,
@@ -33,9 +32,7 @@ impl ProblemBuilder {
             self.clauses,
             start,
             self.index,
-            self.is_fof,
             self.has_equality,
-            self.has_conjecture,
         )
     }
 
@@ -136,7 +133,6 @@ impl ProblemBuilder {
         origin: Origin,
         cnf: cnf::CNF,
     ) {
-        let is_fof = origin.fof;
         let is_conjecture = origin.conjecture;
         let is_empty = cnf.0.is_empty();
         let is_negative = cnf.0.iter().all(|literal| !literal.0);
@@ -148,9 +144,6 @@ impl ProblemBuilder {
             origin,
         });
 
-        if is_fof {
-            self.is_fof = true;
-        }
         if is_conjecture {
             self.conjecture_clauses.push(problem_clause);
             self.has_conjecture = true;
