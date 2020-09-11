@@ -1,22 +1,23 @@
 import torch
 import sys
 
-from model import NODE_TYPES, CHANNELS, HIDDEN, LAYERS
-BN_EPS = 1e-5
+from model import NODE_TYPES, CHANNELS, HIDDEN, LAYERS, Model
 
 def fmt_weights(tensor):
     for value in tensor.reshape(-1):
         print(f"\t{value},")
 
 if __name__ == '__main__':
-    weights = torch.load('model.pt', map_location='cpu')
+    model = Model()
+    model.load_state_dict(torch.load(sys.argv[1]))
+    model.eval()
+    model.fuse()
+    weights = model.state_dict()
 
     print(f"const uint32_t NODE_TYPES = {NODE_TYPES};")
     print(f"const uint32_t CHANNELS = {CHANNELS};")
     print(f"const uint32_t HIDDEN = {HIDDEN};")
     print(f"const uint32_t LAYERS = {LAYERS};")
-    output_bias = float(weights['output.bias'])
-    print(f"#define OUTPUT_BIAS {output_bias}")
 
     print("static const float EMBED_WEIGHTS_DATA[] = {")
     fmt_weights(weights['embedding.weight'])
@@ -30,6 +31,16 @@ if __name__ == '__main__':
     print("static const float BACK_WEIGHTS_DATA[] = {")
     for i in range(LAYERS):
         fmt_weights(weights[f'conv.{i}.back.weight.weight'].t())
+    print("};")
+
+    print("static const float OUT_BIAS_DATA[] = {")
+    for i in range(LAYERS):
+        fmt_weights(weights[f'conv.{i}.out.weight.bias'])
+    print("};")
+
+    print("static const float BACK_BIAS_DATA[] = {")
+    for i in range(LAYERS):
+        fmt_weights(weights[f'conv.{i}.back.weight.bias'])
     print("};")
 
     print("static const float HIDDEN_WEIGHT_DATA[] = {")

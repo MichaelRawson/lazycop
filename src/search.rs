@@ -6,7 +6,7 @@ use crate::statistics::Statistics;
 use crate::training;
 use crate::uctree::UCTree;
 use crossbeam_utils::thread;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 const STACK_SIZE: usize = 0x10_00000;
@@ -17,11 +17,11 @@ pub(crate) enum SearchResult {
     ResourceOut,
 }
 
-fn task(
+fn expansion_task(
     problem: &Problem,
     options: &Options,
-    statistics: &mut Statistics,
-    tree: &Mutex<UCTree>,
+    statistics: &Statistics,
+    tree: &RwLock<UCTree>,
     stop: &AtomicBool,
     steps: &AtomicUsize,
 ) -> SearchResult {
@@ -38,13 +38,20 @@ fn task(
             return SearchResult::ResourceOut;
         }
 
-        rules.clear();
         let leaf = {
-            let mut tree = tree.lock();
+            let tree = tree.read();
+
             if tree.is_closed() {
                 return SearchResult::Exhausted;
             }
-            tree.take(&mut rules)
+
+            if let Some(leaf) = tree.select_for_expansion(&mut rules) {
+                leaf
+            } else {
+                rules.clear();
+                std::thread::yield_now();
+                continue;
+            }
         };
 
         let mut record = Silent; //crate::io::tstp::TSTP::default();
@@ -73,11 +80,11 @@ fn task(
             }
             goal.restore();
         }
-        statistics.increment_expanded_nodes();
+        statistics.increment_expanded_goals();
         goal.clear();
+        rules.clear();
 
-        let mut tree = tree.lock();
-        tree.give(leaf, &*data);
+        tree.write().expand(leaf, &*data);
         data.clear();
 
         if let Some(proof) = proof {
@@ -86,13 +93,71 @@ fn task(
     }
 }
 
+#[cfg(feature = "nn")]
+fn evaluation_task(
+    problem: &Problem,
+    statistics: &Statistics,
+    tree: &RwLock<UCTree>,
+    stop: &AtomicBool,
+) {
+    let mut rules = vec![];
+    let mut inferences = vec![];
+    let mut scores = vec![];
+    let mut goal = Goal::new(problem);
+    let mut graph = Graph::default();
+
+    while !stop.load(Ordering::Relaxed) {
+        let node = if let Some(node) =
+            tree.read().select_for_evaluation(&mut rules)
+        {
+            node
+        } else {
+            rules.clear();
+            std::thread::yield_now();
+            continue;
+        };
+
+        for rule in rules.drain(..) {
+            goal.apply_rule(&mut Silent, &rule);
+        }
+        let constraints_ok = goal.simplify_constraints();
+        debug_assert!(constraints_ok);
+        goal.save();
+
+        tree.read().child_inferences(node, &mut inferences);
+        for inference in inferences.drain(..) {
+            goal.apply_rule(&mut Silent, &inference);
+            let constraints_ok = goal.solve_constraints();
+            debug_assert!(constraints_ok);
+            debug_assert!(!goal.is_closed());
+            goal.graph(&mut graph);
+            graph.finish_subgraph();
+            goal.restore();
+        }
+
+        let input = lazynn::Input {
+            num_graphs: graph.num_graphs,
+            nodes: graph.node_labels(),
+            sources: &graph.sources,
+            targets: &graph.targets,
+            batch: &graph.batch,
+        };
+        lazynn::model(input, &mut scores);
+        tree.read().evaluate(node, &scores);
+
+        goal.clear();
+        graph.clear();
+        statistics.increment_evaluated_goals();
+    }
+}
+
 pub(crate) fn search(
     problem: &Problem,
     options: &Options,
 ) -> (Statistics, SearchResult) {
-    let mut statistics = Statistics::new(problem);
+    let statistics = Statistics::new(problem);
     let result = Mutex::new(SearchResult::ResourceOut);
-    let tree = Mutex::new(UCTree::default());
+    let tree = RwLock::new(UCTree::default());
     let steps = AtomicUsize::default();
     let stop = AtomicBool::new(false);
 
@@ -102,10 +167,10 @@ pub(crate) fn search(
             .name("search".into())
             .stack_size(STACK_SIZE)
             .spawn(|_| {
-                let task_result = task(
+                let task_result = expansion_task(
                     problem,
                     options,
-                    &mut statistics,
+                    &statistics,
                     &tree,
                     &stop,
                     &steps,
@@ -122,7 +187,17 @@ pub(crate) fn search(
                     | (SearchResult::Exhausted, _) => {}
                 }
             })
-            .expect("failed to spawn search thread");
+            .expect("failed to spawn expansion thread");
+
+        #[cfg(feature = "nn")]
+        scope
+            .builder()
+            .name("evaluation".into())
+            .stack_size(STACK_SIZE)
+            .spawn(|_| {
+                evaluation_task(problem, &statistics, &tree, &stop);
+            })
+            .expect("failed to spawn evaluation thread");
     })
     .unwrap_or_else(|_| panic!("worker thread crashed"));
     let result = result.into_inner();

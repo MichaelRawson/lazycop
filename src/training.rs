@@ -16,15 +16,13 @@ fn array<T: std::fmt::Display>(data: &[T]) {
 }
 
 pub(crate) fn dump(problem: &Problem, tree: &UCTree, max: usize) {
-    let mut rules = vec![];
     let mut scores = vec![];
     let mut goal = Goal::new(problem);
     let mut graph = Graph::default();
 
     for id in tree.eligible_training_nodes(max) {
-        tree.rules_for_node(id, &mut rules);
-        for rule in &rules {
-            goal.apply_rule(&mut Silent, rule);
+        for rule in tree.rules_for_node(id) {
+            goal.apply_rule(&mut Silent, &rule);
         }
         let constraints_ok = goal.simplify_constraints();
         debug_assert!(constraints_ok);

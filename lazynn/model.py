@@ -1,21 +1,32 @@
 import torch
-from torch.nn import Embedding, Linear, Module, ModuleList
-from torch.nn.functional import relu
+from torch.nn import BatchNorm1d, Embedding, Linear, Module, ModuleList, Parameter
+from torch.nn.functional import relu_
+from torch_scatter import scatter_mean, scatter_max
 
 NODE_TYPES = 7
-CHANNELS = 32
+CHANNELS = 64
 HIDDEN = 1024
-LAYERS = 8
+LAYERS = 16
 
 class Conv(Module):
     def __init__(self):
         super().__init__()
-        self.weight = Linear(CHANNELS, CHANNELS, bias=False)
+        self.bn = BatchNorm1d(CHANNELS)
+        self.weight = Linear(CHANNELS, CHANNELS)
         torch.nn.init.xavier_normal_(self.weight.weight)
 
-    def forward(self, x, sources, targets, norm):
-        x = norm * x.index_add(0, targets, x[sources])
-        return relu(self.weight(x))
+    def forward(self, x, sources, targets):
+        x = scatter_mean(x[sources], targets, dim_size=x.shape[0], dim=0)
+        if self.bn is not None:
+            x = self.bn(x)
+        return relu_(self.weight(x))
+
+    def fuse(self):
+        denominator = (self.bn.running_var + self.bn.eps).rsqrt()
+        self.weight.bias.data += self.weight.weight @ self.bn.bias
+        self.weight.weight.data *= self.bn.weight * denominator
+        self.weight.bias.data -= self.weight.weight.data @ self.bn.running_mean
+        self.bn = None
 
 class BiConv(Module):
     def __init__(self):
@@ -23,20 +34,14 @@ class BiConv(Module):
         self.out = Conv()
         self.back = Conv()
 
-    def forward(self, x, sources, targets, norm, norm_t):
-        out = self.out(x, sources, targets, norm)
-        back = self.back(x, targets, sources, norm_t)
+    def forward(self, x, sources, targets):
+        out = self.out(x, sources, targets)
+        back = self.back(x, targets, sources)
         return out + back
 
-def compute_norms(nodes, sources, targets):
-        weights = torch.ones_like(sources, dtype=torch.float32)
-        norm = 1.0 / torch.ones_like(nodes, dtype=torch.float32)\
-            .scatter_add(0, targets, weights)\
-            .unsqueeze(dim=1)
-        norm_t = 1.0 / torch.ones_like(nodes, dtype=torch.float32)\
-            .scatter_add(0, sources, weights)\
-            .unsqueeze(dim=1)
-        return norm, norm_t
+    def fuse(self):
+        self.out.fuse()
+        self.back.fuse()
 
 class Model(Module):
     def __init__(self):
@@ -46,6 +51,10 @@ class Model(Module):
         self.hidden = Linear(CHANNELS, HIDDEN)
         self.output = Linear(HIDDEN, 1, bias=False)
 
+    def fuse(self):
+        for conv in self.conv:
+            conv.fuse()
+
     def forward(
         self,
         nodes,
@@ -53,20 +62,9 @@ class Model(Module):
         targets,
         batch
     ):
-        num_graphs = batch.max() + 1
-        node_counts = torch.zeros(
-            num_graphs,
-            device=batch.device
-        ).index_add_(0, batch, torch.ones(batch.shape, device=batch.device))
-        norm, norm_t = compute_norms(nodes, sources, targets)
-
         x = self.embedding(nodes)
         for conv in self.conv:
-            x = x + conv(x, sources, targets, norm, norm_t)
-        x = torch.zeros(
-            (num_graphs, CHANNELS),
-            device=x.device
-        ).index_add_(0, batch, x) / node_counts.unsqueeze(dim=1)
-        x = self.hidden(x)
-        x = relu(x)
+            x = x + conv(x, sources, targets)
+        x = scatter_mean(x, batch, dim=0)
+        x = relu_(self.hidden(x))
         return self.output(x).squeeze()

@@ -2,9 +2,8 @@ from pathlib import Path
 import sys
 
 import torch
-from torch.nn.functional import mse_loss
 from torch.optim import SGD
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import CyclicLR
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 
@@ -12,12 +11,10 @@ from model import Model
 from data import Examples
 
 MOMENTUM = 0.9
-WEIGHT_DECAY = 1e-4
-LR = 0.01
+LR = 0.1
 GAMMA = 0.99995
-SAVE_INTERVAL = 1e3
-TEMPERATURE = 10
 BATCH = 32
+CYCLE = 1e4
 
 if __name__ == '__main__':
     model = Model().to('cuda')
@@ -25,10 +22,16 @@ if __name__ == '__main__':
         model.parameters(),
         lr=LR,
         momentum=MOMENTUM,
-        weight_decay=WEIGHT_DECAY,
         nesterov=True
     )
-    scheduler = ExponentialLR(optimiser, gamma=GAMMA)
+    scheduler = CyclicLR(
+        optimiser,
+        mode='exp_range',
+        base_lr=0.0,
+        max_lr=LR,
+        step_size_up=CYCLE // (2 * BATCH),
+        gamma=GAMMA,
+    )
     step = 0
     total_loss = 0
     writer = SummaryWriter()
@@ -41,7 +44,7 @@ if __name__ == '__main__':
             pin_memory=True
         )
         for nodes, sources, targets, batch, scores in loader:
-            if step % SAVE_INTERVAL == 0:
+            if step % CYCLE == 0:
                 for name, value in model.named_parameters():
                     writer.add_histogram(name.replace('.', '/'), value, step)
                 torch.save(model.state_dict(), 'save.pt')
@@ -50,14 +53,14 @@ if __name__ == '__main__':
             sources = sources.to('cuda')
             targets = targets.to('cuda')
             batch = batch.to('cuda')
-            scores = scores / scores.max()
-            y = torch.softmax(TEMPERATURE * -scores, dim=0).to('cuda')
+            scores = scores - scores.min()
+            y = torch.softmax(-scores, dim=0).to('cuda')
 
             raw = model(
                 nodes,
                 sources,
                 targets,
-                batch,
+                batch
             )
             loss = -((y * torch.log_softmax(raw, dim=0)).sum()) / BATCH
             loss.backward()

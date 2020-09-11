@@ -1,14 +1,20 @@
 import json
 import torch
+import gzip
 
-def examples(path):
-    with open(path, 'rb') as f:
+def examples(path, self_loops=True):
+    with gzip.open(path, 'rb') as f:
         for line in f:
             record = json.loads(line)
-            scores = torch.tensor(record['scores'], dtype=torch.float32)
+            # this fits on my GPU
+            if len(record['nodes']) > 2e4:
+                continue
+
             nodes = torch.tensor(record['nodes'])
-            sources = torch.tensor(record['sources'])
-            targets = torch.tensor(record['targets'])
+            identity = list(range(len(nodes))) if self_loops else []
+            sources = torch.tensor(identity + record['sources'])
+            targets = torch.tensor(identity + record['targets'])
+            scores = torch.tensor(record['scores'], dtype=torch.float32)
             batch = torch.tensor(record['batch'])
             yield nodes, sources, targets, batch, scores
 

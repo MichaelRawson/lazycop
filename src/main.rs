@@ -37,6 +37,9 @@ use crate::search::SearchResult;
 use crate::symbol::Symbols;
 
 fn main() {
+    #[cfg(feature = "nn")]
+    lazynn::init();
+
     let options = Options::parse();
     let name = options.problem_name();
     let mut symbols = Symbols::default();

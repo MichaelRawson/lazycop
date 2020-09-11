@@ -8,25 +8,23 @@ NVCC_FLAGS=\
 	-default-stream per-thread\
 	-O3\
 	-ftz=true\
-	-maxrregcount=32
+	-maxrregcount=32\
+	--compiler-options -fPIC
 SHARED_LIBS=-lcublasLt
 
 libmodel.a : model.o
 	$(AR) cr $@ model.o
 
+libmodel.so : model.o
+	$(CC) -shared -o $@ $<
+
 model.o : weights.h model.cu
 	$(NVCC) $(NVCC_FLAGS) -c -o $@ model.cu
 
-test : weights.h example.h model.cu
-	$(NVCC) $(NVCC_FLAGS) -DTEST -o $@ model.cu $(SHARED_LIBS)
-
 weights.h : weights.py model.pt
-	$(PYTHON) weights.py > $@
-
-example.h : example.py data.gz
-	$(PYTHON) example.py > $@
+	$(PYTHON) weights.py model.pt > $@
 
 clean :
-	$(RM) test libmodel.a model.o weights.h example.h
+	$(RM) test libmodel.a libmodel.so model.o weights.h
 
 .PHONY : clean

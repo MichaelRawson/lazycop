@@ -1,4 +1,7 @@
 use crate::prelude::*;
+use std::sync::atomic::{AtomicU32, Ordering};
+#[cfg(feature="nn")]
+use std::sync::atomic::AtomicBool;
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 struct UCTValue(f32);
@@ -23,26 +26,42 @@ pub(crate) struct UCTNode {
     parent: Id<UCTNode>,
     children: Range<UCTNode>,
     rule: Rule,
-    visits: u32,
+    visits: AtomicU32,
     score: u32,
-    prior: f32,
+    prior_bits: AtomicU32,
     closed: bool,
+    #[cfg(feature = "nn")]
+    evaluated: AtomicBool,
 }
 
 impl UCTNode {
     fn new(parent: Id<UCTNode>, rule: Rule, score: u32, prior: f32) -> Self {
         let children = Range::new(Id::default(), Id::default());
-        let visits = 1;
+        let visits = AtomicU32::new(1);
+        let prior_bits = AtomicU32::new(prior.to_bits());
         let closed = false;
+        #[cfg(feature = "nn")]
+        let evaluated = AtomicBool::new(false);
         Self {
             parent,
             children,
             rule,
             visits,
             score,
-            prior,
+            prior_bits,
             closed,
+            #[cfg(feature = "nn")]
+            evaluated,
         }
+    }
+
+    fn prior(&self) -> f32 {
+        f32::from_bits(self.prior_bits.load(Ordering::Relaxed))
+    }
+
+    #[cfg(feature="nn")]
+    fn set_prior(&self, prior: f32) {
+        self.prior_bits.store(prior.to_bits(), Ordering::Relaxed);
     }
 
     fn is_leaf(&self) -> bool {
@@ -54,8 +73,8 @@ impl UCTNode {
         let max_score = max_score as f32;
         let exploitation = score / max_score;
 
-        let visits = self.visits as f32;
-        let exploration = self.prior * sqrt_pv / visits;
+        let visits = self.visits.load(Ordering::Relaxed) as f32;
+        let exploration = self.prior() * sqrt_pv / visits;
 
         UCTValue::new(exploitation + exploration)
     }
@@ -78,40 +97,60 @@ impl UCTree {
         self.nodes[Id::default()].closed
     }
 
-    pub(crate) fn take(&mut self, list: &mut Vec<Rule>) -> Id<UCTNode> {
+    fn choose_child(&self, current: Id<UCTNode>) -> Option<Id<UCTNode>> {
+        let node = &self.nodes[current];
+        let sqrt_pv = (node.visits.load(Ordering::Relaxed) as f32).sqrt();
+        let eligible = node
+            .children
+            .into_iter()
+            .filter(|child| !self.nodes[*child].closed);
+
+        let max = eligible.clone().map(|child| self.nodes[child].score).max()?;
+        eligible.max_by_key(|child| self.nodes[*child].puct(max, sqrt_pv))
+    }
+
+    pub(crate) fn select_for_expansion(
+        &self,
+        list: &mut Vec<Rule>,
+    ) -> Option<Id<UCTNode>> {
         debug_assert!(!self.is_closed());
         let mut current = Id::default();
         while !self.nodes[current].is_leaf() {
-            /*
-            for node in self.nodes[current].children {
-                print!(" {}", self.nodes[node].score);
-                if self.nodes[node].closed {
-                    print!("*");
-                }
-            }
-            println!();
-            */
-
-            let node = &self.nodes[current];
-            let sqrt_pv = (node.visits as f32).sqrt();
-            let eligible = node
-                .children
-                .into_iter()
-                .filter(|child| !self.nodes[*child].closed);
-            let max_score = some(
-                eligible.clone().map(|child| self.nodes[child].score).max(),
-            );
-            let next = some(eligible.max_by_key(|child| {
-                self.nodes[*child].puct(max_score, sqrt_pv)
-            }));
+            let next = self.choose_child(current)?;
             list.push(self.nodes[next].rule);
-            self.nodes[current].visits += 1;
+            self.nodes[current].visits.fetch_add(1, Ordering::Relaxed);
             current = next;
         }
-        current
+        Some(current)
     }
 
-    pub(crate) fn give(&mut self, parent: Id<UCTNode>, data: &[(Rule, u32)]) {
+    #[cfg(feature = "nn")]
+    pub(crate) fn select_for_evaluation(
+        &self,
+        list: &mut Vec<Rule>,
+    ) -> Option<Id<UCTNode>> {
+        if self.is_closed() {
+            return None;
+        }
+
+        let mut current = Id::default();
+        while self.nodes[current].evaluated.load(Ordering::Relaxed) {
+            let next = self.choose_child(current)?;
+            list.push(self.nodes[next].rule);
+            current = next;
+        }
+        if self.nodes[current].is_leaf() {
+            None
+        } else {
+            Some(current)
+        }
+    }
+
+    pub(crate) fn expand(
+        &mut self,
+        parent: Id<UCTNode>,
+        data: &[(Rule, u32)],
+    ) {
         let prior = 1.0 / data.len() as f32;
         let start = self.nodes.len();
         for (rule, score) in data {
@@ -143,6 +182,16 @@ impl UCTree {
         }
     }
 
+    #[cfg(feature = "nn")]
+    pub(crate) fn evaluate(&self, parent: Id<UCTNode>, scores: &[f32]) {
+        for (node, score) in
+            self.nodes[parent].children.into_iter().zip(scores.iter())
+        {
+            self.nodes[node].set_prior(*score);
+        }
+        self.nodes[parent].evaluated.store(true, Ordering::Relaxed);
+    }
+
     pub(crate) fn eligible_training_nodes(
         &self,
         max: usize,
@@ -154,23 +203,36 @@ impl UCTree {
             .filter(move |id| !self.nodes[*id].is_leaf())
             .filter(move |id| !self.nodes[*id].closed)
             .collect();
-        nodes.sort_unstable_by_key(|id| -(self.nodes[*id].visits as i64));
+        nodes.sort_unstable_by_key(|id| {
+            -(self.nodes[*id].visits.load(Ordering::Relaxed) as i64)
+        });
         nodes.truncate(max);
         nodes
     }
 
-    pub(crate) fn rules_for_node(
+    pub(crate) fn rules_for_node(&self, node: Id<UCTNode>) -> Vec<Rule> {
+        let mut result = vec![];
+        let mut current = node;
+        while current != Id::default() {
+            result.push(self.nodes[current].rule);
+            current = self.nodes[current].parent;
+        }
+        result.reverse();
+        result
+    }
+
+    #[cfg(feature = "nn")]
+    pub(crate) fn child_inferences(
         &self,
         node: Id<UCTNode>,
         rules: &mut Vec<Rule>,
     ) {
-        rules.clear();
-        let mut current = node;
-        while current != Id::default() {
-            rules.push(self.nodes[current].rule);
-            current = self.nodes[current].parent;
-        }
-        rules.reverse();
+        rules.extend(
+            self.nodes[node]
+                .children
+                .into_iter()
+                .map(|node| self.nodes[node].rule),
+        );
     }
 
     pub(crate) fn child_rule_scores(

@@ -5,7 +5,7 @@
 
 static const size_t
 	ALIGNTO = 256,
-	THREADS = 512,
+	BLOCKS = 32,
 	UNROLL = 8;
 static const cudaDataType_t DATA_TYPE = CUDA_R_32F;
 static const cublasComputeType_t COMPUTE_TYPE = CUBLAS_COMPUTE_32F;
@@ -42,6 +42,8 @@ static float
 	*EMBED_WEIGHTS = NULL,
 	*OUT_WEIGHTS = NULL,
 	*BACK_WEIGHTS = NULL,
+	*OUT_BIAS = NULL,
+	*BACK_BIAS = NULL,
 	*HIDDEN_WEIGHTS = NULL,
 	*HIDDEN_BIAS = NULL,
 	*OUTPUT_WEIGHTS = NULL;
@@ -50,19 +52,17 @@ static float
 static thread_local bool thread_initialised = false;
 static thread_local uint8_t *p_upload, *d_upload;
 static thread_local float *p_download, *d_download;
-static thread_local int32_t
-	*nodes = NULL,
-	*node_batch = NULL,
-	*edge_batch = NULL;
+static thread_local int32_t *nodes = NULL, *batch = NULL;
 static thread_local int2 *edges = NULL;
 static thread_local float
 	*forward_node_norm = NULL,
 	*backward_node_norm = NULL,
+	*graph_norm = NULL,
 	*x = NULL,
 	*out = NULL,
 	*back = NULL,
-	*scratch1 = NULL,
-	*scratch2 = NULL,
+	*out_scratch = NULL,
+	*back_scratch = NULL,
 	*pooled = NULL,
 	*hidden = NULL;
 static thread_local uint32_t
@@ -76,8 +76,8 @@ static thread_local uint32_t
 	x_capacity = 0,
 	out_capacity = 0,
 	back_capacity = 0,
-	scratch1_capacity = 0,
-	scratch2_capacity = 0,
+	out_scratch_capacity = 0,
+	back_scratch_capacity = 0,
 	pooled_capacity = 0,
 	hidden_capacity = 0;
 static thread_local cublasLtMatrixLayout_t
@@ -158,21 +158,20 @@ __global__ void k_embed(
 	float *weights,
 	float *x
 ) {
-	auto thread = threadIdx.x;
-	auto channel = thread % CHANNELS;
-	auto offset = thread / CHANNELS;
+	auto offset = blockIdx.x;
+	auto channel = threadIdx.x;
 
 	#pragma unroll UNROLL
-	for(int i = offset; i < num_nodes; i += THREADS / CHANNELS) {
+	for(int i = offset; i < num_nodes; i += BLOCKS) {
 		auto index = CHANNELS * i + channel;
-		auto node = __ldcs(nodes + i);
+		auto node = __ldg(nodes + i);
 		auto weight = __ldg(weights + CHANNELS * node + channel);
 		__stcg(x + index, weight);
 	}
 }
 
 static void embed() {
-	k_embed<<<1, THREADS>>>(
+	k_embed<<<BLOCKS, CHANNELS>>>(
 		num_nodes,
 		nodes,
 		EMBED_WEIGHTS,
@@ -184,22 +183,19 @@ __global__ void k_gather_neighbours(
 	uint32_t num_edges,
 	float *x,
 	int2 *edges,
-	int32_t *edge_batch,
 	float *out,
 	float *back
 ) {
-	auto graph = blockIdx.x;
+	auto offset = blockIdx.x;
 	auto channel = threadIdx.x;
 
-	auto start = __ldg(edge_batch + graph);
-	auto finish = __ldg(edge_batch + graph + 1);
 	#pragma unroll UNROLL
-	for(int i = start; i < finish; i++) {
+	for(int i = offset; i < num_edges; i += BLOCKS) {
 		auto edge = __ldg(edges + i);
 		auto from = CHANNELS * edge.x + channel;
 		auto to = CHANNELS * edge.y + channel;
-		atomicAdd(back + from, __ldg(x + to));
 		atomicAdd(out + to, __ldg(x + from));
+		atomicAdd(back + from, __ldg(x + to));
 	}
 }
 
@@ -218,11 +214,10 @@ static void gather_neighbours() {
 		cudaMemcpyDeviceToDevice,
 		CU_STREAM_PER_THREAD
 	));
-	k_gather_neighbours<<<num_graphs, CHANNELS>>>(
+	k_gather_neighbours<<<BLOCKS, CHANNELS>>>(
 		num_edges,
 		x,
 		edges,
-		edge_batch,
 		out,
 		back
 	);
@@ -235,24 +230,23 @@ __global__ void k_normalise(
 	float *out,
 	float *back
 ) {
-	auto thread = threadIdx.x;
-	auto channel = thread % CHANNELS;
-	auto offset = thread / CHANNELS;
+	auto offset = blockIdx.x;
+	auto channel = threadIdx.x;
 
 	#pragma unroll UNROLL
-	for(int i = offset; i < num_nodes; i += THREADS / CHANNELS) {
+	for(int i = offset; i < num_nodes; i += BLOCKS) {
 		auto index = CHANNELS * i + channel;
 		float forward_norm = __ldg(forward_node_norm + i);
 		float backward_norm = __ldg(backward_node_norm + i);
-		float out_val = forward_norm * __ldcs(out + index);
-		float back_val = backward_norm * __ldcs(back + index);
+		float out_val = forward_norm * __ldg(out + index);
+		float back_val = backward_norm * __ldg(back + index);
 		__stcg(out + index, out_val);
 		__stcg(back + index, back_val);
 	}
 }
 
 static void normalise() {
-	k_normalise<<<1, THREADS>>>(
+	k_normalise<<<BLOCKS, CHANNELS>>>(
 		num_nodes,
 		forward_node_norm,
 		backward_node_norm,
@@ -261,28 +255,37 @@ static void normalise() {
 	);
 }
 
-__global__ void k_combine_scratch(
+__global__ void k_bias_relu_sum(
 	int32_t num_nodes,
-	float *scratch1,
-	float *scratch2,
+	float *out_bias,
+	float *back_bias,
+	float *out_scratch,
+	float *back_scratch,
 	float *x
 ) {
-	auto thread = threadIdx.x;
+	auto offset = blockIdx.x;
+	auto channel = threadIdx.x;
+	float outb = __ldg(out_bias + channel);
+	float backb = __ldg(back_bias + channel);
+
 	#pragma unroll UNROLL
-	for(int i = thread; i < CHANNELS * num_nodes; i += THREADS) {
-		float current = __ldg(x + i);
+	for(int i = offset; i < num_nodes; i += BLOCKS) {
+		auto index = CHANNELS * i + channel;
+		float current = __ldg(x + index);
 		float combined = current +
-			fmaxf(0.0f, __ldg(scratch1 + i)) +
-			fmaxf(0.0f, __ldg(scratch2 + i));
-		__stcg(x + i, combined);
+			fmaxf(0.0f, outb + __ldg(out_scratch + index)) +
+			fmaxf(0.0f, backb + __ldg(back_scratch + index));
+		__stcg(x + index, combined);
 	}
 }
 
-static void combine_scratch() {
-	k_combine_scratch<<<1, THREADS>>>(
+static void bias_relu_sum(float *out_bias, float *back_bias) {
+	k_bias_relu_sum<<<BLOCKS, CHANNELS>>>(
 		num_nodes,
-		scratch1,
-		scratch2,
+		out_bias,
+		back_bias,
+		out_scratch,
+		back_scratch,
 		x
 	);
 }
@@ -290,33 +293,30 @@ static void combine_scratch() {
 __global__ void k_global_mean_pool(
 	int32_t num_nodes,
 	int32_t num_graphs,
-	int32_t *node_batch,
+	int32_t *batch,
 	float *x,
+	float *graph_norm,
 	float *pooled
 ) {
-	auto graph = blockIdx.x;
+	auto offset = blockIdx.x;
 	auto channel = threadIdx.x;
 
-	auto start = __ldg(node_batch + graph);
-	auto finish = __ldg(node_batch + graph + 1);
-	auto count = finish - start;
-	float norm = 1.0 / count;
-	float *addr = pooled + CHANNELS * graph + channel;
-
-	float total = 0.0;
 	#pragma unroll UNROLL
-	for(int i = start; i < finish; i++) {
-		total += __ldg(x + CHANNELS * i + channel);
+	for(int i = offset; i < num_nodes; i += BLOCKS) {
+		auto graph = __ldg(batch + i);
+		auto norm = __ldg(graph_norm + graph);
+		auto value = __ldg(x + CHANNELS * i + channel);
+		atomicAdd(pooled + CHANNELS * graph + channel, norm * value);
 	}
-	__stcg(addr, norm * total);
 }
 
 static void global_mean_pool() {
-	k_global_mean_pool<<<num_graphs, CHANNELS>>>(
+	k_global_mean_pool<<<BLOCKS, CHANNELS>>>(
 		num_nodes,
 		num_graphs,
-		node_batch,
+		batch,
 		x,
+		graph_norm,
 		pooled
 	);
 }
@@ -332,7 +332,7 @@ __global__ void k_hidden_bias_relu(
 		auto index = HIDDEN * i + channel;
 		float activated = fmaxf(
 			0.0f,
-			__ldcs(hidden + index) + __ldg(bias + channel)
+			__ldg(hidden + index) + __ldg(bias + channel)
 		);
 		__stcg(hidden + index, activated);
 	}
@@ -345,6 +345,8 @@ static void hidden_bias_relu() {
 static void residual(int32_t layer) {
 	float *out_weights = OUT_WEIGHTS + CHANNELS * CHANNELS * layer;
 	float *back_weights = BACK_WEIGHTS + CHANNELS * CHANNELS * layer;
+	float *out_bias = OUT_BIAS + CHANNELS * layer;
+	float *back_bias = BACK_BIAS + CHANNELS * layer;
 
 	gather_neighbours();
 	normalise();
@@ -355,7 +357,7 @@ static void residual(int32_t layer) {
 		CONV_WEIGHT_DESC,
 		out_weights,
 		node_desc,
-		scratch1
+		out_scratch
 	);
 	mm(
 		&conv_heuristic, 
@@ -364,9 +366,9 @@ static void residual(int32_t layer) {
 		CONV_WEIGHT_DESC,
 		back_weights,
 		node_desc,
-		scratch2
+		back_scratch
 	);
-	combine_scratch();
+	bias_relu_sum(out_bias, back_bias);
 }
 
 static void upload(
@@ -376,8 +378,7 @@ static void upload(
 	const uint32_t *h_nodes,
 	const uint32_t *h_sources,
 	const uint32_t *h_targets,
-	const uint32_t *h_node_batch,
-	const uint32_t *h_edge_batch
+	const uint32_t *h_batch
 ) {
 	num_nodes = h_num_nodes;
 	num_edges = h_num_edges;
@@ -416,7 +417,7 @@ static void upload(
 	}
 	init_matrix_layout(node_desc, num_nodes, CHANNELS);
 	init_matrix_layout(pooled_desc, num_graphs, CHANNELS);
-	init_matrix_layout(hidden_desc, num_graphs, 1024);
+	init_matrix_layout(hidden_desc, num_graphs, HIDDEN);
 	init_matrix_layout(output_desc, num_graphs, 1);
 	int _num_results;
 	BLASOK(cublasLtMatmulAlgoGetHeuristic(
@@ -466,33 +467,33 @@ static void upload(
 	auto backward_node_norm_offset = ALIGN(
 		forward_node_norm_offset + num_nodes * sizeof(float)
 	);
-	auto node_batch_offset = ALIGN(
+	auto graph_norm_offset = ALIGN(
 		backward_node_norm_offset + num_nodes * sizeof(float)
 	);
-	auto edge_batch_offset = ALIGN(
-		node_batch_offset + (num_graphs + 1) * sizeof(int32_t)
+	auto batch_offset = ALIGN(
+		graph_norm_offset + num_graphs * sizeof(float)
 	);
-	auto upload_bytes = edge_batch_offset +
-		(num_graphs + 1) * sizeof(int32_t);
+	auto upload_bytes = ALIGN(
+		batch_offset + num_nodes * sizeof(int32_t)
+	);
 
 	DEVICE_ALLOC(d_upload, upload_bytes);
 	DEVICE_ALLOC(d_download, num_graphs);
 	DEVICE_ALLOC(x, num_nodes * CHANNELS);
 	DEVICE_ALLOC(out, num_nodes * CHANNELS);
 	DEVICE_ALLOC(back, num_nodes * CHANNELS);
-	DEVICE_ALLOC(scratch1, num_nodes * CHANNELS);
-	DEVICE_ALLOC(scratch2, num_nodes * CHANNELS);
+	DEVICE_ALLOC(out_scratch, num_nodes * CHANNELS);
+	DEVICE_ALLOC(back_scratch, num_nodes * CHANNELS);
 	DEVICE_ALLOC(pooled, num_graphs * CHANNELS);
 	DEVICE_ALLOC(hidden, num_graphs * HIDDEN);
 	PAGE_ALLOC(p_upload, upload_bytes);
 	PAGE_ALLOC(p_download, num_graphs);
-
-	nodes = (int32_t *)(d_upload + node_offset);
-	edges = (int2 *)(d_upload + edge_offset);
-	forward_node_norm = (float *)(d_upload + forward_node_norm_offset);
-	backward_node_norm = (float *)(d_upload + backward_node_norm_offset);
-	node_batch = (int32_t *)(d_upload + node_batch_offset);
-	edge_batch = (int32_t *)(d_upload + edge_batch_offset);
+	CUDAOK(cudaMemsetAsync(
+		pooled,
+		0,
+		num_graphs * CHANNELS * sizeof(float),
+		CU_STREAM_PER_THREAD
+	));
 
 	// alignment-safe: should be aligned from before
 	auto p_nodes = (int32_t *)(p_upload + node_offset);
@@ -501,11 +502,12 @@ static void upload(
 		(float *)(p_upload + forward_node_norm_offset);
 	auto p_backward_node_norm =
 		(float *)(p_upload + backward_node_norm_offset);
-	auto p_node_batch = (int32_t *)(p_upload + node_batch_offset);
-	auto p_edge_batch = (int32_t *)(p_upload + edge_batch_offset);
+	auto p_graph_norm = (float *)(p_upload + graph_norm_offset);
+	auto p_batch = (int32_t *)(p_upload + batch_offset);
 
 	memset(p_forward_node_norm, 0, num_nodes * sizeof(float));
 	memset(p_backward_node_norm, 0, num_nodes * sizeof(float));
+	memset(p_graph_norm, 0, num_graphs * sizeof(float));
 	for(uint32_t i = 0; i < num_edges; i++) {
 		auto source = h_sources[i];
 		auto target = h_targets[i];
@@ -516,16 +518,15 @@ static void upload(
 	}
 	for(uint32_t i = 0; i < num_nodes; i++) {
 		p_nodes[i] = h_nodes[i];
+		p_batch[i] = h_batch[i];
+		p_graph_norm[p_batch[i]] += 1.0;
 		p_forward_node_norm[i] = 1.0f /
 			(1.0f + p_forward_node_norm[i]);
 		p_backward_node_norm[i] = 1.0f /
 			(1.0f + p_backward_node_norm[i]);
 	}
-	p_node_batch[0] = 0;
-	p_edge_batch[0] = 0;
-	for(uint32_t i = 1; i <= num_graphs; i++) {
-		p_node_batch[i] = h_node_batch[i - 1];
-		p_edge_batch[i] = h_edge_batch[i - 1];
+	for(uint32_t i = 0; i < num_graphs; i++) {
+		p_graph_norm[i] = 1.0f / p_graph_norm[i];
 	}
 
 	CUDAOK(cudaMemcpyAsync(
@@ -535,6 +536,13 @@ static void upload(
 		cudaMemcpyHostToDevice,
 		CU_STREAM_PER_THREAD
 	));
+
+	nodes = (int32_t *)(d_upload + node_offset);
+	edges = (int2 *)(d_upload + edge_offset);
+	forward_node_norm = (float *)(d_upload + forward_node_norm_offset);
+	backward_node_norm = (float *)(d_upload + backward_node_norm_offset);
+	graph_norm = (float *)(d_upload + graph_norm_offset);
+	batch = (int32_t *)(d_upload + batch_offset);
 }
 
 static void download(float *h_results) {
@@ -548,7 +556,7 @@ static void download(float *h_results) {
 	CUDAOK(cudaStreamSynchronize(CU_STREAM_PER_THREAD));
 
 	for(uint32_t i = 0; i < num_graphs; i++) {
-		h_results[i] = p_download[i] + OUTPUT_BIAS;
+		h_results[i] = p_download[i];
 	}
 }
 
@@ -597,6 +605,16 @@ extern "C" void init() {
 		sizeof(BACK_WEIGHTS_DATA)
 	);
 	upload_weights(
+		&OUT_BIAS,
+		OUT_BIAS_DATA,
+		sizeof(OUT_BIAS_DATA)
+	);
+	upload_weights(
+		&BACK_BIAS,
+		BACK_BIAS_DATA,
+		sizeof(BACK_BIAS_DATA)
+	);
+	upload_weights(
 		&HIDDEN_WEIGHTS,
 		HIDDEN_WEIGHT_DATA,
 		sizeof(HIDDEN_WEIGHT_DATA)
@@ -613,6 +631,7 @@ extern "C" void init() {
 	);
 }
 
+#include <cstdio>
 extern "C" void model(
 	uint32_t h_num_nodes,
 	uint32_t h_num_edges,
@@ -620,8 +639,7 @@ extern "C" void model(
 	const uint32_t *h_nodes,
 	const uint32_t *h_sources,
 	const uint32_t *h_targets,
-	const uint32_t *h_node_batch,
-	const uint32_t *h_edge_batch,
+	const uint32_t *h_batch,
 	float *h_results
 ) {
 	upload(
@@ -631,8 +649,7 @@ extern "C" void model(
 		h_nodes,
 		h_sources,
 		h_targets,
-		h_node_batch,
-		h_edge_batch
+		h_batch
 	);
 	embed();
 	for(uint32_t i = 0; i < LAYERS; i++) {
@@ -660,47 +677,3 @@ extern "C" void model(
 	);
 	download(h_results);
 }
-
-#ifdef TEST
-#include <iostream>
-#include <thread>
-#include <vector>
-#include "example.h"
-
-static void go() {
-	float output[EXAMPLE_NUM_GRAPHS];
-	model(
-		EXAMPLE_NUM_NODES,
-		EXAMPLE_NUM_EDGES,
-		EXAMPLE_NUM_GRAPHS,
-		EXAMPLE_NODES,
-		EXAMPLE_SOURCES,
-		EXAMPLE_TARGETS,
-		EXAMPLE_NODE_BATCH,
-		EXAMPLE_EDGE_BATCH,
-		output
-	);
-	for(uint32_t i = 0; i < num_graphs; i++) {
-		std::cout << output[i] << " ";
-	}
-	//std::cout << 'x';
-	std::cout << std::endl;
-}
-
-int main() {
-	init();
-
-	std::vector<std::thread> workers;
-	auto f = []() {
-		for(int i = 0; i < 100; i++) {
-			go();
-		}
-	};
-	for(int i = 0; i < 16; i++) {
-		workers.emplace_back(f);
-	}
-	for(auto &worker : workers) {
-		worker.join();
-	}
-}
-#endif

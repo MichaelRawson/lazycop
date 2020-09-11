@@ -14,11 +14,11 @@ pub(crate) enum Node {
 
 #[derive(Default)]
 pub(crate) struct Graph {
+    pub(crate) num_graphs: u32,
     pub(crate) nodes: Block<u32>,
     pub(crate) sources: Vec<u32>,
     pub(crate) targets: Vec<u32>,
     pub(crate) batch: Vec<u32>,
-    subgraphs: u32,
     symbols: LUT<Symbol, Option<Id<Node>>>,
     terms: LUT<Term, Option<Id<Node>>>,
 }
@@ -29,17 +29,17 @@ impl Graph {
     }
 
     pub(crate) fn clear(&mut self) {
+        self.num_graphs = 0;
         self.nodes.clear();
         self.sources.clear();
         self.targets.clear();
         self.batch.clear();
-        self.subgraphs = 0;
         self.symbols.resize(Id::default());
         self.terms.resize(Id::default());
     }
 
     pub(crate) fn finish_subgraph(&mut self) {
-        self.subgraphs += 1;
+        self.num_graphs += 1;
         self.symbols.resize(Id::default());
         self.terms.resize(Id::default());
     }
@@ -106,9 +106,9 @@ impl Graph {
         equality
     }
 
-    pub(crate) fn negation(&mut self, atargetsm: Id<Node>) -> Id<Node> {
+    pub(crate) fn negation(&mut self, target: Id<Node>) -> Id<Node> {
         let negation = self.node(Node::Negation);
-        self.connect(negation, atargetsm);
+        self.connect(negation, target);
         negation
     }
 
@@ -117,7 +117,7 @@ impl Graph {
     }
 
     fn node(&mut self, node: Node) -> Id<Node> {
-        self.batch.push(self.subgraphs);
+        self.batch.push(self.num_graphs);
         self.nodes.push(node as u32).transmute()
     }
 }
