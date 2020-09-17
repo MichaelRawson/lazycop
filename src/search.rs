@@ -204,7 +204,7 @@ pub(crate) fn search(
     let tree = tree.into_inner();
 
     if options.dump_training_data {
-        training::dump(problem, &tree, options.max_training_data);
+        training::dump(problem, &tree, options);
     }
     (statistics, result)
 }

@@ -39,6 +39,10 @@ pub(crate) struct Options {
     #[structopt(long)]
     pub(crate) dump_training_data: bool,
 
+    /// minimum visits for training examples
+    #[structopt(long, default_value = "1000")]
+    pub(crate) min_training_visits: usize,
+
     /// maximum # training examples
     #[structopt(long, default_value = "1000")]
     pub(crate) max_training_data: usize,

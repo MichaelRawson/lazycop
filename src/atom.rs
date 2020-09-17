@@ -1,3 +1,4 @@
+use crate::binding::Bindings;
 use crate::constraint::{Constraints, SymmetricDisequation};
 use crate::prelude::*;
 
@@ -65,10 +66,13 @@ impl Atom {
         graph: &mut Graph,
         symbols: &Symbols,
         terms: &Terms,
-        bindings: &crate::binding::Bindings,
+        bindings: &Bindings,
     ) -> Id<Node> {
         match self {
-            Atom::Predicate(p) => bindings.graph(graph, symbols, terms, *p),
+            Atom::Predicate(p) => {
+                let p = bindings.graph(graph, symbols, terms, *p);
+                graph.predicate(p)
+            }
             Atom::Equality(left, right) => {
                 let left = bindings.graph(graph, symbols, terms, *left);
                 let right = bindings.graph(graph, symbols, terms, *right);

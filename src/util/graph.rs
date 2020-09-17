@@ -4,12 +4,15 @@ use crate::prelude::*;
 #[repr(u32)]
 pub(crate) enum Node {
     Symbol,
+    Skolem,
+    Definition,
     Variable,
     Argument,
     Application,
+    Predicate,
     Equality,
     Negation,
-    Clause,
+    Root,
 }
 
 #[derive(Default)]
@@ -54,11 +57,20 @@ impl Graph {
         self.targets.push(targets.index());
     }
 
-    pub(crate) fn symbol(&mut self, symbol: Id<Symbol>) -> Id<Node> {
+    pub(crate) fn symbol(
+        &mut self,
+        symbols: &Symbols,
+        symbol: Id<Symbol>,
+    ) -> Id<Node> {
         if let Some(node) = self.symbols[symbol] {
             node
         } else {
-            let node = self.node(Node::Symbol);
+            let node = match symbols[symbol].name {
+                Name::Regular(_) | Name::Quoted(_) => Node::Symbol,
+                Name::Skolem(_) => Node::Skolem,
+                Name::Definition(_) => Node::Definition,
+            };
+            let node = self.node(node);
             self.symbols[symbol] = Some(node);
             node
         }
@@ -95,6 +107,12 @@ impl Graph {
         self.terms[term] = Some(node);
     }
 
+    pub(crate) fn predicate(&mut self, term: Id<Node>) -> Id<Node> {
+        let predicate = self.node(Node::Predicate);
+        self.connect(predicate, term);
+        predicate
+    }
+
     pub(crate) fn equality(
         &mut self,
         left: Id<Node>,
@@ -112,8 +130,8 @@ impl Graph {
         negation
     }
 
-    pub(crate) fn clause(&mut self) -> Id<Node> {
-        self.node(Node::Clause)
+    pub(crate) fn root(&mut self) -> Id<Node> {
+        self.node(Node::Root)
     }
 
     fn node(&mut self, node: Node) -> Id<Node> {

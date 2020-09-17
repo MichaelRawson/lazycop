@@ -1,7 +1,8 @@
+use crate::options::Options;
 use crate::prelude::*;
-use std::sync::atomic::{AtomicU32, Ordering};
-#[cfg(feature="nn")]
+#[cfg(feature = "nn")]
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 struct UCTValue(f32);
@@ -26,7 +27,7 @@ pub(crate) struct UCTNode {
     parent: Id<UCTNode>,
     children: Range<UCTNode>,
     rule: Rule,
-    visits: AtomicU32,
+    atomic_visits: AtomicU32,
     score: u32,
     prior_bits: AtomicU32,
     closed: bool,
@@ -37,7 +38,7 @@ pub(crate) struct UCTNode {
 impl UCTNode {
     fn new(parent: Id<UCTNode>, rule: Rule, score: u32, prior: f32) -> Self {
         let children = Range::new(Id::default(), Id::default());
-        let visits = AtomicU32::new(1);
+        let atomic_visits = AtomicU32::new(1);
         let prior_bits = AtomicU32::new(prior.to_bits());
         let closed = false;
         #[cfg(feature = "nn")]
@@ -46,7 +47,7 @@ impl UCTNode {
             parent,
             children,
             rule,
-            visits,
+            atomic_visits,
             score,
             prior_bits,
             closed,
@@ -55,11 +56,15 @@ impl UCTNode {
         }
     }
 
+    fn visits(&self) -> u32 {
+        self.atomic_visits.load(Ordering::Relaxed)
+    }
+
     fn prior(&self) -> f32 {
         f32::from_bits(self.prior_bits.load(Ordering::Relaxed))
     }
 
-    #[cfg(feature="nn")]
+    #[cfg(feature = "nn")]
     fn set_prior(&self, prior: f32) {
         self.prior_bits.store(prior.to_bits(), Ordering::Relaxed);
     }
@@ -73,7 +78,7 @@ impl UCTNode {
         let max_score = max_score as f32;
         let exploitation = score / max_score;
 
-        let visits = self.visits.load(Ordering::Relaxed) as f32;
+        let visits = self.visits() as f32;
         let exploration = self.prior() * sqrt_pv / visits;
 
         UCTValue::new(exploitation + exploration)
@@ -99,13 +104,16 @@ impl UCTree {
 
     fn choose_child(&self, current: Id<UCTNode>) -> Option<Id<UCTNode>> {
         let node = &self.nodes[current];
-        let sqrt_pv = (node.visits.load(Ordering::Relaxed) as f32).sqrt();
+        let sqrt_pv = (node.visits() as f32).sqrt();
         let eligible = node
             .children
             .into_iter()
             .filter(|child| !self.nodes[*child].closed);
 
-        let max = eligible.clone().map(|child| self.nodes[child].score).max()?;
+        let max = eligible
+            .clone()
+            .map(|child| self.nodes[child].score)
+            .max()?;
         eligible.max_by_key(|child| self.nodes[*child].puct(max, sqrt_pv))
     }
 
@@ -118,7 +126,9 @@ impl UCTree {
         while !self.nodes[current].is_leaf() {
             let next = self.choose_child(current)?;
             list.push(self.nodes[next].rule);
-            self.nodes[current].visits.fetch_add(1, Ordering::Relaxed);
+            self.nodes[current]
+                .atomic_visits
+                .fetch_add(1, Ordering::Relaxed);
             current = next;
         }
         Some(current)
@@ -194,7 +204,7 @@ impl UCTree {
 
     pub(crate) fn eligible_training_nodes(
         &self,
-        max: usize,
+        options: &Options,
     ) -> Vec<Id<UCTNode>> {
         let mut nodes: Vec<_> = self
             .nodes
@@ -202,11 +212,17 @@ impl UCTree {
             .into_iter()
             .filter(move |id| !self.nodes[*id].is_leaf())
             .filter(move |id| !self.nodes[*id].closed)
+            .filter(move |id| {
+                self.nodes[*id]
+                    .children
+                    .into_iter()
+                    .any(|child| self.nodes[child].score == 0)
+                    || self.nodes[*id].visits() as usize
+                        >= options.min_training_visits
+            })
             .collect();
-        nodes.sort_unstable_by_key(|id| {
-            -(self.nodes[*id].visits.load(Ordering::Relaxed) as i64)
-        });
-        nodes.truncate(max);
+        nodes.sort_unstable_by_key(|id| -(self.nodes[*id].visits() as i64));
+        nodes.truncate(options.max_training_data);
         nodes
     }
 

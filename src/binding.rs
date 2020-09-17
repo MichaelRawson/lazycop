@@ -53,7 +53,7 @@ impl Bindings {
         let node = match view {
             TermView::Variable(_) => graph.variable(),
             TermView::Function(f, args) => {
-                let symbol = graph.symbol(f);
+                let symbol = graph.symbol(symbols, f);
                 if Range::is_empty(args) {
                     return symbol;
                 }

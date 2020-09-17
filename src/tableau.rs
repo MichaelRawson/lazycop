@@ -105,25 +105,28 @@ impl Tableau {
         terms: &Terms,
         bindings: &crate::binding::Bindings,
     ) {
-        let add_clause = |graph: &mut Graph, id| -> Id<Node> {
-            let clause = graph.clause();
-            for open in self.stack[id].open() {
+        let add_clause = |graph: &mut Graph, parent, id| -> Id<Node> {
+            let mut clause = self.stack[id].open().into_iter();
+            let current = self.literals[some(clause.next())]
+                .graph(graph, symbols, terms, bindings);
+            graph.connect(parent, current);
+            for open in clause {
                 let open =
                     self.literals[open].graph(graph, symbols, terms, bindings);
-                graph.connect(clause, open)
+                graph.connect(parent, open);
             }
+            /*
             for lemma in self.lemmata[id].iter().copied() {
                 let lemma = self.literals[lemma]
                     .graph(graph, symbols, terms, bindings);
                 graph.connect(lemma, clause);
             }
-            clause
+            */
+            current
         };
-        let mut clauses = self.stack.range().into_iter();
-        let mut previous = add_clause(graph, some(clauses.next()));
-        for next in clauses {
-            let next = add_clause(graph, next);
-            graph.connect(previous, next);
+        let mut previous = graph.root();
+        for clause in self.stack.range().into_iter() {
+            let next = add_clause(graph, previous, clause);
             previous = next;
         }
     }

@@ -300,5 +300,5 @@ cnf(c40, plain,
 ```
 
 ## References
-[1] Paskevich, Andrei. "Connection tableaux with lazy paramodulation." Journal of Automated Reasoning 40.2-3 (2008): 179-194.
-[2] Otten, Jens. "Restricting backtracking in connection calculi." AI Communications 23.2-3 (2010): 159-182.
+1. Paskevich, Andrei. "Connection tableaux with lazy paramodulation." Journal of Automated Reasoning 40.2-3 (2008): 179-194.
+2. Otten, Jens. "Restricting backtracking in connection calculi." AI Communications 23.2-3 (2010): 159-182.

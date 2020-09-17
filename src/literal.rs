@@ -1,3 +1,4 @@
+use crate::binding::Bindings;
 use crate::constraint::Constraints;
 use crate::prelude::*;
 
@@ -53,7 +54,7 @@ impl Literal {
         graph: &mut Graph,
         symbols: &Symbols,
         terms: &Terms,
-        bindings: &crate::binding::Bindings,
+        bindings: &Bindings,
     ) -> Id<Node> {
         let atom = self.atom.graph(graph, symbols, terms, bindings);
         if !self.polarity {
