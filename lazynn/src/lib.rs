@@ -28,6 +28,7 @@ pub fn init() {
 }
 
 pub fn model(input: Input, output: &mut Vec<f32>) {
+    output.resize_with(input.num_graphs as usize, Default::default);
     if input.num_graphs == 1 {
         output[0] = 1.0;
         return;
@@ -38,7 +39,6 @@ pub fn model(input: Input, output: &mut Vec<f32>) {
     let num_nodes = input.nodes.len() as u32;
     let num_edges = input.sources.len() as u32;
     let num_graphs = input.num_graphs;
-    output.resize_with(input.num_graphs as usize, Default::default);
 
     let nodes = input.nodes.as_ptr();
     let batch = input.batch.as_ptr();

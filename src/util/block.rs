@@ -47,10 +47,6 @@ impl<T> Block<T> {
     pub(crate) fn truncate(&mut self, len: Id<T>) {
         self.items.truncate(len.index() as usize);
     }
-
-    pub(crate) fn slice(&self) -> &[T] {
-        &self.items
-    }
 }
 
 impl<T: Copy> Block<T> {
@@ -68,6 +64,12 @@ impl<T: Default> Block<T> {
     pub(crate) fn resize(&mut self, len: Id<T>) {
         self.items
             .resize_with(len.index() as usize, Default::default);
+    }
+}
+
+impl<T> AsRef<[T]> for Block<T> {
+    fn as_ref(&self) -> &[T] {
+        self.items.as_ref()
     }
 }
 

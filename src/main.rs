@@ -24,7 +24,7 @@ mod symbol;
 mod tableau;
 mod term;
 mod training;
-mod uctree;
+mod tree;
 mod util;
 
 use crate::cnf::Clausifier;

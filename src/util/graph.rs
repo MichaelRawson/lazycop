@@ -28,7 +28,7 @@ pub(crate) struct Graph {
 
 impl Graph {
     pub(crate) fn node_labels(&self) -> &[u32] {
-        self.nodes.slice()
+        self.nodes.as_ref()
     }
 
     pub(crate) fn clear(&mut self) {

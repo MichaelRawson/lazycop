@@ -6,10 +6,6 @@ def examples(path, self_loops=True):
     with gzip.open(path, 'rb') as f:
         for line in f:
             record = json.loads(line)
-            # this fits on my GPU
-            if len(record['nodes']) > 2e4:
-                continue
-
             nodes = torch.tensor(record['nodes'])
             identity = list(range(len(nodes))) if self_loops else []
             sources = torch.tensor(identity + record['sources'])

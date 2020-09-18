@@ -2,7 +2,7 @@ use crate::goal::Goal;
 use crate::options::Options;
 use crate::prelude::*;
 use crate::record::Silent;
-use crate::uctree::UCTree;
+use crate::tree::Tree;
 
 fn array<T: std::fmt::Display>(data: &[T]) {
     let mut data = data.iter();
@@ -16,13 +16,15 @@ fn array<T: std::fmt::Display>(data: &[T]) {
     print!("]");
 }
 
-pub(crate) fn dump(problem: &Problem, tree: &UCTree, options: &Options) {
+pub(crate) fn dump(problem: &Problem, tree: &Tree, options: &Options) {
     let mut scores = vec![];
     let mut goal = Goal::new(problem);
     let mut graph = Graph::default();
+    let mut rules = vec![];
 
     for id in tree.eligible_training_nodes(options) {
-        for rule in tree.rules_for_node(id) {
+        rules.extend(tree.backward_derivation(id));
+        for rule in rules.drain(..).rev() {
             goal.apply_rule(&mut Silent, &rule);
         }
         let constraints_ok = goal.simplify_constraints();

@@ -4,7 +4,7 @@ use crate::prelude::*;
 use crate::record::Silent;
 use crate::statistics::Statistics;
 use crate::training;
-use crate::uctree::UCTree;
+use crate::tree::Tree;
 use crossbeam_utils::thread;
 use parking_lot::{Mutex, RwLock};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -21,7 +21,7 @@ fn expansion_task(
     problem: &Problem,
     options: &Options,
     statistics: &Statistics,
-    tree: &RwLock<UCTree>,
+    tree: &RwLock<Tree>,
     stop: &AtomicBool,
     steps: &AtomicUsize,
 ) -> SearchResult {
@@ -97,7 +97,7 @@ fn expansion_task(
 fn evaluation_task(
     problem: &Problem,
     statistics: &Statistics,
-    tree: &RwLock<UCTree>,
+    tree: &RwLock<Tree>,
     stop: &AtomicBool,
 ) {
     let mut rules = vec![];
@@ -116,7 +116,6 @@ fn evaluation_task(
             std::thread::yield_now();
             continue;
         };
-
         for rule in rules.drain(..) {
             goal.apply_rule(&mut Silent, &rule);
         }
@@ -124,27 +123,35 @@ fn evaluation_task(
         debug_assert!(constraints_ok);
         goal.save();
 
-        tree.read().child_inferences(node, &mut inferences);
-        for inference in inferences.drain(..) {
-            goal.apply_rule(&mut Silent, &inference);
-            let constraints_ok = goal.solve_constraints();
-            debug_assert!(constraints_ok);
-            debug_assert!(!goal.is_closed());
-            goal.graph(&mut graph);
-            graph.finish_subgraph();
-            goal.restore();
+        inferences
+            .extend(tree.read().child_rule_scores(node).map(|(rule, _)| rule));
+        if inferences.len() < 2 {
+            scores.clear();
+            for _ in inferences.drain(..) {
+                scores.push(1.0);
+            }
+        } else {
+            for inference in inferences.drain(..) {
+                goal.apply_rule(&mut Silent, &inference);
+                let constraints_ok = goal.solve_constraints();
+                debug_assert!(constraints_ok);
+                debug_assert!(!goal.is_closed());
+                goal.graph(&mut graph);
+                graph.finish_subgraph();
+                goal.restore();
+            }
+
+            let input = lazynn::Input {
+                num_graphs: graph.num_graphs,
+                nodes: graph.node_labels(),
+                sources: &graph.sources,
+                targets: &graph.targets,
+                batch: &graph.batch,
+            };
+            lazynn::model(input, &mut scores);
         }
 
-        let input = lazynn::Input {
-            num_graphs: graph.num_graphs,
-            nodes: graph.node_labels(),
-            sources: &graph.sources,
-            targets: &graph.targets,
-            batch: &graph.batch,
-        };
-        lazynn::model(input, &mut scores);
         tree.read().evaluate(node, &scores);
-
         goal.clear();
         graph.clear();
         statistics.increment_evaluated_goals();
@@ -157,7 +164,7 @@ pub(crate) fn search(
 ) -> (Statistics, SearchResult) {
     let statistics = Statistics::new(problem);
     let result = Mutex::new(SearchResult::ResourceOut);
-    let tree = RwLock::new(UCTree::default());
+    let tree = RwLock::new(Tree::default());
     let steps = AtomicUsize::default();
     let stop = AtomicBool::new(false);
 
@@ -201,9 +208,9 @@ pub(crate) fn search(
     })
     .unwrap_or_else(|_| panic!("worker thread crashed"));
     let result = result.into_inner();
-    let tree = tree.into_inner();
 
     if options.dump_training_data {
+        let tree = tree.into_inner();
         training::dump(problem, &tree, options);
     }
     (statistics, result)

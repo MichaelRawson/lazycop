@@ -3,10 +3,10 @@ from torch.nn import BatchNorm1d, Embedding, Linear, Module, ModuleList, Paramet
 from torch.nn.functional import relu_
 from torch_scatter import scatter_mean, scatter_max
 
-NODE_TYPES = 7
+NODE_TYPES = 10
 CHANNELS = 64
 HIDDEN = 1024
-LAYERS = 16
+LAYERS = 8
 
 class Conv(Module):
     def __init__(self):
