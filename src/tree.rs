@@ -5,6 +5,8 @@ use crate::util::heuristic::Heuristic;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+const EXPLORATION: f32 = 2.0;
+
 pub(crate) struct Node {
     parent: Id<Node>,
     children: Range<Node>,
@@ -56,7 +58,7 @@ impl Node {
         let exploitation = 1.0 - numerator / denominator;
 
         let visits = self.visits() as f32;
-        let exploration = self.prior() * sqrt_pv / visits;
+        let exploration = EXPLORATION * self.prior() * sqrt_pv / visits;
 
         Heuristic::new(exploitation + exploration)
     }
