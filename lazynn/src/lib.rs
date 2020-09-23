@@ -53,11 +53,18 @@ pub fn model(input: Input, output: &mut Vec<f32>) {
         )
     };
 
-    for logit in output.iter_mut() {
-        *logit = logit.exp();
-    }
-    let sum = output.iter().sum::<f32>();
-    for exp in output {
-        *exp /= sum;
+    let max_logit = output
+        .iter()
+        .max_by(|x, y| x.partial_cmp(y).expect("bad float comparison"))
+        .copied()
+        .unwrap_or(0.0);
+    let log_sum_exp = output
+        .iter()
+        .map(|logit| (logit - max_logit).exp())
+        .sum::<f32>()
+        .ln();
+    for logit in output {
+        *logit -= log_sum_exp;
+        *logit -= max_logit;
     }
 }

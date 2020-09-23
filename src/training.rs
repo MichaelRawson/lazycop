@@ -17,7 +17,7 @@ fn array<T: std::fmt::Display>(data: &[T]) {
 }
 
 pub(crate) fn dump(problem: &Problem, tree: &Tree, options: &Options) {
-    let mut scores = vec![];
+    let mut scores: Vec<f32> = vec![];
     let mut goal = Goal::new(problem);
     let mut graph = Graph::default();
     let mut rules = vec![];
@@ -31,18 +31,18 @@ pub(crate) fn dump(problem: &Problem, tree: &Tree, options: &Options) {
         debug_assert!(constraints_ok);
         goal.save();
 
-        for (rule, score) in tree.child_rule_scores(id) {
-            scores.push(score);
+        let mut empty_goal = false;
+        for rule in tree.child_rules(id) {
             goal.apply_rule(&mut Silent, &rule);
+            empty_goal |= goal.is_closed();
             let constraints_ok = goal.solve_constraints();
             debug_assert!(constraints_ok);
-            debug_assert!(!goal.is_closed());
             goal.graph(&mut graph);
             graph.finish_subgraph();
             goal.restore();
         }
 
-        if scores.len() > 1 {
+        if !empty_goal && scores.len() > 1 {
             print!("{{");
             print!("\"nodes\":");
             array(graph.node_labels());

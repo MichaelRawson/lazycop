@@ -1,85 +1,43 @@
 use crate::options::Options;
 use crate::prelude::*;
-use crate::util::heuristic::Heuristic;
-#[cfg(feature = "nn")]
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::{AtomicU32, Ordering};
-
-const EXPLORATION: f32 = 2.0;
 
 pub(crate) struct Node {
     parent: Id<Node>,
     children: Range<Node>,
     rule: Rule,
-    score: u32,
+    log_prior: f32,
+    score: f32,
     closed: bool,
-    atomic_visits: AtomicU32,
-    atomic_prior: AtomicU32,
     #[cfg(feature = "nn")]
-    atomic_evaluated: AtomicBool,
+    evaluated: bool,
 }
 
 impl Node {
-    fn new(parent: Id<Node>, rule: Rule, score: u32, prior: f32) -> Self {
+    fn leaf(
+        parent: Id<Node>,
+        rule: Rule,
+        log_siblings: f32,
+        depth: u32,
+        estimate: u32,
+    ) -> Self {
         let children = Range::new(Id::default(), Id::default());
+        let log_prior = log_siblings;
+        let score = -(estimate as f32 + (depth as f32).ln());
         let closed = false;
-        let atomic_visits = AtomicU32::new(1);
-        let atomic_prior = AtomicU32::new(f32::to_bits(prior));
-        #[cfg(feature = "nn")]
-        let atomic_evaluated = AtomicBool::new(false);
         Self {
             parent,
             children,
             rule,
+            log_prior,
             score,
             closed,
-            atomic_visits,
-            atomic_prior,
             #[cfg(feature = "nn")]
-            atomic_evaluated,
+            evaluated: false,
         }
     }
 
     fn is_leaf(&self) -> bool {
         !self.closed && Range::is_empty(self.children)
-    }
-
-    fn visits(&self) -> u32 {
-        self.atomic_visits.load(Ordering::Relaxed)
-    }
-
-    fn increment_visits(&self) {
-        self.atomic_visits.fetch_add(1, Ordering::Relaxed);
-    }
-
-    fn puct(&self, min: u32, max: u32, sqrt_pv: f32) -> Heuristic {
-        let numerator = (self.score - min) as f32;
-        let denominator = (max - min) as f32;
-        let exploitation = 1.0 - numerator / denominator;
-
-        let visits = self.visits() as f32;
-        let exploration = EXPLORATION * self.prior() * sqrt_pv / visits;
-
-        Heuristic::new(exploitation + exploration)
-    }
-
-    fn prior(&self) -> f32 {
-        f32::from_bits(self.atomic_prior.load(Ordering::Relaxed))
-    }
-
-    #[cfg(feature = "nn")]
-    fn set_prior(&self, prior: f32) {
-        self.atomic_prior.store(prior.to_bits(), Ordering::Relaxed);
-    }
-
-    #[cfg(feature = "nn")]
-    fn is_evaluated(&self) -> bool {
-        self.atomic_evaluated.load(Ordering::Relaxed)
-    }
-
-    #[cfg(feature = "nn")]
-    fn set_evaluated(&self) {
-        self.atomic_evaluated.store(true, Ordering::Relaxed);
     }
 }
 
@@ -90,7 +48,7 @@ pub(crate) struct Tree {
 impl Default for Tree {
     fn default() -> Self {
         let mut nodes = Block::default();
-        nodes.push(Node::new(Id::default(), Rule::Reflexivity, 0, 1.0));
+        nodes.push(Node::leaf(Id::default(), Rule::Reflexivity, 0.0, 1, 0));
         Self { nodes }
     }
 }
@@ -107,11 +65,8 @@ impl Tree {
         debug_assert!(!self.is_closed());
         let mut current = Id::default();
         while !self.nodes[current].is_leaf() {
-            let next = self.choose_child(current)?;
-            rules.extend(std::iter::once(self.nodes[next].rule));
-
-            self.nodes[current].increment_visits();
-            current = next;
+            current = self.choose_child(current);
+            rules.extend(std::iter::once(self.nodes[current].rule));
         }
         Some(current)
     }
@@ -126,10 +81,9 @@ impl Tree {
         }
 
         let mut current = Id::default();
-        while self.nodes[current].is_evaluated() {
-            let next = self.choose_child(current)?;
-            rules.extend(std::iter::once(self.nodes[next].rule));
-            current = next;
+        while self.nodes[current].evaluated {
+            current = self.choose_child(current);
+            rules.extend(std::iter::once(self.nodes[current].rule));
         }
         if self.nodes[current].is_leaf() {
             None
@@ -138,46 +92,37 @@ impl Tree {
         }
     }
 
-    pub(crate) fn expand(&mut self, parent: Id<Node>, data: &[(Rule, u32)]) {
+    pub(crate) fn expand(
+        &mut self,
+        leaf: Id<Node>,
+        depth: u32,
+        data: &[(Rule, u32)],
+    ) {
+        let log_siblings = -(data.len() as f32).ln();
         let start = self.nodes.len();
-        let prior = 1.0 / std::cmp::max(1, data.len()) as f32;
-        for (rule, score) in data {
-            self.nodes.push(Node::new(parent, *rule, *score, prior));
+        for (rule, estimate) in data {
+            self.nodes.push(Node::leaf(
+                leaf,
+                *rule,
+                log_siblings,
+                depth,
+                *estimate,
+            ));
         }
         let end = self.nodes.len();
-        self.nodes[parent].children = Range::new(start, end);
-
-        let mut current = parent;
-        loop {
-            let children = self.nodes[current].children;
-            let closed =
-                children.into_iter().all(|child| self.nodes[child].closed);
-            if !closed {
-                self.nodes[current].score = some(
-                    children
-                        .into_iter()
-                        .filter(|child| !self.nodes[*child].closed)
-                        .map(|child| self.nodes[child].score)
-                        .min(),
-                );
-            }
-            self.nodes[current].closed = closed;
-
-            if current == Id::default() {
-                break;
-            }
-            current = self.nodes[current].parent;
-        }
+        self.nodes[leaf].children = Range::new(start, end);
+        self.propagate_expansion(leaf);
     }
 
     #[cfg(feature = "nn")]
-    pub(crate) fn evaluate(&self, parent: Id<Node>, scores: &[f32]) {
-        for (node, score) in
-            self.nodes[parent].children.into_iter().zip(scores.iter())
+    pub(crate) fn evaluate(&mut self, node: Id<Node>, log_priors: &[f32]) {
+        for (child, log_prior) in
+            self.nodes[node].children.into_iter().zip(log_priors.iter())
         {
-            self.nodes[node].set_prior(*score);
+            self.nodes[child].log_prior = *log_prior
         }
-        self.nodes[parent].set_evaluated();
+        self.nodes[node].evaluated = true;
+        self.propagate_evaluation(node);
     }
 
     pub(crate) fn backward_derivation(
@@ -196,21 +141,21 @@ impl Tree {
         })
     }
 
-    pub(crate) fn child_rule_scores(
+    pub(crate) fn child_rules(
         &self,
         node: Id<Node>,
-    ) -> impl Iterator<Item = (Rule, u32)> + '_ {
+    ) -> impl Iterator<Item = Rule> + '_ {
         self.nodes[node]
             .children
             .into_iter()
-            .filter(move |id| !self.nodes[*id].closed)
-            .map(move |id| (self.nodes[id].rule, self.nodes[id].score))
+            .map(move |child| self.nodes[child].rule)
     }
 
     pub(crate) fn eligible_training_nodes(
         &self,
-        options: &Options,
+        _options: &Options,
     ) -> Vec<Id<Node>> {
+        /*
         let mut nodes: Vec<_> = self
             .nodes
             .range()
@@ -229,22 +174,67 @@ impl Tree {
         nodes.sort_unstable_by_key(|id| -(self.nodes[*id].visits() as i64));
         nodes.truncate(options.max_training_data);
         nodes
+        */
+        todo!()
     }
 
-    fn choose_child(&self, current: Id<Node>) -> Option<Id<Node>> {
-        let node = &self.nodes[current];
-        let eligible = node
+    fn propagate_expansion(&mut self, leaf: Id<Node>) {
+        let mut current = leaf;
+        while self.nodes[current]
             .children
             .into_iter()
-            .filter(|child| !self.nodes[*child].closed);
+            .all(|child| self.nodes[child].closed)
+        {
+            self.nodes[current].closed = true;
+            if current == Id::default() {
+                return;
+            }
+            current = self.nodes[current].parent;
+        }
 
-        let sqrt_pv = (node.visits() as f32).sqrt();
-        let min = node.score;
-        let max = eligible
-            .clone()
-            .map(|child| self.nodes[child].score)
-            .max()?;
-        let max = std::cmp::max(min + 1, max);
-        eligible.max_by_key(|child| self.nodes[*child].puct(min, max, sqrt_pv))
+        loop {
+            self.update_score(current);
+            if current == Id::default() {
+                return;
+            }
+            current = self.nodes[current].parent;
+        }
+    }
+
+    #[cfg(feature = "nn")]
+    fn propagate_evaluation(&mut self, evaluated: Id<Node>) {
+        let mut current = evaluated;
+        loop {
+            self.update_score(current);
+            if current == Id::default() {
+                return;
+            }
+            current = self.nodes[current].parent;
+        }
+    }
+
+    fn choose_child(&self, current: Id<Node>) -> Id<Node> {
+        some(self.open_children(current).max_by(|x, y| {
+            some(self.nodes[*x].score.partial_cmp(&self.nodes[*y].score))
+        }))
+    }
+
+    fn open_children(
+        &self,
+        parent: Id<Node>,
+    ) -> impl Iterator<Item = Id<Node>> + '_ {
+        self.nodes[parent]
+            .children
+            .into_iter()
+            .filter(move |child| !self.nodes[*child].closed)
+    }
+
+    fn update_score(&mut self, node: Id<Node>) {
+        self.nodes[node].score = self
+            .open_children(node)
+            .map(|child| &self.nodes[child])
+            .map(|child| child.score + child.log_prior)
+            .max_by(|x, y| some(x.partial_cmp(y)))
+            .unwrap_or_default();
     }
 }

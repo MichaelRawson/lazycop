@@ -77,7 +77,7 @@ impl Clause {
             problem,
             terms,
             literals,
-            &R::Inference::new("start").axiom(start.clause, axiom.open()),
+            R::Inference::new("start").axiom(start.clause, axiom.open()),
         );
         axiom
     }

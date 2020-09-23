@@ -72,19 +72,20 @@ fn expansion_task(
                     proof = Some(script);
                 }
 
-                let score = goal.num_open_branches();
-                data.push((rule, score));
+                let estimate = goal.num_open_branches();
+                data.push((rule, estimate));
                 statistics.increment_retained_goals();
             } else {
                 statistics.increment_eliminated_goals();
             }
             goal.restore();
         }
+
+        let depth = rules.len() as u32;
+        tree.write().expand(leaf, depth + 1, &*data);
         statistics.increment_expanded_goals();
         goal.clear();
         rules.clear();
-
-        tree.write().expand(leaf, &*data);
         data.clear();
 
         if let Some(proof) = proof {
@@ -123,13 +124,12 @@ fn evaluation_task(
         debug_assert!(constraints_ok);
         goal.save();
 
-        inferences
-            .extend(tree.read().child_rule_scores(node).map(|(rule, _)| rule));
-        if inferences.len() < 2 {
+        inferences.extend(tree.read().child_rules(node));
+        debug_assert!(!inferences.is_empty());
+
+        if inferences.len() == 1 {
             scores.clear();
-            for _ in inferences.drain(..) {
-                scores.push(1.0);
-            }
+            scores.push(0.0);
         } else {
             for inference in inferences.drain(..) {
                 goal.apply_rule(&mut Silent, &inference);
@@ -151,7 +151,8 @@ fn evaluation_task(
             lazynn::model(input, &mut scores);
         }
 
-        tree.read().evaluate(node, &scores);
+        tree.write().evaluate(node, &scores);
+        inferences.clear();
         goal.clear();
         graph.clear();
         statistics.increment_evaluated_goals();
