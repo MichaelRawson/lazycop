@@ -1,4 +1,3 @@
-use crate::options::Options;
 use crate::prelude::*;
 
 pub(crate) struct Node {
@@ -125,22 +124,7 @@ impl Tree {
         self.propagate_evaluation(node);
     }
 
-    pub(crate) fn backward_derivation(
-        &self,
-        node: Id<Node>,
-    ) -> impl Iterator<Item = Rule> + '_ {
-        let mut current = node;
-        std::iter::from_fn(move || {
-            if current == Id::default() {
-                None
-            } else {
-                let rule = self.nodes[current].rule;
-                current = self.nodes[current].parent;
-                Some(rule)
-            }
-        })
-    }
-
+    #[cfg(feature = "nn")]
     pub(crate) fn child_rules(
         &self,
         node: Id<Node>,
@@ -149,33 +133,6 @@ impl Tree {
             .children
             .into_iter()
             .map(move |child| self.nodes[child].rule)
-    }
-
-    pub(crate) fn eligible_training_nodes(
-        &self,
-        _options: &Options,
-    ) -> Vec<Id<Node>> {
-        /*
-        let mut nodes: Vec<_> = self
-            .nodes
-            .range()
-            .into_iter()
-            .filter(move |id| !self.nodes[*id].is_leaf())
-            .filter(move |id| !self.nodes[*id].closed)
-            .filter(move |id| {
-                self.nodes[*id]
-                    .children
-                    .into_iter()
-                    .any(|child| self.nodes[child].score == 0)
-                    || self.nodes[*id].visits() as usize
-                        >= options.min_training_visits
-            })
-            .collect();
-        nodes.sort_unstable_by_key(|id| -(self.nodes[*id].visits() as i64));
-        nodes.truncate(options.max_training_data);
-        nodes
-        */
-        todo!()
     }
 
     fn propagate_expansion(&mut self, leaf: Id<Node>) {

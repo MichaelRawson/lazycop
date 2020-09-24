@@ -12,7 +12,15 @@ pub(crate) enum Node {
     Predicate,
     Equality,
     Negation,
-    Root,
+    Clause,
+    Start,
+    Reflexivity,
+    Reduction,
+    StrictExtension,
+    LazyExtension,
+    Demodulation,
+    StrictParamodulation,
+    LazyParamodulation,
 }
 
 #[derive(Default)]
@@ -21,9 +29,10 @@ pub(crate) struct Graph {
     pub(crate) nodes: Block<u32>,
     pub(crate) sources: Vec<u32>,
     pub(crate) targets: Vec<u32>,
-    pub(crate) batch: Vec<u32>,
+    pub(crate) rules: Vec<u32>,
     symbols: LUT<Symbol, Option<Id<Node>>>,
     terms: LUT<Term, Option<Id<Node>>>,
+    literals: LUT<Literal, Option<Id<Node>>>,
 }
 
 impl Graph {
@@ -36,20 +45,18 @@ impl Graph {
         self.nodes.clear();
         self.sources.clear();
         self.targets.clear();
-        self.batch.clear();
+        self.rules.clear();
         self.symbols.resize(Id::default());
         self.terms.resize(Id::default());
     }
 
-    pub(crate) fn finish_subgraph(&mut self) {
-        self.num_graphs += 1;
-        self.symbols.resize(Id::default());
-        self.terms.resize(Id::default());
-    }
-
-    pub(crate) fn initialise(&mut self, symbols: &Symbols, terms: &Terms) {
+    pub(crate) fn signature(&mut self, symbols: &Symbols) {
         self.symbols.resize(symbols.len());
+    }
+
+    pub(crate) fn resize_for(&mut self, terms: &Terms, literals: &Literals) {
         self.terms.resize(terms.len());
+        self.literals.resize(literals.len());
     }
 
     pub(crate) fn connect(&mut self, sources: Id<Node>, targets: Id<Node>) {
@@ -99,12 +106,27 @@ impl Graph {
         application
     }
 
-    pub(crate) fn get_cached_term(&self, term: Id<Term>) -> Option<Id<Node>> {
+    pub(crate) fn store_term(&mut self, term: Id<Term>, node: Id<Node>) {
+        self.terms[term] = Some(node);
+    }
+
+    pub(crate) fn get_term(&self, term: Id<Term>) -> Option<Id<Node>> {
         self.terms[term]
     }
 
-    pub(crate) fn cache_term(&mut self, term: Id<Term>, node: Id<Node>) {
-        self.terms[term] = Some(node);
+    pub(crate) fn store_literal(
+        &mut self,
+        literal: Id<Literal>,
+        node: Id<Node>,
+    ) {
+        self.literals[literal] = Some(node);
+    }
+
+    pub(crate) fn get_literal(
+        &self,
+        literal: Id<Literal>,
+    ) -> Option<Id<Node>> {
+        self.literals[literal]
     }
 
     pub(crate) fn predicate(&mut self, term: Id<Node>) -> Id<Node> {
@@ -130,12 +152,85 @@ impl Graph {
         negation
     }
 
-    pub(crate) fn root(&mut self) -> Id<Node> {
-        self.node(Node::Root)
+    pub(crate) fn clause(&mut self) -> Id<Node> {
+        self.node(Node::Clause)
+    }
+
+    pub(crate) fn start(&mut self, clause: Id<Node>) -> Id<Node> {
+        let node = self.rule(Node::Start);
+        self.connect(node, clause);
+        node
+    }
+
+    pub(crate) fn reflexivity(&mut self, current: Id<Node>) -> Id<Node> {
+        let node = self.rule(Node::Reflexivity);
+        self.connect(node, current);
+        node
+    }
+
+    pub(crate) fn reduction(
+        &mut self,
+        mate: Id<Node>,
+        current: Id<Node>,
+    ) -> Id<Node> {
+        let node = self.rule(Node::Reduction);
+        self.connect(mate, node);
+        self.connect(node, current);
+        node
+    }
+
+    pub(crate) fn extension(
+        &mut self,
+        strict: bool,
+        current: Id<Node>,
+        mate: Id<Node>,
+    ) -> Id<Node> {
+        let node = if strict {
+            Node::StrictExtension
+        } else {
+            Node::LazyExtension
+        };
+        let node = self.rule(node);
+        self.connect(current, node);
+        self.connect(node, mate);
+        node
+    }
+
+    pub(crate) fn demodulation(
+        &mut self,
+        from: Id<Node>,
+        target: Id<Node>,
+    ) -> Id<Node> {
+        let node = self.rule(Node::Demodulation);
+        self.connect(from, node);
+        self.connect(node, target);
+        node
+    }
+
+    pub(crate) fn paramodulation(
+        &mut self,
+        strict: bool,
+        from: Id<Node>,
+        target: Id<Node>,
+    ) -> Id<Node> {
+        let node = if strict {
+            Node::StrictParamodulation
+        } else {
+            Node::LazyParamodulation
+        };
+        let node = self.rule(node);
+        self.connect(from, node);
+        self.connect(node, target);
+        node
+    }
+
+    fn rule(&mut self, node: Node) -> Id<Node> {
+        let node = self.node(node);
+        self.rules.push(node.index());
+        node
     }
 
     fn node(&mut self, node: Node) -> Id<Node> {
-        self.batch.push(self.num_graphs);
         self.nodes.push(node as u32).transmute()
     }
 }

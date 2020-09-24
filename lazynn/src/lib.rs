@@ -3,7 +3,7 @@ pub struct Input<'a> {
     pub nodes: &'a [u32],
     pub sources: &'a [u32],
     pub targets: &'a [u32],
-    pub batch: &'a [u32],
+    pub rules: &'a [u32],
 }
 
 mod cuda {
@@ -17,7 +17,7 @@ mod cuda {
             nodes: *const u32,
             sources: *const u32,
             targets: *const u32,
-            batch: *const u32,
+            rules: *const u32,
             buf: *mut f32,
         );
     }
@@ -41,14 +41,14 @@ pub fn model(input: Input, output: &mut Vec<f32>) {
     let num_graphs = input.num_graphs;
 
     let nodes = input.nodes.as_ptr();
-    let batch = input.batch.as_ptr();
+    let rules = input.rules.as_ptr();
     let sources = input.sources.as_ptr();
     let targets = input.targets.as_ptr();
 
     let buf = output.as_mut_ptr();
     unsafe {
         cuda::model(
-            num_nodes, num_edges, num_graphs, nodes, sources, targets, batch,
+            num_nodes, num_edges, num_graphs, nodes, sources, targets, rules,
             buf,
         )
     };

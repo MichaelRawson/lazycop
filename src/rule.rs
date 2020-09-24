@@ -54,6 +54,38 @@ pub(crate) enum Rule {
 }
 
 impl Rule {
+    pub(crate) fn is_strict(&self) -> bool {
+        match self {
+            Rule::StrictExtension(_)
+            | Rule::StrictBackwardParamodulation(_)
+            | Rule::VariableBackwardParamodulation(_)
+            | Rule::LRStrictForwardParamodulation(_)
+            | Rule::RLStrictForwardParamodulation(_) => true,
+            Rule::LazyExtension(_)
+            | Rule::LazyBackwardParamodulation(_)
+            | Rule::LRLazyForwardParamodulation(_)
+            | Rule::RLLazyForwardParamodulation(_) => false,
+            _ => unreachable(),
+        }
+    }
+
+    pub(crate) fn is_forward(&self) -> bool {
+        match self {
+            Rule::LRForwardDemodulation(_)
+            | Rule::RLForwardDemodulation(_)
+            | Rule::LRLazyForwardParamodulation(_)
+            | Rule::RLLazyForwardParamodulation(_)
+            | Rule::LRStrictForwardParamodulation(_)
+            | Rule::RLStrictForwardParamodulation(_) => true,
+            Rule::LRBackwardDemodulation(_)
+            | Rule::RLBackwardDemodulation(_)
+            | Rule::StrictBackwardParamodulation(_)
+            | Rule::LazyBackwardParamodulation(_)
+            | Rule::VariableBackwardParamodulation(_) => false,
+            _ => unreachable(),
+        }
+    }
+
     pub(crate) fn is_l2r(&self) -> bool {
         match self {
             Rule::LRForwardDemodulation(_)

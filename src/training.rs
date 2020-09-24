@@ -1,8 +1,6 @@
 use crate::goal::Goal;
-use crate::options::Options;
 use crate::prelude::*;
 use crate::record::Silent;
-use crate::tree::Tree;
 
 fn array<T: std::fmt::Display>(data: &[T]) {
     let mut data = data.iter();
@@ -16,33 +14,24 @@ fn array<T: std::fmt::Display>(data: &[T]) {
     print!("]");
 }
 
-pub(crate) fn dump(problem: &Problem, tree: &Tree, options: &Options) {
-    let mut scores: Vec<f32> = vec![];
+pub(crate) fn dump(problem: &Problem, proof: &[Rule]) {
     let mut goal = Goal::new(problem);
     let mut graph = Graph::default();
-    let mut rules = vec![];
+    let mut possible = vec![];
 
-    for id in tree.eligible_training_nodes(options) {
-        rules.extend(tree.backward_derivation(id));
-        for rule in rules.drain(..).rev() {
-            goal.apply_rule(&mut Silent, &rule);
-        }
-        let constraints_ok = goal.simplify_constraints();
-        debug_assert!(constraints_ok);
+    for step in proof.iter() {
         goal.save();
-
-        let mut empty_goal = false;
-        for rule in tree.child_rules(id) {
-            goal.apply_rule(&mut Silent, &rule);
-            empty_goal |= goal.is_closed();
+        goal.possible_rules(&mut possible);
+        possible.retain(|possible| {
+            goal.apply_rule(&mut Silent, &possible);
             let constraints_ok = goal.solve_constraints();
-            debug_assert!(constraints_ok);
-            goal.graph(&mut graph);
-            graph.finish_subgraph();
             goal.restore();
-        }
-
-        if !empty_goal && scores.len() > 1 {
+            constraints_ok
+        });
+        if possible.len() > 1 {
+            let y = some(possible.iter().position(|rule| rule == step));
+            goal.graph(&mut graph, &possible);
+            goal.restore();
             print!("{{");
             print!("\"nodes\":");
             array(graph.node_labels());
@@ -50,15 +39,19 @@ pub(crate) fn dump(problem: &Problem, tree: &Tree, options: &Options) {
             array(&graph.sources);
             print!(",\"targets\":");
             array(&graph.targets);
-            print!(",\"batch\":");
-            array(&graph.batch);
-            print!(",\"scores\":");
-            array(&scores);
+            print!(",\"rules\":");
+            array(&graph.rules);
+            print!(",\"y\":{}", y);
             println!("}}");
         }
 
-        goal.clear();
         graph.clear();
-        scores.clear();
+        possible.clear();
+        goal.apply_rule(&mut Silent, step);
+        let constraints_ok = goal.simplify_constraints();
+        debug_assert!(constraints_ok);
     }
+    debug_assert!(goal.is_closed());
+    let constraints_ok = goal.solve_constraints();
+    debug_assert!(constraints_ok);
 }

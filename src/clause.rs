@@ -1,3 +1,4 @@
+use crate::binding::Bindings;
 use crate::constraint::Constraints;
 use crate::prelude::*;
 use crate::record::{Inference, Record};
@@ -36,7 +37,7 @@ pub(crate) struct Clause {
 }
 
 impl Clause {
-    pub(crate) fn new(start: Id<Literal>, end: Id<Literal>) -> Self {
+    fn new(start: Id<Literal>, end: Id<Literal>) -> Self {
         let current = start;
         Self { current, end }
     }
@@ -63,6 +64,43 @@ impl Clause {
         result
     }
 
+    pub(crate) fn copy(
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        clause: Id<ProblemClause>,
+    ) -> Self {
+        let start = literals.len();
+        let offset = terms.current_offset();
+        let clause = &problem.clauses[clause];
+        terms.extend(&clause.terms);
+        literals.extend(&clause.literals);
+
+        let end = literals.len();
+        for id in Range::new(start, end) {
+            literals[id].offset(offset);
+        }
+        Self::new(start, end)
+    }
+
+    pub(crate) fn graph(
+        &self,
+        graph: &mut Graph,
+        symbols: &Symbols,
+        terms: &Terms,
+        literals: &Literals,
+        bindings: &Bindings,
+    ) -> Id<Node> {
+        let root = graph.clause();
+        for literal in self.open().into_iter() {
+            let node =
+                literals[literal].graph(graph, symbols, terms, bindings);
+            graph.store_literal(literal, node);
+            graph.connect(root, node);
+        }
+        root
+    }
+
     pub(crate) fn start<R: Record>(
         record: &mut R,
         problem: &Problem,
@@ -71,8 +109,8 @@ impl Clause {
         constraints: &mut Constraints,
         start: Start,
     ) -> Self {
-        let axiom =
-            Self::copy(problem, terms, literals, constraints, start.clause);
+        let axiom = Self::copy(problem, terms, literals, start.clause);
+        axiom.add_tautology_constraints(terms, literals, constraints);
         record.inference(
             problem,
             terms,
@@ -129,7 +167,7 @@ impl Clause {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn forward_demodulation<R: Record>(
+    pub(crate) fn demodulation<R: Record>(
         &mut self,
         record: &mut R,
         problem: &Problem,
@@ -137,41 +175,44 @@ impl Clause {
         literals: &mut Literals,
         constraints: &mut Constraints,
         demodulation: Demodulation,
+        forward: bool,
         l2r: bool,
     ) -> Self {
-        self.demodulation(
-            record,
-            problem,
-            terms,
-            literals,
-            constraints,
-            demodulation,
-            true,
-            l2r,
-        )
-    }
+        let (inference, equality, onto) = if forward {
+            ("forward_demodulation", demodulation.literal, self.current)
+        } else {
+            ("backward_demodulation", self.current, demodulation.literal)
+        };
+        let target = demodulation.target;
+        let (left, right) = literals[equality].get_equality();
+        let (from, to) = if l2r { (left, right) } else { (right, left) };
+        let fresh = terms.add_variable();
+        constraints.assert_eq(to, fresh);
+        constraints.assert_eq(target, from);
+        constraints.assert_gt(from, to);
 
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn backward_demodulation<R: Record>(
-        &mut self,
-        record: &mut R,
-        problem: &Problem,
-        terms: &mut Terms,
-        literals: &mut Literals,
-        constraints: &mut Constraints,
-        demodulation: Demodulation,
-        l2r: bool,
-    ) -> Self {
-        self.demodulation(
-            record,
+        let start = literals.len();
+        literals.push(literals[onto].subst(
+            &problem.symbols,
+            terms,
+            target,
+            fresh,
+        ));
+        let end = literals.len();
+        let consequence = Self::new(start, end);
+
+        record.inference(
             problem,
             terms,
             literals,
-            constraints,
-            demodulation,
-            false,
-            l2r,
-        )
+            R::Inference::new(inference)
+                .lemma(demodulation.literal)
+                .equation(to, fresh)
+                .equation(target, from)
+                .deduction(self.remaining())
+                .deduction(consequence.open()),
+        );
+        consequence
     }
 
     fn extension(
@@ -525,55 +566,6 @@ impl Clause {
         (extension, consequence)
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn demodulation<R: Record>(
-        &mut self,
-        record: &mut R,
-        problem: &Problem,
-        terms: &mut Terms,
-        literals: &mut Literals,
-        constraints: &mut Constraints,
-        demodulation: Demodulation,
-        forward: bool,
-        l2r: bool,
-    ) -> Self {
-        let (inference, equality, onto) = if forward {
-            ("forward_demodulation", demodulation.literal, self.current)
-        } else {
-            ("backward_demodulation", self.current, demodulation.literal)
-        };
-        let target = demodulation.target;
-        let (left, right) = literals[equality].get_equality();
-        let (from, to) = if l2r { (left, right) } else { (right, left) };
-        let fresh = terms.add_variable();
-        constraints.assert_eq(to, fresh);
-        constraints.assert_eq(target, from);
-        constraints.assert_gt(from, to);
-
-        let start = literals.len();
-        literals.push(literals[onto].subst(
-            &problem.symbols,
-            terms,
-            target,
-            fresh,
-        ));
-        let end = literals.len();
-        let consequence = Self::new(start, end);
-
-        record.inference(
-            problem,
-            terms,
-            literals,
-            R::Inference::new(inference)
-                .lemma(demodulation.literal)
-                .equation(to, fresh)
-                .equation(target, from)
-                .deduction(self.remaining())
-                .deduction(consequence.open()),
-        );
-        consequence
-    }
-
     fn backward_paramodulation(
         problem: &Problem,
         terms: &mut Terms,
@@ -647,8 +639,8 @@ impl Clause {
         literal: Id<Literal>,
     ) -> Self {
         let literal_offset = literals.offset();
-        let extension =
-            Self::copy(problem, terms, literals, constraints, clause);
+        let extension = Self::copy(problem, terms, literals, clause);
+        extension.add_tautology_constraints(terms, literals, constraints);
 
         let matching = literal + literal_offset;
         let mate = literals[matching];
@@ -660,34 +652,11 @@ impl Clause {
         extension
     }
 
-    fn copy(
-        problem: &Problem,
-        terms: &mut Terms,
-        literals: &mut Literals,
-        constraints: &mut Constraints,
-        clause: Id<ProblemClause>,
-    ) -> Self {
-        let start = literals.len();
-        let offset = terms.current_offset();
-        let clause = &problem.clauses[clause];
-        terms.extend(&clause.terms);
-        literals.extend(&clause.literals);
-
-        let end = literals.len();
-        for id in Range::new(start, end) {
-            literals[id].offset(offset);
-        }
-        let clause = Self::new(start, end);
-        clause.add_tautology_constraints(constraints, terms, literals);
-
-        clause
-    }
-
     fn add_tautology_constraints(
         &self,
-        constraints: &mut Constraints,
         terms: &Terms,
         literals: &Literals,
+        constraints: &mut Constraints,
     ) {
         let mut open = self.open().into_iter();
         while let Some(id) = open.next() {

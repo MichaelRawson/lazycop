@@ -161,13 +161,14 @@ impl<'problem> Goal<'problem> {
         );
     }
 
-    pub(crate) fn graph(&mut self, graph: &mut Graph) {
-        graph.initialise(&self.problem.symbols, &self.terms);
+    pub(crate) fn graph(&mut self, graph: &mut Graph, rules: &[Rule]) {
+        graph.signature(&self.problem.symbols);
         self.tableau.graph(
             graph,
-            &self.problem.symbols,
-            &self.terms,
-            &self.bindings,
+            &self.problem,
+            &mut self.terms,
+            &mut self.bindings,
+            rules,
         );
     }
 }

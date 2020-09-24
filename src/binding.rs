@@ -47,7 +47,7 @@ impl Bindings {
         term: Id<Term>,
     ) -> Id<Node> {
         let (term, view) = self.view(symbols, terms, term);
-        if let Some(node) = graph.get_cached_term(term) {
+        if let Some(node) = graph.get_term(term) {
             return node;
         }
         let node = match view {
@@ -68,7 +68,7 @@ impl Bindings {
                 application
             }
         };
-        graph.cache_term(term, node);
+        graph.store_term(term, node);
         node
     }
 

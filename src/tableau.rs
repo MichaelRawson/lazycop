@@ -1,3 +1,4 @@
+use crate::binding::Bindings;
 use crate::clause::Clause;
 use crate::constraint::Constraints;
 use crate::infer;
@@ -99,35 +100,154 @@ impl Tableau {
     }
 
     pub(crate) fn graph(
-        &self,
+        &mut self,
         graph: &mut Graph,
-        symbols: &Symbols,
-        terms: &Terms,
-        bindings: &crate::binding::Bindings,
+        problem: &Problem,
+        terms: &mut Terms,
+        bindings: &mut Bindings,
+        rules: &[Rule],
     ) {
-        let add_clause = |graph: &mut Graph, parent, id| -> Id<Node> {
-            let mut clause = self.stack[id].open().into_iter();
-            let current = self.literals[some(clause.next())]
-                .graph(graph, symbols, terms, bindings);
-            graph.connect(parent, current);
-            for open in clause {
-                let open =
-                    self.literals[open].graph(graph, symbols, terms, bindings);
-                graph.connect(parent, open);
-            }
-            /*
-            for lemma in self.lemmata[id].iter().copied() {
-                let lemma = self.literals[lemma]
-                    .graph(graph, symbols, terms, bindings);
-                graph.connect(lemma, clause);
-            }
-            */
-            current
-        };
-        let mut previous = graph.root();
+        graph.resize_for(terms, &self.literals);
+        let mut link = None;
         for clause in self.stack.range().into_iter() {
-            let next = add_clause(graph, previous, clause);
-            previous = next;
+            let root = self.stack[clause].graph(
+                graph,
+                &problem.symbols,
+                terms,
+                &self.literals,
+                bindings,
+            );
+            if let Some(link) = link {
+                graph.connect(link, root);
+            }
+            let current = some(self.stack[clause].open().into_iter().next());
+            link = graph.get_literal(current);
+            for lemma in self.lemmata[clause].iter().copied() {
+                let node = self.literals[lemma].graph(
+                    graph,
+                    &problem.symbols,
+                    terms,
+                    bindings,
+                );
+                graph.store_literal(lemma, node);
+                graph.connect(node, root);
+            }
+        }
+
+        let clause = self.stack.last();
+        let current =
+            clause.and_then(|clause| clause.open().into_iter().next());
+        fn copy_clause(
+            graph: &mut Graph,
+            problem: &Problem,
+            terms: &mut Terms,
+            literals: &mut Literals,
+            bindings: &mut Bindings,
+            problem_clause: Id<ProblemClause>,
+        ) -> Id<Node> {
+            let new = Clause::copy(problem, terms, literals, problem_clause);
+            bindings.resize(terms.len());
+            graph.resize_for(terms, literals);
+            new.graph(graph, &problem.symbols, terms, literals, bindings)
+        };
+
+        for rule in rules {
+            match rule {
+                Rule::Start(start) => {
+                    let root = copy_clause(
+                        graph,
+                        problem,
+                        terms,
+                        &mut self.literals,
+                        bindings,
+                        start.clause,
+                    );
+                    graph.start(root);
+                }
+                Rule::Reflexivity => {
+                    let current = some(graph.get_literal(some(current)));
+                    graph.reflexivity(current);
+                }
+                Rule::Reduction(reduction) => {
+                    let current = some(graph.get_literal(some(current)));
+                    let mate = some(graph.get_literal(reduction.literal));
+                    graph.reduction(mate, current);
+                }
+                Rule::LRForwardDemodulation(demodulation)
+                | Rule::RLForwardDemodulation(demodulation)
+                | Rule::LRBackwardDemodulation(demodulation)
+                | Rule::RLBackwardDemodulation(demodulation) => {
+                    let equality = if rule.is_forward() {
+                        demodulation.literal
+                    } else {
+                        some(current)
+                    };
+                    let (left, right) = self.literals[equality].get_equality();
+                    let from = if rule.is_l2r() { left } else { right };
+                    let target = some(graph.get_term(demodulation.target));
+                    let from = some(graph.get_term(from));
+                    graph.demodulation(from, target);
+                }
+                Rule::StrictExtension(extension)
+                | Rule::LazyExtension(extension) => {
+                    let current = some(graph.get_literal(some(current)));
+                    let occurrence = &problem.index.predicate_occurrences
+                        [extension.occurrence];
+                    let mate = occurrence.literal + self.literals.offset();
+                    copy_clause(
+                        graph,
+                        problem,
+                        terms,
+                        &mut self.literals,
+                        bindings,
+                        occurrence.clause,
+                    );
+                    let mate = some(graph.get_literal(mate));
+                    graph.extension(rule.is_strict(), current, mate);
+                }
+                Rule::StrictBackwardParamodulation(paramodulation)
+                | Rule::LazyBackwardParamodulation(paramodulation)
+                | Rule::VariableBackwardParamodulation(paramodulation) => {
+                    let occurrence = &problem.index.equality_occurrences
+                        [paramodulation.occurrence];
+                    let mate = occurrence.literal + self.literals.offset();
+                    copy_clause(
+                        graph,
+                        problem,
+                        terms,
+                        &mut self.literals,
+                        bindings,
+                        occurrence.clause,
+                    );
+                    let (left, right) = self.literals[mate].get_equality();
+                    let from = if occurrence.l2r { left } else { right };
+                    let from = some(graph.get_term(from));
+                    let target = some(graph.get_term(paramodulation.target));
+                    graph.paramodulation(rule.is_strict(), from, target);
+                }
+                Rule::LRLazyForwardParamodulation(paramodulation)
+                | Rule::RLLazyForwardParamodulation(paramodulation)
+                | Rule::LRStrictForwardParamodulation(paramodulation)
+                | Rule::RLStrictForwardParamodulation(paramodulation) => {
+                    let occurrence = &problem.index.subterm_occurrences
+                        [paramodulation.occurrence];
+                    let target = occurrence.subterm + terms.current_offset();
+                    copy_clause(
+                        graph,
+                        problem,
+                        terms,
+                        &mut self.literals,
+                        bindings,
+                        occurrence.clause,
+                    );
+                    let (left, right) =
+                        self.literals[some(current)].get_equality();
+                    let from = if rule.is_l2r() { left } else { right };
+                    let target = some(graph.get_term(target));
+                    let from = some(graph.get_term(from));
+                    graph.paramodulation(rule.is_strict(), from, target);
+                }
+            }
         }
     }
 
@@ -184,42 +304,24 @@ impl Tableau {
                 self.close_branches();
             }
             Rule::LRForwardDemodulation(demodulation)
-            | Rule::RLForwardDemodulation(demodulation) => {
-                self.add_regularity_constraints(
-                    constraints,
-                    terms,
-                    &self.literals,
-                );
-                let consequence = some(self.stack.last_mut())
-                    .forward_demodulation(
-                        record,
-                        problem,
-                        terms,
-                        &mut self.literals,
-                        constraints,
-                        demodulation,
-                        rule.is_l2r(),
-                    );
-                self.push(consequence);
-                self.reduction_validity(demodulation.literal);
-            }
-            Rule::LRBackwardDemodulation(demodulation)
+            | Rule::RLForwardDemodulation(demodulation)
+            | Rule::LRBackwardDemodulation(demodulation)
             | Rule::RLBackwardDemodulation(demodulation) => {
                 self.add_regularity_constraints(
                     constraints,
                     terms,
                     &self.literals,
                 );
-                let consequence = some(self.stack.last_mut())
-                    .backward_demodulation(
-                        record,
-                        problem,
-                        terms,
-                        &mut self.literals,
-                        constraints,
-                        demodulation,
-                        rule.is_l2r(),
-                    );
+                let consequence = some(self.stack.last_mut()).demodulation(
+                    record,
+                    problem,
+                    terms,
+                    &mut self.literals,
+                    constraints,
+                    demodulation,
+                    rule.is_forward(),
+                    rule.is_l2r(),
+                );
                 self.push(consequence);
                 self.reduction_validity(demodulation.literal);
             }

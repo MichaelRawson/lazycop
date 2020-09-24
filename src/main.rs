@@ -77,11 +77,15 @@ fn main() {
     let problem = builder.finish(symbols);
     std::mem::drop(loader);
     let (statistics, result) = search::search(&problem, &options);
+    let mut record = TSTP::default();
+
     if options.dump_training_data {
+        if let SearchResult::Proof(proof) = result {
+            crate::training::dump(&problem, &proof);
+        }
         return;
     }
 
-    let mut record = TSTP::default();
     match result {
         SearchResult::Proof(proof) => {
             if !problem_is_cnf && problem_has_conjecture {

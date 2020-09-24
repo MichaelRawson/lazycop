@@ -3,7 +3,6 @@ use crate::options::Options;
 use crate::prelude::*;
 use crate::record::Silent;
 use crate::statistics::Statistics;
-use crate::training;
 use crate::tree::Tree;
 use crossbeam_utils::thread;
 use parking_lot::{Mutex, RwLock};
@@ -131,22 +130,13 @@ fn evaluation_task(
             scores.clear();
             scores.push(0.0);
         } else {
-            for inference in inferences.drain(..) {
-                goal.apply_rule(&mut Silent, &inference);
-                let constraints_ok = goal.solve_constraints();
-                debug_assert!(constraints_ok);
-                debug_assert!(!goal.is_closed());
-                goal.graph(&mut graph);
-                graph.finish_subgraph();
-                goal.restore();
-            }
-
+            goal.graph(&mut graph, &inferences);
             let input = lazynn::Input {
                 num_graphs: graph.num_graphs,
                 nodes: graph.node_labels(),
                 sources: &graph.sources,
                 targets: &graph.targets,
-                batch: &graph.batch,
+                rules: &graph.rules,
             };
             lazynn::model(input, &mut scores);
         }
@@ -209,10 +199,5 @@ pub(crate) fn search(
     })
     .unwrap_or_else(|_| panic!("worker thread crashed"));
     let result = result.into_inner();
-
-    if options.dump_training_data {
-        let tree = tree.into_inner();
-        training::dump(problem, &tree, options);
-    }
     (statistics, result)
 }
