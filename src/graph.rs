@@ -48,6 +48,7 @@ impl Graph {
         self.rules.clear();
         self.symbols.resize(Id::default());
         self.terms.resize(Id::default());
+        self.literals.resize(Id::default());
     }
 
     pub(crate) fn signature(&mut self, symbols: &Symbols) {

@@ -1,7 +1,6 @@
 pub(crate) mod block;
 pub(crate) mod disjoint_set;
 pub(crate) mod fresh;
-pub(crate) mod graph;
 pub(crate) mod id;
 pub(crate) mod lut;
 pub(crate) mod offset;

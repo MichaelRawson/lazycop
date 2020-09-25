@@ -6,6 +6,7 @@ mod constraint;
 mod disequation_solver;
 mod equation_solver;
 mod goal;
+mod graph;
 mod index;
 mod infer;
 mod io;
