@@ -170,7 +170,7 @@ fn equality_rules<E: Extend<Rule>>(
     if !literal.polarity {
         possible.extend(once(Rule::Reflexivity));
     } else {
-        backward_demodulations(
+        backward_demodulation_rules(
             possible,
             tableau,
             &problem.symbols,
@@ -178,11 +178,11 @@ fn equality_rules<E: Extend<Rule>>(
             literals,
             literal,
         );
-        forward_paramodulations(possible, problem, terms, literal);
+        forward_paramodulation_rules(possible, problem, terms, literal);
     }
 }
 
-fn backward_demodulations<E: Extend<Rule>>(
+fn backward_demodulation_rules<E: Extend<Rule>>(
     possible: &mut E,
     tableau: &Tableau,
     symbols: &Symbols,
@@ -206,18 +206,22 @@ fn backward_demodulations<E: Extend<Rule>>(
     }
 }
 
-fn forward_paramodulations<E: Extend<Rule>>(
+fn forward_paramodulation_rules<E: Extend<Rule>>(
     possible: &mut E,
     problem: &Problem,
     terms: &Terms,
     literal: &Literal,
 ) {
     let (left, right) = literal.get_equality();
-    forward_paramodulations_one_sided(possible, problem, terms, left, true);
-    forward_paramodulations_one_sided(possible, problem, terms, right, false);
+    forward_paramodulation_rules_one_sided(
+        possible, problem, terms, left, true,
+    );
+    forward_paramodulation_rules_one_sided(
+        possible, problem, terms, right, false,
+    );
 }
 
-fn forward_paramodulations_one_sided<E: Extend<Rule>>(
+fn forward_paramodulation_rules_one_sided<E: Extend<Rule>>(
     possible: &mut E,
     problem: &Problem,
     terms: &Terms,
@@ -226,16 +230,16 @@ fn forward_paramodulations_one_sided<E: Extend<Rule>>(
 ) {
     if terms.is_variable(from) {
         for occurrence in problem.index.query_all_subterms() {
-            forward_paramodulations_single(possible, occurrence, lr);
+            forward_paramodulation_rules_single(possible, occurrence, lr);
         }
     } else {
         for occurrence in problem.index.query_subterms(terms.symbol(from)) {
-            forward_paramodulations_single(possible, occurrence, lr);
+            forward_paramodulation_rules_single(possible, occurrence, lr);
         }
     }
 }
 
-fn forward_paramodulations_single<E: Extend<Rule>>(
+fn forward_paramodulation_rules_single<E: Extend<Rule>>(
     possible: &mut E,
     occurrence: Id<SubtermOccurrence>,
     lr: bool,

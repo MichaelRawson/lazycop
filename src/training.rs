@@ -14,7 +14,7 @@ fn array<T: std::fmt::Display>(data: &[T]) {
     print!("]");
 }
 
-pub(crate) fn dump(problem: &Problem, proof: &[Rule]) {
+pub(crate) fn dump(name: &str, problem: &Problem, proof: &[Rule]) {
     let mut goal = Goal::new(problem);
     let mut graph = Graph::default();
     let mut possible = vec![];
@@ -33,7 +33,8 @@ pub(crate) fn dump(problem: &Problem, proof: &[Rule]) {
             goal.graph(&mut graph, &possible);
             goal.restore();
             print!("{{");
-            print!("\"nodes\":");
+            print!("\"problem\":{:?}", name);
+            print!(",\"nodes\":");
             array(graph.node_labels());
             print!(",\"sources\":");
             array(&graph.sources);

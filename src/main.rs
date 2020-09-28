@@ -82,7 +82,7 @@ fn main() {
 
     if options.dump_training_data {
         if let SearchResult::Proof(proof) = result {
-            crate::training::dump(&problem, &proof);
+            crate::training::dump(&name, &problem, &proof);
         }
         return;
     }

@@ -3,10 +3,10 @@ from torch.nn import BatchNorm1d, Embedding, Linear, Module, ModuleList, Paramet
 from torch.nn.functional import relu_
 from torch_scatter import scatter_mean, scatter_max
 
-NODE_TYPES = 10
+NODE_TYPES = 18
 CHANNELS = 64
 HIDDEN = 1024
-LAYERS = 8
+LAYERS = 16
 
 class Conv(Module):
     def __init__(self):
@@ -60,11 +60,11 @@ class Model(Module):
         nodes,
         sources,
         targets,
-        batch
+        rules
     ):
         x = self.embedding(nodes)
         for conv in self.conv:
             x = x + conv(x, sources, targets)
-        x = scatter_mean(x, batch, dim=0)
+        x = x[rules]
         x = relu_(self.hidden(x))
         return self.output(x).squeeze()

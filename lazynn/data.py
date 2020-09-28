@@ -10,9 +10,9 @@ def examples(path, self_loops=True):
             identity = list(range(len(nodes))) if self_loops else []
             sources = torch.tensor(identity + record['sources'])
             targets = torch.tensor(identity + record['targets'])
-            scores = torch.tensor(record['scores'], dtype=torch.float32)
-            batch = torch.tensor(record['batch'])
-            yield nodes, sources, targets, batch, scores
+            rules = torch.tensor(record['rules'])
+            y = torch.tensor(record['y'])
+            yield nodes, sources, targets, rules, y
 
 class Examples(torch.utils.data.IterableDataset):
     def __init__(self, path):

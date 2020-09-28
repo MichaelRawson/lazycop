@@ -46,8 +46,9 @@ impl Bindings {
         terms: &Terms,
         term: Id<Term>,
     ) -> Id<Node> {
-        let (term, view) = self.view(symbols, terms, term);
-        if let Some(node) = graph.get_term(term) {
+        let (resolved, view) = self.view(symbols, terms, term);
+        if let Some(node) = graph.get_term(resolved) {
+            graph.store_term(term, node);
             return node;
         }
         let node = match view {
@@ -60,21 +61,21 @@ impl Bindings {
                     let application = graph.application(symbol);
                     let mut previous = symbol;
                     for arg in args {
-                        let term = self.graph(
+                        let arg = self.graph(
                             graph,
                             symbols,
                             terms,
                             terms.resolve(arg),
                         );
-                        let argument =
-                            graph.argument(application, previous, term);
-                        previous = argument;
+                        let arg = graph.argument(application, previous, arg);
+                        previous = arg;
                     }
                     application
                 }
             }
         };
         graph.store_term(term, node);
+        graph.store_term(resolved, node);
         node
     }
 

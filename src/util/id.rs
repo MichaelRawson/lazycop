@@ -9,6 +9,15 @@ pub(crate) struct Id<T> {
     _phantom: PhantomData<T>,
 }
 
+/*
+use std::fmt;
+impl<T> fmt::Debug for Id<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Id({})", self.id)
+    }
+}
+*/
+
 impl<T> Id<T> {
     pub(super) fn new(id: u32) -> Self {
         let _phantom = PhantomData;
