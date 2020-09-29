@@ -37,14 +37,6 @@ pub(crate) trait Record {
     ) {
     }
 
-    fn unification<I: Iterator<Item = (Id<Variable>, Id<Term>)>>(
-        &mut self,
-        _symbols: &Symbols,
-        _terms: &Terms,
-        _bindings: I,
-    ) {
-    }
-
     fn statistic<T: Display>(&mut self, _key: &'static str, _value: T) {}
 }
 

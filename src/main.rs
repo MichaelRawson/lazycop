@@ -101,7 +101,6 @@ fn main() {
             }
             let ok = goal.is_closed() && goal.solve_constraints();
             debug_assert!(ok);
-            goal.record_unification(&mut record);
             szs::end_cnf_refutation(&name);
             statistics.record(&mut record);
             exit::success()

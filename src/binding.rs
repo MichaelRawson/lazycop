@@ -31,12 +31,17 @@ impl Bindings {
         self.bound[x].is_some()
     }
 
-    pub(crate) fn items(
+    pub(crate) fn new_bindings(
         &self,
     ) -> impl Iterator<Item = (Id<Variable>, Id<Term>)> + '_ {
-        self.bound.range().into_iter().filter_map(move |variable| {
-            self.bound[variable].map(|term| (variable, term))
-        })
+        self.bound
+            .range()
+            .into_iter()
+            .filter(move |variable| self.save[*variable].is_none())
+            .filter_map(move |variable| {
+                self.bound[variable].map(|term| (variable, term))
+            })
+            .filter(|(variable, term)| variable.transmute() != *term)
     }
 
     pub(crate) fn graph(

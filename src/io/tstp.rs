@@ -1,12 +1,16 @@
+use crate::binding::Bindings;
 use crate::cnf;
+use crate::equation_solver::EquationSolver;
+use crate::occurs::SkipCheck;
 use crate::prelude::*;
 use crate::record::{Inference, Record};
 use crate::util::fresh::Fresh;
+use std::cell::RefCell;
 use std::fmt::Display;
 
 pub(crate) struct TSTPInference {
     name: &'static str,
-    axioms: Vec<(Id<ProblemClause>, Range<Literal>)>,
+    axiom: Option<(Id<ProblemClause>, Range<Literal>)>,
     lemmas: Vec<Id<Literal>>,
     equations: Vec<(Id<Term>, Id<Term>)>,
     deductions: Vec<Range<Literal>>,
@@ -14,13 +18,13 @@ pub(crate) struct TSTPInference {
 
 impl Inference for TSTPInference {
     fn new(name: &'static str) -> Self {
-        let axioms = vec![];
+        let axiom = None;
         let lemmas = vec![];
         let equations = vec![];
         let deductions = vec![];
         Self {
             name,
-            axioms,
+            axiom,
             lemmas,
             equations,
             deductions,
@@ -32,7 +36,7 @@ impl Inference for TSTPInference {
         id: Id<ProblemClause>,
         literals: Range<Literal>,
     ) -> &mut Self {
-        self.axioms.push((id, literals));
+        self.axiom = Some((id, literals));
         self
     }
 
@@ -54,10 +58,11 @@ impl Inference for TSTPInference {
 
 #[derive(Default)]
 pub(crate) struct TSTP {
-    variable_map: Fresh,
+    bindings: Bindings,
+    solver: EquationSolver,
+    variable_map: RefCell<Fresh>,
     clause_stack: Vec<usize>,
     premise_list: Vec<usize>,
-    assumption_number: usize,
     clause_number: usize,
 }
 
@@ -136,17 +141,14 @@ impl TSTP {
         println!(").");
     }
 
-    fn print_variable(&mut self, x: Id<Variable>) {
-        print!("X{}", self.variable_map.get(x));
+    fn print_variable(&self, x: Id<Variable>) {
+        let mapped = self.variable_map.borrow_mut().get(x);
+        print!("X{}", mapped);
     }
 
-    fn print_term(
-        &mut self,
-        symbols: &Symbols,
-        terms: &Terms,
-        term: Id<Term>,
-    ) {
-        match terms.view(symbols, term) {
+    fn print_term(&self, symbols: &Symbols, terms: &Terms, term: Id<Term>) {
+        let (_resolved, view) = self.bindings.view(symbols, terms, term);
+        match view {
             TermView::Variable(x) => self.print_variable(x),
             TermView::Function(symbol, args) => {
                 Self::print_symbol(symbols, symbol);
@@ -222,9 +224,11 @@ impl Record for TSTP {
         literals: &Literals,
         inference: &TSTPInference,
     ) {
+        self.bindings.resize(terms.len());
+        self.bindings.save();
         let symbols = &problem.symbols;
-        for (id, axiom) in &inference.axioms {
-            let origin = &problem.clauses[*id].origin;
+        if let Some((id, axiom)) = inference.axiom {
+            let origin = &problem.clauses[id].origin;
             let role = if origin.conjecture {
                 "negated_conjecture"
             } else {
@@ -232,6 +236,10 @@ impl Record for TSTP {
             };
             print!("cnf(c{}, {},\n\t", self.clause_number, role);
             self.premise_list.push(self.clause_number);
+            if self.clause_stack.is_empty() {
+                self.clause_stack.push(self.clause_number);
+                self.clause_stack.push(self.clause_number);
+            }
             self.clause_number += 1;
             self.print_clause(symbols, terms, literals, axiom.into_iter());
             println!(
@@ -249,17 +257,14 @@ impl Record for TSTP {
             println!(").");
         }
 
-        let parent = self.clause_stack.pop();
-        let assumption_start = self.assumption_number;
-        for (left, right) in &inference.equations {
-            print!("cnf(a{}, assumption,\n\t", self.assumption_number);
-            self.print_term(symbols, terms, *left);
-            print!(" = ");
-            self.print_term(symbols, terms, *right);
-            println!(").");
-            self.assumption_number += 1;
-        }
+        self.solver.solve::<SkipCheck, _>(
+            symbols,
+            terms,
+            &mut self.bindings,
+            inference.equations.iter().copied(),
+        );
 
+        let parent = self.clause_stack.pop();
         let mut remaining_deductions = inference.deductions.len();
         for deduction in &inference.deductions {
             remaining_deductions -= 1;
@@ -274,26 +279,25 @@ impl Record for TSTP {
             print!("cnf(c{}, plain,\n\t", self.clause_number);
             self.clause_number += 1;
             self.print_clause(symbols, terms, literals, deduction.into_iter());
-
             print!(",\n\tinference({}, [", inference.name);
-            print!("assumptions([");
-            let mut assumptions = assumption_start..self.assumption_number;
-            if let Some(first) = assumptions.next() {
-                print!("a{}", first);
+
+            let mut first_bind = true;
+            for (variable, binding) in self.bindings.new_bindings() {
+                if !first_bind {
+                    print!(", ");
+                }
+                print!("bind(");
+                self.print_variable(variable);
+                print!(",");
+                self.print_term(symbols, terms, binding);
+                print!(")");
+                first_bind = false;
             }
-            for rest in assumptions {
-                print!(", a{}", rest);
-            }
-            print!("]), status(thm)");
             print!("], [");
 
             let mut first_premise = true;
-            if let Some(parent) = parent {
-                print!("c{}", parent);
-                first_premise = false;
-            }
-
-            for premise in self.premise_list.iter() {
+            let premises = parent.iter().chain(self.premise_list.iter());
+            for premise in premises {
                 if !first_premise {
                     print!(", ");
                 }
@@ -303,40 +307,6 @@ impl Record for TSTP {
             println!("])).")
         }
         self.premise_list.clear();
-        println!();
-    }
-
-    fn unification<I: Iterator<Item = (Id<Variable>, Id<Term>)>>(
-        &mut self,
-        symbols: &Symbols,
-        terms: &Terms,
-        bindings: I,
-    ) {
-        if self.assumption_number == 0 {
-            return;
-        }
-
-        print!("cnf(c{}, plain,\n\t$false", self.clause_number);
-        print!(",\n\tinference(constraint_solving, [\n\t\t");
-        let mut first_bind = true;
-        for (x, term) in bindings {
-            if !first_bind {
-                print!(",\n\t\t");
-            }
-            print!("bind(");
-            self.print_variable(x);
-            print!(", ");
-            self.print_term(symbols, terms, term);
-            print!(")");
-            first_bind = false;
-        }
-
-        print!("\n\t],\n\t[");
-        print!("a0");
-        for number in 1..self.assumption_number {
-            print!(", a{}", number);
-        }
-        println!("])).");
         println!();
     }
 

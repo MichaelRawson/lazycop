@@ -153,14 +153,6 @@ impl<'problem> Goal<'problem> {
         )
     }
 
-    pub(crate) fn record_unification<R: Record>(&mut self, record: &mut R) {
-        record.unification(
-            &self.problem.symbols,
-            &self.terms,
-            self.bindings.items(),
-        );
-    }
-
     pub(crate) fn graph(&mut self, graph: &mut Graph, rules: &[Rule]) {
         graph.signature(&self.problem.symbols);
         self.tableau.graph(
