@@ -16,12 +16,12 @@ impl Node {
         parent: Id<Node>,
         rule: Rule,
         log_siblings: f32,
-        depth: u32,
+        log_depth: f32,
         estimate: u32,
     ) -> Self {
         let children = Range::new(Id::default(), Id::default());
         let log_prior = log_siblings;
-        let score = -(estimate as f32 + (depth as f32).ln());
+        let score = -(estimate as f32 + log_depth);
         let closed = false;
         Self {
             parent,
@@ -47,7 +47,7 @@ pub(crate) struct Tree {
 impl Default for Tree {
     fn default() -> Self {
         let mut nodes = Block::default();
-        nodes.push(Node::leaf(Id::default(), Rule::Reflexivity, 0.0, 1, 0));
+        nodes.push(Node::leaf(Id::default(), Rule::Reflexivity, 0.0, 0.0, 0));
         Self { nodes }
     }
 }
@@ -98,13 +98,14 @@ impl Tree {
         data: &[(Rule, u32)],
     ) {
         let log_siblings = -(data.len() as f32).ln();
+        let log_depth = (depth as f32).ln();
         let start = self.nodes.len();
         for (rule, estimate) in data {
             self.nodes.push(Node::leaf(
                 leaf,
                 *rule,
                 log_siblings,
-                depth,
+                log_depth,
                 *estimate,
             ));
         }
