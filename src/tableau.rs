@@ -563,8 +563,7 @@ impl Tableau {
         terms: &Terms,
         literals: &Literals,
     ) {
-        let current =
-            &self.literals[self.current_clause().current_literal()];
+        let current = &self.literals[self.current_clause().current_literal()];
 
         for path in self
             .path_literals()

@@ -1,3 +1,4 @@
+use crate::output::Output;
 use std::path::PathBuf;
 use std::time::Instant;
 use structopt::StructOpt;
@@ -6,7 +7,7 @@ const NAME: &str = "lazyCoP";
 
 const ABOUT: &str = "
 lazyCoP is an automatic theorem prover for first-order logic with equality.
-The system can read the TPTP FOF and CNF dialects and outputs TSTP.
+The system can read the TPTP FOF and CNF dialects and outputs TSTP or Graphviz.
 For more information, see the project repository.
 ";
 
@@ -27,17 +28,21 @@ pub(crate) struct Options {
     #[structopt(long)]
     pub(crate) time: Option<u64>,
 
-    /// step limit
+    /// expansion limit
     #[structopt(long)]
-    pub(crate) steps: Option<usize>,
+    pub(crate) expansions: Option<usize>,
 
     /// print clause normal form and exit
     #[structopt(long)]
-    pub(crate) clausify: bool,
+    pub(crate) dump_clauses: bool,
 
-    /// dump training data instead of TSTP
+    /// dump training data instead of proof
     #[structopt(long)]
     pub(crate) dump_training_data: bool,
+
+    /// proof output
+    #[structopt(default_value="tstp", possible_values=&["tstp"], long)]
+    pub(crate) output: Output,
 
     #[structopt(skip = Instant::now())]
     start_time: Instant,
@@ -48,9 +53,9 @@ impl Options {
         Self::from_args()
     }
 
-    pub(crate) fn within_resource_limits(&self, steps: usize) -> bool {
-        if let Some(max_step) = self.steps {
-            if steps >= max_step {
+    pub(crate) fn within_resource_limits(&self, expansions: usize) -> bool {
+        if let Some(max_expansion) = self.expansions {
+            if expansions >= max_expansion {
                 return false;
             }
         }
