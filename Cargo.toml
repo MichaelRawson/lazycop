@@ -1,6 +1,6 @@
 [package]
 name = "lazycop"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Michael Rawson <michael@rawsons.uk>"]
 edition = "2018"
 description = "an automatic theorem prover for first-order logic with equality"
@@ -10,7 +10,6 @@ repository = "https://github.com/MichaelRawson/lazycop"
 license = "MIT"
 
 [features]
-orderings = []
 nn = ["cudann"]
 
 [dependencies]
