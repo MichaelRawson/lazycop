@@ -278,19 +278,14 @@ impl Record for TSTP {
             print!("cnf(c{}, plain,\n\t", self.clause_number);
             self.clause_number += 1;
             self.print_clause(symbols, terms, literals, deduction.into_iter());
-            print!(",\n\tinference({}, [", inference.name);
+            print!(",\n\tinference({}, [status(thm)", inference.name);
 
-            let mut first_bind = true;
             for (variable, binding) in self.bindings.new_bindings() {
-                if !first_bind {
-                    print!(", ");
-                }
-                print!("bind(");
+                print!(", bind(");
                 self.print_variable(variable);
                 print!(",");
                 self.print_term(symbols, terms, binding);
                 print!(")");
-                first_bind = false;
             }
             print!("], [");
 

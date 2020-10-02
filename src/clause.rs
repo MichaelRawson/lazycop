@@ -294,7 +294,7 @@ impl Clause {
         {
             constraints.assert_eq(fresh, s);
             inference.equation(fresh, s);
-            literals.push(Literal::disequation(t, fresh));
+            literals.push(Literal::disequation(fresh, t));
         }
         let disequation_end = literals.len();
         let disequations = Self::new(disequation_start, disequation_end);
@@ -435,7 +435,7 @@ impl Clause {
 
         let start = literals.len();
         let fresh = terms.add_variable();
-        literals.push(Literal::disequation(to, fresh));
+        literals.push(Literal::disequation(fresh, to));
         literals.push(literals[self.current].subst(
             &problem.symbols,
             terms,

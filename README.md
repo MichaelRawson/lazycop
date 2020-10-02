@@ -65,7 +65,6 @@ One of three things will then happen:
 A typical run on [PUZ001+1](http://tptp.org/cgi-bin/SeeTPTP?Category=Problems&Domain=PUZ&File=PUZ001+1.p):
 ```
 $ lazycop Problems/PUZ/PUZ001+1.p
-<some thinking occurs...>
 % SZS status Theorem for PUZ001+1
 % SZS output begin CNFRefutation for PUZ001+1
 cnf(c0, negated_conjecture,
@@ -75,228 +74,167 @@ cnf(c0, negated_conjecture,
 cnf(c1, axiom,
 	X0 = agatha | X0 = charles | X0 = butler | ~lives(X0)
 	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_3)])).
-cnf(a0, assumption,
-	agatha = agatha).
 cnf(c2, plain,
 	X0 = charles | X0 = butler | ~lives(X0),
-	inference(strict_backward_paramodulation, [assumptions([a0]), status(thm)], [c1])).
+	inference(strict_backward_paramodulation, [status(thm)], [c0, c1])).
 cnf(c3, plain,
-	X1 != X0 | ~killed(X1,agatha),
-	inference(strict_backward_paramodulation, [assumptions([a0]), status(thm)], [c1])).
+	X1 != X0 | ~killed(agatha,X1),
+	inference(strict_backward_paramodulation, [status(thm)], [c0, c1])).
 
-cnf(a1, assumption,
-	X1 = X0).
 cnf(c4, plain,
-	~killed(X1,agatha),
-	inference(reflexivity, [assumptions([a1]), status(thm)], [c3])).
+	~killed(agatha,X1),
+	inference(reflexivity, [status(thm), bind(X1,X0)], [c3])).
 
-cnf(c5, axiom,
-	killed(sK0,agatha)
-	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_1)])).
-cnf(a2, assumption,
-	X1 = sK0).
-cnf(a3, assumption,
-	agatha = agatha).
+cnf(c5, lemma,
+	X0 = agatha).
 cnf(c6, plain,
-	$false,
-	inference(strict_extension, [assumptions([a2, a3]), status(thm)], [c4, c5])).
+	~killed(X2,X1),
+	inference(forward_demodulation, [status(thm), bind(X2,X0)], [c4, c5])).
 
 cnf(c7, axiom,
 	killed(sK0,agatha)
 	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_1)])).
-cnf(a4, assumption,
-	charles = X2).
-cnf(a5, assumption,
-	sK0 = X0).
 cnf(c8, plain,
-	X0 = butler | ~lives(X0),
-	inference(strict_forward_paramodulation, [assumptions([a4, a5]), status(thm)], [c2, c7])).
+	X3 != sK0 | X4 != agatha,
+	inference(lazy_extension, [status(thm), bind(X3,X0), bind(X4,X0)], [c6, c7])).
+
 cnf(c9, plain,
-	killed(X2,agatha),
-	inference(strict_forward_paramodulation, [assumptions([a4, a5]), status(thm)], [c2, c7])).
+	X4 != agatha,
+	inference(reflexivity, [status(thm), bind(X0,sK0), bind(X1,sK0), bind(X2,sK0), bind(X3,sK0), bind(X4,sK0)], [c8])).
 
-cnf(c10, axiom,
-	~killed(X3,X4) | hates(X3,X4)
-	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_4)])).
-cnf(a6, assumption,
-	X2 = X3).
-cnf(a7, assumption,
-	agatha = X4).
+cnf(c10, lemma,
+	X0 = agatha).
 cnf(c11, plain,
-	hates(X3,X4),
-	inference(strict_extension, [assumptions([a6, a7]), status(thm)], [c9, c10])).
+	X4 != X5,
+	inference(forward_demodulation, [status(thm), bind(X5,sK0)], [c9, c10])).
 
-cnf(c12, axiom,
-	~hates(charles,X5) | ~hates(agatha,X5)
-	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_6)])).
-cnf(a8, assumption,
-	X3 = charles).
-cnf(a9, assumption,
-	X4 = X5).
-cnf(c13, plain,
-	~hates(agatha,X5),
-	inference(strict_extension, [assumptions([a8, a9]), status(thm)], [c11, c12])).
-
-cnf(c14, axiom,
-	hates(agatha,X6) | X6 = butler
-	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_7)])).
-cnf(a10, assumption,
-	agatha = agatha).
-cnf(a11, assumption,
-	X5 = X6).
-cnf(c15, plain,
-	X6 = butler,
-	inference(strict_extension, [assumptions([a10, a11]), status(thm)], [c13, c14])).
-
-cnf(c16, axiom,
-	agatha != butler
-	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_11)])).
-cnf(a12, assumption,
-	butler = X7).
-cnf(a13, assumption,
-	agatha = X6).
-cnf(c17, plain,
-	X7 != butler,
-	inference(strict_forward_paramodulation, [assumptions([a12, a13]), status(thm)], [c15, c16])).
-
-cnf(a14, assumption,
-	X7 = butler).
-cnf(c18, plain,
+cnf(c12, plain,
 	$false,
-	inference(reflexivity, [assumptions([a14]), status(thm)], [c17])).
+	inference(reflexivity, [status(thm)], [c11])).
 
-cnf(c19, axiom,
+cnf(c13, axiom,
 	killed(sK0,agatha)
 	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_1)])).
-cnf(a15, assumption,
-	butler = X8).
-cnf(a16, assumption,
-	sK0 = X0).
-cnf(c20, plain,
-	~lives(X0),
-	inference(strict_forward_paramodulation, [assumptions([a15, a16]), status(thm)], [c8, c19])).
+cnf(c14, plain,
+	X0 = butler | ~lives(X0),
+	inference(strict_forward_paramodulation, [status(thm), bind(X6,charles)], [c2, c13])).
+cnf(c15, plain,
+	killed(X6,agatha),
+	inference(strict_forward_paramodulation, [status(thm), bind(X6,charles)], [c2, c13])).
+
+cnf(c16, axiom,
+	~killed(X7,X8) | hates(X7,X8)
+	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_4)])).
+cnf(c17, plain,
+	hates(X7,X8),
+	inference(strict_extension, [status(thm), bind(X7,charles), bind(X8,agatha)], [c15, c16])).
+
+cnf(c18, axiom,
+	~hates(charles,X9) | ~hates(agatha,X9)
+	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_6)])).
+cnf(c19, plain,
+	~hates(agatha,X9),
+	inference(strict_extension, [status(thm), bind(X9,agatha)], [c17, c18])).
+
+cnf(c20, axiom,
+	hates(agatha,X10) | X10 = butler
+	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_7)])).
 cnf(c21, plain,
-	killed(X8,agatha),
-	inference(strict_forward_paramodulation, [assumptions([a15, a16]), status(thm)], [c8, c19])).
+	X10 = butler,
+	inference(strict_extension, [status(thm), bind(X10,agatha)], [c19, c20])).
 
 cnf(c22, axiom,
-	~killed(X9,X10) | ~richer(X9,X10)
-	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_5)])).
-cnf(a17, assumption,
-	X8 = X9).
-cnf(a18, assumption,
-	agatha = X10).
+	agatha != butler
+	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_11)])).
 cnf(c23, plain,
-	~richer(X9,X10),
-	inference(strict_extension, [assumptions([a17, a18]), status(thm)], [c21, c22])).
+	X11 != butler,
+	inference(strict_forward_paramodulation, [status(thm), bind(X11,butler)], [c21, c22])).
 
-cnf(c24, axiom,
-	richer(X11,agatha) | hates(butler,X11)
-	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_8)])).
-cnf(a19, assumption,
-	X9 = X11).
-cnf(a20, assumption,
-	X10 = agatha).
-cnf(c25, plain,
-	hates(butler,X11),
-	inference(strict_extension, [assumptions([a19, a20]), status(thm)], [c23, c24])).
-
-cnf(c26, axiom,
-	~hates(X12,sK1(X12))
-	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_10)])).
-cnf(a21, assumption,
-	X13 = butler).
-cnf(a22, assumption,
-	X14 = X11).
-cnf(c27, plain,
-	X12 != X13 | sK1(X12) != X14,
-	inference(lazy_extension, [assumptions([a21, a22]), status(thm)], [c25, c26])).
-
-cnf(a23, assumption,
-	X12 = X13).
-cnf(c28, plain,
-	sK1(X12) != X14,
-	inference(reflexivity, [assumptions([a23]), status(thm)], [c27])).
-
-cnf(c29, axiom,
-	X15 = butler | hates(agatha,X15)
-	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_7)])).
-cnf(a24, assumption,
-	sK1(X12) = X15).
-cnf(c30, plain,
-	hates(agatha,X15),
-	inference(variable_backward_paramodulation, [assumptions([a24]), status(thm)], [c28, c29])).
-cnf(c31, plain,
-	butler != X16 | X16 != X14,
-	inference(variable_backward_paramodulation, [assumptions([a24]), status(thm)], [c28, c29])).
-
-cnf(a25, assumption,
-	butler = X16).
-cnf(c32, plain,
-	X16 != X14,
-	inference(reflexivity, [assumptions([a25]), status(thm)], [c31])).
-
-cnf(a26, assumption,
-	X16 = X14).
-cnf(c33, plain,
+cnf(c24, plain,
 	$false,
-	inference(reflexivity, [assumptions([a26]), status(thm)], [c32])).
+	inference(reflexivity, [status(thm)], [c23])).
 
-cnf(c34, axiom,
-	~hates(agatha,X17) | hates(butler,X17)
-	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_9)])).
-cnf(a27, assumption,
-	agatha = agatha).
-cnf(a28, assumption,
-	X15 = X17).
-cnf(c35, plain,
-	hates(butler,X17),
-	inference(strict_extension, [assumptions([a27, a28]), status(thm)], [c30, c34])).
-
-cnf(c36, lemma,
-	~hates(X12,sK1(X12))).
-cnf(a29, assumption,
-	butler = X12).
-cnf(a30, assumption,
-	X17 = sK1(X12)).
-cnf(c37, plain,
-	$false,
-	inference(reduction, [assumptions([a29, a30]), status(thm)], [c35, c36])).
-
-cnf(c38, axiom,
-	lives(sK0)
+cnf(c25, axiom,
+	killed(sK0,agatha)
 	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_1)])).
-cnf(a31, assumption,
-	X0 = sK0).
+cnf(c26, plain,
+	~lives(X0),
+	inference(strict_forward_paramodulation, [status(thm), bind(X12,butler)], [c14, c25])).
+cnf(c27, plain,
+	killed(X12,agatha),
+	inference(strict_forward_paramodulation, [status(thm), bind(X12,butler)], [c14, c25])).
+
+cnf(c28, axiom,
+	~killed(X13,X14) | ~richer(X13,X14)
+	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_5)])).
+cnf(c29, plain,
+	~richer(X13,X14),
+	inference(strict_extension, [status(thm), bind(X13,butler), bind(X14,agatha)], [c27, c28])).
+
+cnf(c30, axiom,
+	richer(X15,agatha) | hates(butler,X15)
+	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_8)])).
+cnf(c31, plain,
+	hates(butler,X15),
+	inference(strict_extension, [status(thm), bind(X15,butler)], [c29, c30])).
+
+cnf(c32, axiom,
+	~hates(X16,sK1(X16))
+	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_10)])).
+cnf(c33, plain,
+	X17 != X16 | X18 != sK1(X16),
+	inference(lazy_extension, [status(thm), bind(X17,butler), bind(X18,butler)], [c31, c32])).
+
+cnf(c34, plain,
+	X18 != sK1(X16),
+	inference(reflexivity, [status(thm), bind(X16,butler)], [c33])).
+
+cnf(c35, axiom,
+	X19 = butler | hates(agatha,X19)
+	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_7)])).
+cnf(c36, plain,
+	hates(agatha,X19),
+	inference(variable_backward_paramodulation, [status(thm), bind(X19,sK1(X16))], [c34, c35])).
+cnf(c37, plain,
+	X20 != butler | X18 != X20,
+	inference(variable_backward_paramodulation, [status(thm), bind(X19,sK1(X16))], [c34, c35])).
+
+cnf(c38, plain,
+	X18 != X20,
+	inference(reflexivity, [status(thm), bind(X20,butler)], [c37])).
+
 cnf(c39, plain,
 	$false,
-	inference(strict_extension, [assumptions([a31]), status(thm)], [c20, c38])).
+	inference(reflexivity, [status(thm)], [c38])).
 
-cnf(c40, plain,
+cnf(c40, axiom,
+	~hates(agatha,X21) | hates(butler,X21)
+	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_9)])).
+cnf(c41, plain,
+	hates(butler,X21),
+	inference(strict_extension, [status(thm), bind(X21,sK1(X16))], [c36, c40])).
+
+cnf(c42, lemma,
+	~hates(X16,sK1(X16))).
+cnf(c43, plain,
 	$false,
-	inference(constraint_solving, [
-		bind(X0, sK0),
-		bind(X1, sK0),
-		bind(X2, charles),
-		bind(X3, charles),
-		bind(X4, agatha),
-		bind(X5, agatha),
-		bind(X6, agatha),
-		bind(X7, butler),
-		bind(X8, butler),
-		bind(X9, butler),
-		bind(X10, agatha),
-		bind(X11, butler),
-		bind(X12, butler),
-		bind(X13, butler),
-		bind(X14, butler),
-		bind(X15, sK1(X12)),
-		bind(X16, butler),
-		bind(X17, sK1(X12))
-	],
-	[a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29, a30, a31])).
+	inference(reduction, [status(thm)], [c41, c42])).
+
+cnf(c44, axiom,
+	lives(sK0)
+	inference(clausify, [status(esa)], [file('Problems/PUZ/PUZ001+1.p', pel55_1)])).
+cnf(c45, plain,
+	$false,
+	inference(strict_extension, [status(thm)], [c26, c44])).
 
 % SZS output end CNFRefutation for PUZ001+1
+% equality problem: true
+% problem symbols: 9
+% problem clauses: 15
+% start clauses: 1
+% eliminated goals: 6597
+% retained goals: 2546
+% expanded goals: 977
 ```
 
 ## References
