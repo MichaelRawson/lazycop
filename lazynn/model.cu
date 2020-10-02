@@ -52,23 +52,22 @@ static float
 static thread_local bool thread_initialised = false;
 static thread_local uint8_t *p_upload, *d_upload;
 static thread_local float *p_download, *d_download;
-static thread_local int32_t *nodes = NULL, *batch = NULL;
+static thread_local int32_t *nodes = NULL, *rules = NULL;
 static thread_local int2 *edges = NULL;
 static thread_local float
 	*forward_node_norm = NULL,
 	*backward_node_norm = NULL,
-	*graph_norm = NULL,
 	*x = NULL,
 	*out = NULL,
 	*back = NULL,
 	*out_scratch = NULL,
 	*back_scratch = NULL,
-	*pooled = NULL,
+	*selected = NULL,
 	*hidden = NULL;
 static thread_local uint32_t
 	num_nodes = 0,
 	num_edges = 0,
-	num_graphs = 0,
+	num_rules = 0,
 	p_upload_capacity = 0,
 	d_upload_capacity = 0,
 	p_download_capacity = 0,
@@ -78,11 +77,11 @@ static thread_local uint32_t
 	back_capacity = 0,
 	out_scratch_capacity = 0,
 	back_scratch_capacity = 0,
-	pooled_capacity = 0,
+	selected_capacity = 0,
 	hidden_capacity = 0;
 static thread_local cublasLtMatrixLayout_t
 	node_desc,
-	pooled_desc,
+	selected_desc,
 	hidden_desc,
 	output_desc;
 static thread_local cublasLtMatmulHeuristicResult_t
@@ -290,45 +289,42 @@ static void bias_relu_sum(float *out_bias, float *back_bias) {
 	);
 }
 
-__global__ void k_global_mean_pool(
+__global__ void k_select_rules(
 	int32_t num_nodes,
-	int32_t num_graphs,
-	int32_t *batch,
+	int32_t num_rules,
+	int32_t *rules,
 	float *x,
-	float *graph_norm,
-	float *pooled
+	float *selected
 ) {
 	auto offset = blockIdx.x;
 	auto channel = threadIdx.x;
 
 	#pragma unroll UNROLL
-	for(int i = offset; i < num_nodes; i += BLOCKS) {
-		auto graph = __ldg(batch + i);
-		auto norm = __ldg(graph_norm + graph);
-		auto value = __ldg(x + CHANNELS * i + channel);
-		atomicAdd(pooled + CHANNELS * graph + channel, norm * value);
+	for(int i = offset; i < num_rules; i += BLOCKS) {
+		auto rule = __ldg(rules + i);
+		auto value = __ldg(x + CHANNELS * rule + channel);
+		__stcg(selected + CHANNELS * i + channel, value);
 	}
 }
 
-static void global_mean_pool() {
-	k_global_mean_pool<<<BLOCKS, CHANNELS>>>(
+static void select_rules() {
+	k_select_rules<<<BLOCKS, CHANNELS>>>(
 		num_nodes,
-		num_graphs,
-		batch,
+		num_rules,
+		rules,
 		x,
-		graph_norm,
-		pooled
+		selected
 	);
 }
 
 __global__ void k_hidden_bias_relu(
-	int32_t num_graphs,
+	int32_t num_rules,
 	float *bias,
 	float *hidden
 ) {
 	auto channel = threadIdx.x;
 	#pragma unroll UNROLL
-	for(int i = 0; i < num_graphs; i++) {
+	for(int i = 0; i < num_rules; i++) {
 		auto index = HIDDEN * i + channel;
 		float activated = fmaxf(
 			0.0f,
@@ -339,7 +335,7 @@ __global__ void k_hidden_bias_relu(
 }
 
 static void hidden_bias_relu() {
-	k_hidden_bias_relu<<<1, HIDDEN>>>(num_graphs, HIDDEN_BIAS, hidden);
+	k_hidden_bias_relu<<<1, HIDDEN>>>(num_rules, HIDDEN_BIAS, hidden);
 }
 
 static void residual(int32_t layer) {
@@ -374,15 +370,15 @@ static void residual(int32_t layer) {
 static void upload(
 	uint32_t h_num_nodes,
 	uint32_t h_num_edges,
-	uint32_t h_num_graphs,
+	uint32_t h_num_rules,
 	const uint32_t *h_nodes,
 	const uint32_t *h_sources,
 	const uint32_t *h_targets,
-	const uint32_t *h_batch
+	const uint32_t *h_rules
 ) {
 	num_nodes = h_num_nodes;
 	num_edges = h_num_edges;
-	num_graphs = h_num_graphs;
+	num_rules = h_num_rules;
 
 	if(!thread_initialised) {
 		BLASOK(cublasLtMatrixLayoutCreate(
@@ -393,7 +389,7 @@ static void upload(
 			0
 		));
 		BLASOK(cublasLtMatrixLayoutCreate(
-			&pooled_desc,
+			&selected_desc,
 			DATA_TYPE,
 			0,
 			0,
@@ -416,9 +412,9 @@ static void upload(
 		thread_initialised = true;
 	}
 	init_matrix_layout(node_desc, num_nodes, CHANNELS);
-	init_matrix_layout(pooled_desc, num_graphs, CHANNELS);
-	init_matrix_layout(hidden_desc, num_graphs, HIDDEN);
-	init_matrix_layout(output_desc, num_graphs, 1);
+	init_matrix_layout(selected_desc, num_rules, CHANNELS);
+	init_matrix_layout(hidden_desc, num_rules, HIDDEN);
+	init_matrix_layout(output_desc, num_rules, 1);
 	int _num_results;
 	BLASOK(cublasLtMatmulAlgoGetHeuristic(
 		BLAS_HANDLE,
@@ -435,7 +431,7 @@ static void upload(
 	BLASOK(cublasLtMatmulAlgoGetHeuristic(
 		BLAS_HANDLE,
 		MM_DESC,
-		pooled_desc,
+		selected_desc,
 		HIDDEN_WEIGHT_DESC,
 		hidden_desc,
 		hidden_desc,
@@ -467,33 +463,24 @@ static void upload(
 	auto backward_node_norm_offset = ALIGN(
 		forward_node_norm_offset + num_nodes * sizeof(float)
 	);
-	auto graph_norm_offset = ALIGN(
+	auto rules_offset = ALIGN(
 		backward_node_norm_offset + num_nodes * sizeof(float)
 	);
-	auto batch_offset = ALIGN(
-		graph_norm_offset + num_graphs * sizeof(float)
-	);
 	auto upload_bytes = ALIGN(
-		batch_offset + num_nodes * sizeof(int32_t)
+		rules_offset + num_rules * sizeof(int32_t)
 	);
 
 	DEVICE_ALLOC(d_upload, upload_bytes);
-	DEVICE_ALLOC(d_download, num_graphs);
+	DEVICE_ALLOC(d_download, num_rules);
 	DEVICE_ALLOC(x, num_nodes * CHANNELS);
 	DEVICE_ALLOC(out, num_nodes * CHANNELS);
 	DEVICE_ALLOC(back, num_nodes * CHANNELS);
 	DEVICE_ALLOC(out_scratch, num_nodes * CHANNELS);
 	DEVICE_ALLOC(back_scratch, num_nodes * CHANNELS);
-	DEVICE_ALLOC(pooled, num_graphs * CHANNELS);
-	DEVICE_ALLOC(hidden, num_graphs * HIDDEN);
+	DEVICE_ALLOC(selected, num_rules * CHANNELS);
+	DEVICE_ALLOC(hidden, num_rules * HIDDEN);
 	PAGE_ALLOC(p_upload, upload_bytes);
-	PAGE_ALLOC(p_download, num_graphs);
-	CUDAOK(cudaMemsetAsync(
-		pooled,
-		0,
-		num_graphs * CHANNELS * sizeof(float),
-		CU_STREAM_PER_THREAD
-	));
+	PAGE_ALLOC(p_download, num_rules);
 
 	// alignment-safe: should be aligned from before
 	auto p_nodes = (int32_t *)(p_upload + node_offset);
@@ -502,12 +489,10 @@ static void upload(
 		(float *)(p_upload + forward_node_norm_offset);
 	auto p_backward_node_norm =
 		(float *)(p_upload + backward_node_norm_offset);
-	auto p_graph_norm = (float *)(p_upload + graph_norm_offset);
-	auto p_batch = (int32_t *)(p_upload + batch_offset);
+	auto p_rules = (int32_t *)(p_upload + rules_offset);
 
 	memset(p_forward_node_norm, 0, num_nodes * sizeof(float));
 	memset(p_backward_node_norm, 0, num_nodes * sizeof(float));
-	memset(p_graph_norm, 0, num_graphs * sizeof(float));
 	for(uint32_t i = 0; i < num_edges; i++) {
 		auto source = h_sources[i];
 		auto target = h_targets[i];
@@ -518,15 +503,11 @@ static void upload(
 	}
 	for(uint32_t i = 0; i < num_nodes; i++) {
 		p_nodes[i] = h_nodes[i];
-		p_batch[i] = h_batch[i];
-		p_graph_norm[p_batch[i]] += 1.0;
+		p_rules[i] = h_rules[i];
 		p_forward_node_norm[i] = 1.0f /
 			(1.0f + p_forward_node_norm[i]);
 		p_backward_node_norm[i] = 1.0f /
 			(1.0f + p_backward_node_norm[i]);
-	}
-	for(uint32_t i = 0; i < num_graphs; i++) {
-		p_graph_norm[i] = 1.0f / p_graph_norm[i];
 	}
 
 	CUDAOK(cudaMemcpyAsync(
@@ -541,21 +522,20 @@ static void upload(
 	edges = (int2 *)(d_upload + edge_offset);
 	forward_node_norm = (float *)(d_upload + forward_node_norm_offset);
 	backward_node_norm = (float *)(d_upload + backward_node_norm_offset);
-	graph_norm = (float *)(d_upload + graph_norm_offset);
-	batch = (int32_t *)(d_upload + batch_offset);
+	rules = (int32_t *)(d_upload + rules_offset);
 }
 
 static void download(float *h_results) {
 	CUDAOK(cudaMemcpyAsync(
 		p_download,
 		d_download,
-		num_graphs * sizeof(float),
+		num_rules * sizeof(float),
 		cudaMemcpyDeviceToHost,
 		CU_STREAM_PER_THREAD
 	));
 	CUDAOK(cudaStreamSynchronize(CU_STREAM_PER_THREAD));
 
-	for(uint32_t i = 0; i < num_graphs; i++) {
+	for(uint32_t i = 0; i < num_rules; i++) {
 		h_results[i] = p_download[i];
 	}
 }
@@ -635,31 +615,31 @@ extern "C" void init() {
 extern "C" void model(
 	uint32_t h_num_nodes,
 	uint32_t h_num_edges,
-	uint32_t h_num_graphs,
+	uint32_t h_num_rules,
 	const uint32_t *h_nodes,
 	const uint32_t *h_sources,
 	const uint32_t *h_targets,
-	const uint32_t *h_batch,
+	const uint32_t *h_rules,
 	float *h_results
 ) {
 	upload(
 		h_num_nodes,
 		h_num_edges,
-		h_num_graphs,
+		h_num_rules,
 		h_nodes,
 		h_sources,
 		h_targets,
-		h_batch
+		h_rules
 	);
 	embed();
 	for(uint32_t i = 0; i < LAYERS; i++) {
 		residual(i);
 	}
-	global_mean_pool();
+	select_rules();
 	mm(
 		&hidden_heuristic,
-		pooled_desc,
-		pooled,
+		selected_desc,
+		selected,
 		HIDDEN_WEIGHT_DESC,
 		HIDDEN_WEIGHTS,
 		hidden_desc,

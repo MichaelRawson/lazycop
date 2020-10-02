@@ -25,7 +25,6 @@ pub(crate) enum Node {
 
 #[derive(Default)]
 pub(crate) struct Graph {
-    pub(crate) num_graphs: u32,
     pub(crate) nodes: Block<u32>,
     pub(crate) sources: Vec<u32>,
     pub(crate) targets: Vec<u32>,
@@ -41,7 +40,6 @@ impl Graph {
     }
 
     pub(crate) fn clear(&mut self) {
-        self.num_graphs = 0;
         self.nodes.clear();
         self.sources.clear();
         self.targets.clear();

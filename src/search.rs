@@ -71,7 +71,7 @@ fn expansion_task(
                     proof = Some(script);
                 }
 
-                let estimate = goal.num_open_branches();
+                let estimate = goal.num_open_literals();
                 data.push((rule, estimate));
                 statistics.increment_retained_goals();
             } else {
@@ -80,8 +80,7 @@ fn expansion_task(
             goal.restore();
         }
 
-        let depth = rules.len() as u32;
-        tree.write().expand(leaf, depth + 1, &*data);
+        tree.write().expand(leaf, &*data);
         statistics.increment_expanded_goals();
         goal.clear();
         rules.clear();
@@ -132,7 +131,6 @@ fn evaluation_task(
         } else {
             goal.graph(&mut graph, &inferences);
             let input = lazynn::Input {
-                num_graphs: graph.num_graphs,
                 nodes: graph.node_labels(),
                 sources: &graph.sources,
                 targets: &graph.targets,

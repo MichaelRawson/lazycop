@@ -41,11 +41,11 @@ impl Tableau {
         some(self.stack.last())
     }
 
-    pub(crate) fn num_open_branches(&self) -> u32 {
+    pub(crate) fn num_open_literals(&self) -> u32 {
         self.stack
             .range()
             .into_iter()
-            .map(|id| self.stack[id].remaining().len() as u32)
+            .map(|id| self.stack[id].open().len() as u32)
             .sum::<u32>()
     }
 
