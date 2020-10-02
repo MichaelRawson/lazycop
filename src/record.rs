@@ -37,6 +37,14 @@ pub(crate) trait Record {
     ) {
     }
 
+    fn lemma(
+        &mut self,
+        _literals: &Literals,
+        _original: Id<Literal>,
+        _lemma: Id<Literal>,
+    ) {
+    }
+
     fn statistic<T: Display>(&mut self, _key: &'static str, _value: T) {}
 }
 

@@ -167,7 +167,7 @@ impl TSTP {
         }
     }
 
-    fn print_literal(
+    pub(crate) fn print_literal(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,

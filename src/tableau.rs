@@ -281,7 +281,7 @@ impl Tableau {
                     start,
                 );
                 self.push(start);
-                self.close_branches();
+                self.close_branches(record);
             }
             Rule::Reflexivity => {
                 unwrap(self.stack.last_mut()).reflexivity(
@@ -291,7 +291,7 @@ impl Tableau {
                     &self.literals,
                     constraints,
                 );
-                self.close_branches();
+                self.close_branches(record);
             }
             Rule::Reduction(reduction) => {
                 unwrap(self.stack.last_mut()).reduction(
@@ -303,7 +303,7 @@ impl Tableau {
                     reduction,
                 );
                 self.reduction_validity(reduction.literal);
-                self.close_branches();
+                self.close_branches(record);
             }
             Rule::LRForwardDemodulation(demodulation)
             | Rule::RLForwardDemodulation(demodulation)
@@ -343,7 +343,7 @@ impl Tableau {
                         extension,
                     );
                 self.push(extension);
-                self.close_branches();
+                self.close_branches(record);
             }
             Rule::LazyExtension(extension) => {
                 self.add_regularity_constraints(
@@ -368,7 +368,7 @@ impl Tableau {
                     &self.literals,
                 );
                 self.push(consequence);
-                self.close_branches();
+                self.close_branches(record);
             }
             Rule::StrictBackwardParamodulation(paramodulation) => {
                 self.add_regularity_constraints(
@@ -533,7 +533,7 @@ impl Tableau {
         }
     }
 
-    fn close_branches(&mut self) {
+    fn close_branches<R: Record>(&mut self, record: &mut R) {
         let last = self.current_clause();
         if !last.is_empty() {
             return;
@@ -546,6 +546,7 @@ impl Tableau {
             let mut lemma = self.literals[id];
             lemma.polarity = !lemma.polarity;
             let lemma = self.literals.push(lemma);
+            record.lemma(&self.literals, id, lemma);
             self.valid.resize(self.literals.len());
             self.valid[lemma] = valid_in;
             self.lemmata[valid_in].push(lemma);

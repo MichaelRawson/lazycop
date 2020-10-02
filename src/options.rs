@@ -40,7 +40,7 @@ pub(crate) struct Options {
     #[structopt(
         long,
         default_value="tstp",
-        possible_values=&["tstp", "training"],
+        possible_values=&["tstp", "training", "graphviz"],
     )]
     pub(crate) output: Output,
 

@@ -25,7 +25,6 @@ mod statistics;
 mod symbol;
 mod tableau;
 mod term;
-mod training;
 mod tree;
 mod util;
 
