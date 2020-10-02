@@ -228,13 +228,7 @@ cnf(c45, plain,
 	inference(strict_extension, [status(thm)], [c26, c44])).
 
 % SZS output end CNFRefutation for PUZ001+1
-% equality problem: true
-% problem symbols: 9
-% problem clauses: 15
-% start clauses: 1
-% eliminated goals: 6597
-% retained goals: 2546
-% expanded goals: 977
+$
 ```
 
 ## References
