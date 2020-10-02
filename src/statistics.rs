@@ -10,7 +10,7 @@ pub(crate) struct Statistics {
     eliminated_goals: AtomicU32,
     retained_goals: AtomicU32,
     expanded_goals: AtomicU32,
-    #[cfg(feature = "nn")]
+    #[cfg(feature = "cudann")]
     evaluated_goals: AtomicU32,
 }
 
@@ -23,7 +23,7 @@ impl Statistics {
         let eliminated_goals = AtomicU32::default();
         let retained_goals = AtomicU32::default();
         let expanded_goals = AtomicU32::default();
-        #[cfg(feature = "nn")]
+        #[cfg(feature = "cudann")]
         let evaluated_goals = AtomicU32::default();
         Self {
             problem_equality,
@@ -33,7 +33,7 @@ impl Statistics {
             eliminated_goals,
             retained_goals,
             expanded_goals,
-            #[cfg(feature = "nn")]
+            #[cfg(feature = "cudann")]
             evaluated_goals,
         }
     }
@@ -55,7 +55,7 @@ impl Statistics {
             "expanded goals",
             self.expanded_goals.load(Ordering::Relaxed),
         );
-        #[cfg(feature = "nn")]
+        #[cfg(feature = "cudann")]
         record.statistic(
             "evaluated goals",
             self.evaluated_goals.load(Ordering::Relaxed),
@@ -74,7 +74,7 @@ impl Statistics {
         self.expanded_goals.fetch_add(1, Ordering::Relaxed);
     }
 
-    #[cfg(feature = "nn")]
+    #[cfg(feature = "cudann")]
     pub(crate) fn increment_evaluated_goals(&self) {
         self.evaluated_goals.fetch_add(1, Ordering::Relaxed);
     }

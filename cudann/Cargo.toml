@@ -1,5 +1,5 @@
 [package]
-name = "lazynn"
+name = "cudann"
 version = "0.1.0"
 authors = ["Michael Rawson <michael@rawsons.uk>"]
 edition = "2018"

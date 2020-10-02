@@ -7,7 +7,7 @@ pub(crate) struct Node {
     log_prior: f32,
     score: f32,
     closed: bool,
-    #[cfg(feature = "nn")]
+    #[cfg(feature = "cudann")]
     evaluated: bool,
 }
 
@@ -24,7 +24,7 @@ impl Node {
             log_prior,
             score,
             closed,
-            #[cfg(feature = "nn")]
+            #[cfg(feature = "cudann")]
             evaluated: false,
         }
     }
@@ -64,7 +64,7 @@ impl Tree {
         Some(current)
     }
 
-    #[cfg(feature = "nn")]
+    #[cfg(feature = "cudann")]
     pub(crate) fn select_for_evaluation<E: Extend<Rule>>(
         &self,
         rules: &mut E,
@@ -95,7 +95,7 @@ impl Tree {
         self.propagate_expansion(leaf);
     }
 
-    #[cfg(feature = "nn")]
+    #[cfg(feature = "cudann")]
     pub(crate) fn evaluate(&mut self, node: Id<Node>, log_priors: &[f32]) {
         for (child, log_prior) in
             self.nodes[node].children.into_iter().zip(log_priors.iter())
@@ -106,7 +106,7 @@ impl Tree {
         self.propagate_evaluation(node);
     }
 
-    #[cfg(feature = "nn")]
+    #[cfg(feature = "cudann")]
     pub(crate) fn child_rules(
         &self,
         node: Id<Node>,
@@ -140,7 +140,7 @@ impl Tree {
         }
     }
 
-    #[cfg(feature = "nn")]
+    #[cfg(feature = "cudann")]
     fn propagate_evaluation(&mut self, evaluated: Id<Node>) {
         let mut current = evaluated;
         loop {

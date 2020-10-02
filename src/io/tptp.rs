@@ -109,7 +109,7 @@ impl<'a> TPTPProblem<'a> {
             match input {
                 st::TPTPInput::Annotated(annotated) => break Some(annotated),
                 st::TPTPInput::Include(include) => {
-                    let path = include.file_name.as_ref().as_ref().as_ref();
+                    let path = include.file_name.as_ref().as_ref();
                     let path = Path::new(path);
                     let old = self.current_path();
                     let old = Some(old.as_ref().as_ref());
@@ -179,7 +179,7 @@ impl<'a> Loader<'a> {
                     Name::Regular(format!("{}", word))
                 }
                 st::AtomicWord::SingleQuoted(ref sq) => {
-                    Name::Quoted(format!("{}", sq.0))
+                    Name::Quoted(sq.0.to_string())
                 }
             };
             let symbol = Symbol { name, arity };
@@ -199,7 +199,7 @@ impl<'a> Loader<'a> {
                 cnf::Term::Fun(self.functor(symbols, c.0, 0), vec![])
             }
             st::FofPlainTerm::Function(f, args) => {
-                let args: Vec<_> = (*args)
+                let args: Vec<_> = args
                     .0
                     .into_iter()
                     .map(|t| self.fof_term(symbols, t))
@@ -237,7 +237,7 @@ impl<'a> Loader<'a> {
                     cnf::Term::Var(fresh)
                 }
             }
-            st::FofTerm::Function(function) => match *function {
+            st::FofTerm::Function(function) => match function {
                 st::FofFunctionTerm::Plain(plain) => {
                     self.fof_plain_term(symbols, plain)
                 }
@@ -255,12 +255,12 @@ impl<'a> Loader<'a> {
     ) -> cnf::Formula {
         match atomic {
             st::FofAtomicFormula::Plain(plain) => {
-                let pred = self.fof_plain_term(symbols, (*plain).0);
+                let pred = self.fof_plain_term(symbols, plain.0);
                 cnf::Formula::Atom(cnf::Atom::Pred(pred))
             }
-            st::FofAtomicFormula::Defined(defined) => match *defined {
+            st::FofAtomicFormula::Defined(defined) => match defined {
                 st::FofDefinedAtomicFormula::Plain(plain) => {
-                    match (((((((plain.0).0).0).0).0).0).0).as_ref() {
+                    match ((((((plain.0).0).0).0).0).0).0 {
                         "true" => cnf::Formula::And(vec![]),
                         "false" => cnf::Formula::Or(vec![]),
                         _ => report_inappropriate(plain),
@@ -362,7 +362,6 @@ impl<'a> Loader<'a> {
         match logic {
             st::FofLogicFormula::Binary(binary) => match binary {
                 st::FofBinaryFormula::Nonassoc(nonassoc) => {
-                    let nonassoc = *nonassoc;
                     let left = self.fof_unit_formula(symbols, *nonassoc.left);
                     let right =
                         self.fof_unit_formula(symbols, *nonassoc.right);

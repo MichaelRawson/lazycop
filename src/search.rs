@@ -92,7 +92,7 @@ fn expansion_task(
     }
 }
 
-#[cfg(feature = "nn")]
+#[cfg(feature = "cudann")]
 fn evaluation_task(
     problem: &Problem,
     statistics: &Statistics,
@@ -130,13 +130,13 @@ fn evaluation_task(
             scores.push(0.0);
         } else {
             goal.graph(&mut graph, &inferences);
-            let input = lazynn::Input {
+            let input = cudann::Input {
                 nodes: graph.node_labels(),
                 sources: &graph.sources,
                 targets: &graph.targets,
                 rules: &graph.rules,
             };
-            lazynn::model(input, &mut scores);
+            cudann::model(input, &mut scores);
         }
 
         tree.write().evaluate(node, &scores);
@@ -185,7 +185,7 @@ pub(crate) fn search(
             })
             .expect("failed to spawn expansion thread");
 
-        #[cfg(feature = "nn")]
+        #[cfg(feature = "cudann")]
         scope
             .builder()
             .name("evaluation".into())

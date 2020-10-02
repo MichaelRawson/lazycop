@@ -38,8 +38,8 @@ use crate::search::SearchResult;
 use crate::symbol::Symbols;
 
 fn main() {
-    #[cfg(feature = "nn")]
-    lazynn::init();
+    #[cfg(feature = "cudann")]
+    cudann::init();
 
     let options = Options::parse();
     let name = options.problem_name();

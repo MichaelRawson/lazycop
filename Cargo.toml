@@ -10,7 +10,8 @@ repository = "https://github.com/MichaelRawson/lazycop"
 license = "MIT"
 
 [features]
-nn = ["lazynn"]
+orderings = []
+nn = ["cudann"]
 
 [dependencies]
 crossbeam-utils = "0.7"
@@ -19,8 +20,8 @@ memmap = "0.7"
 num_cpus = "1.13"
 parking_lot = "0.11"
 structopt = "0.3"
-tptp = "0.23"
+tptp = "0.24"
 
-[dependencies.lazynn]
+[dependencies.cudann]
 optional = true
-path = "lazynn"
+path = "cudann"
