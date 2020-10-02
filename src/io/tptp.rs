@@ -102,7 +102,7 @@ impl<'a> TPTPProblem<'a> {
                 if let Some(next) = top.next() {
                     break next;
                 } else {
-                    let empty = some(self.stack.pop());
+                    let empty = unwrap(self.stack.pop());
                     self.empty.push(empty);
                 }
             };
@@ -120,7 +120,7 @@ impl<'a> TPTPProblem<'a> {
     }
 
     fn current_path(&self) -> Arc<PathBuf> {
-        some(self.stack.last()).path.clone()
+        unwrap(self.stack.last()).path.clone()
     }
 }
 
@@ -299,7 +299,7 @@ impl<'a> Loader<'a> {
                 let mut formula =
                     self.fof_unit_formula(symbols, *quantified.formula);
                 for _ in 0..num_bound {
-                    let (_, x) = some(self.bound.pop());
+                    let (_, x) = unwrap(self.bound.pop());
                     formula = quantifier(x, Box::new(formula));
                 }
 
@@ -443,7 +443,7 @@ impl<'a> Loader<'a> {
         }
         .0;
         if literals.len() == 1 {
-            let literal = some(literals.pop());
+            let literal = unwrap(literals.pop());
             return self.literal(symbols, literal);
         }
         cnf::Formula::Or(

@@ -38,7 +38,7 @@ impl Tableau {
     }
 
     pub(crate) fn current_clause(&self) -> &Clause {
-        some(self.stack.last())
+        unwrap(self.stack.last())
     }
 
     pub(crate) fn num_open_literals(&self) -> u32 {
@@ -120,8 +120,8 @@ impl Tableau {
             if let Some(link) = link {
                 graph.connect(link, root);
             }
-            let current = some(self.stack[clause].open().into_iter().next());
-            link = graph.get_literal(current);
+            let current = self.stack[clause].current_literal();
+            link = Some(graph.get_literal(current));
             for lemma in self.lemmata[clause].iter().copied() {
                 let node = self.literals[lemma].graph(
                     graph,
@@ -134,9 +134,12 @@ impl Tableau {
             }
         }
 
-        let clause = self.stack.last();
-        let current =
-            clause.and_then(|clause| clause.open().into_iter().next());
+        let current = self
+            .stack
+            .last()
+            .map(|clause| clause.current_literal())
+            .unwrap_or_default();
+
         fn copy_clause(
             graph: &mut Graph,
             problem: &Problem,
@@ -165,12 +168,12 @@ impl Tableau {
                     graph.start(root);
                 }
                 Rule::Reflexivity => {
-                    let current = some(graph.get_literal(some(current)));
+                    let current = graph.get_literal(current);
                     graph.reflexivity(current);
                 }
                 Rule::Reduction(reduction) => {
-                    let current = some(graph.get_literal(some(current)));
-                    let mate = some(graph.get_literal(reduction.literal));
+                    let current = graph.get_literal(current);
+                    let mate = graph.get_literal(reduction.literal);
                     graph.reduction(mate, current);
                 }
                 Rule::LRForwardDemodulation(demodulation)
@@ -180,17 +183,17 @@ impl Tableau {
                     let equality = if rule.is_forward() {
                         demodulation.literal
                     } else {
-                        some(current)
+                        current
                     };
                     let (left, right) = self.literals[equality].get_equality();
                     let from = if rule.is_l2r() { left } else { right };
-                    let target = some(graph.get_term(demodulation.target));
-                    let from = some(graph.get_term(from));
+                    let target = graph.get_term(demodulation.target);
+                    let from = graph.get_term(from);
                     graph.demodulation(from, target);
                 }
                 Rule::StrictExtension(extension)
                 | Rule::LazyExtension(extension) => {
-                    let current = some(graph.get_literal(some(current)));
+                    let current = graph.get_literal(current);
                     let occurrence = &problem.index.predicate_occurrences
                         [extension.occurrence];
                     let mate = occurrence.literal + self.literals.offset();
@@ -202,7 +205,7 @@ impl Tableau {
                         bindings,
                         occurrence.clause,
                     );
-                    let mate = some(graph.get_literal(mate));
+                    let mate = graph.get_literal(mate);
                     graph.extension(rule.is_strict(), current, mate);
                 }
                 Rule::StrictBackwardParamodulation(paramodulation)
@@ -221,8 +224,8 @@ impl Tableau {
                     );
                     let (left, right) = self.literals[mate].get_equality();
                     let from = if occurrence.l2r { left } else { right };
-                    let from = some(graph.get_term(from));
-                    let target = some(graph.get_term(paramodulation.target));
+                    let from = graph.get_term(from);
+                    let target = graph.get_term(paramodulation.target);
                     graph.paramodulation(rule.is_strict(), from, target);
                 }
                 Rule::LRLazyForwardParamodulation(paramodulation)
@@ -240,11 +243,10 @@ impl Tableau {
                         bindings,
                         occurrence.clause,
                     );
-                    let (left, right) =
-                        self.literals[some(current)].get_equality();
+                    let (left, right) = self.literals[current].get_equality();
                     let from = if rule.is_l2r() { left } else { right };
-                    let target = some(graph.get_term(target));
-                    let from = some(graph.get_term(from));
+                    let target = graph.get_term(target);
+                    let from = graph.get_term(from);
                     graph.paramodulation(rule.is_strict(), from, target);
                 }
             }
@@ -282,7 +284,7 @@ impl Tableau {
                 self.close_branches();
             }
             Rule::Reflexivity => {
-                some(self.stack.last_mut()).reflexivity(
+                unwrap(self.stack.last_mut()).reflexivity(
                     record,
                     problem,
                     terms,
@@ -292,7 +294,7 @@ impl Tableau {
                 self.close_branches();
             }
             Rule::Reduction(reduction) => {
-                some(self.stack.last_mut()).reduction(
+                unwrap(self.stack.last_mut()).reduction(
                     record,
                     problem,
                     terms,
@@ -312,7 +314,7 @@ impl Tableau {
                     terms,
                     &self.literals,
                 );
-                let consequence = some(self.stack.last_mut()).demodulation(
+                let consequence = unwrap(self.stack.last_mut()).demodulation(
                     record,
                     problem,
                     terms,
@@ -331,14 +333,15 @@ impl Tableau {
                     terms,
                     &self.literals,
                 );
-                let extension = some(self.stack.last_mut()).strict_extension(
-                    record,
-                    problem,
-                    terms,
-                    &mut self.literals,
-                    constraints,
-                    extension,
-                );
+                let extension = unwrap(self.stack.last_mut())
+                    .strict_extension(
+                        record,
+                        problem,
+                        terms,
+                        &mut self.literals,
+                        constraints,
+                        extension,
+                    );
                 self.push(extension);
                 self.close_branches();
             }
@@ -348,7 +351,7 @@ impl Tableau {
                     terms,
                     &self.literals,
                 );
-                let (extension, consequence) = some(self.stack.last_mut())
+                let (extension, consequence) = unwrap(self.stack.last_mut())
                     .lazy_extension(
                         record,
                         problem,
@@ -373,7 +376,7 @@ impl Tableau {
                     terms,
                     &self.literals,
                 );
-                let (extension, consequence) = some(self.stack.last_mut())
+                let (extension, consequence) = unwrap(self.stack.last_mut())
                     .strict_backward_paramodulation(
                         record,
                         problem,
@@ -397,7 +400,7 @@ impl Tableau {
                     terms,
                     &self.literals,
                 );
-                let (extension, consequence) = some(self.stack.last_mut())
+                let (extension, consequence) = unwrap(self.stack.last_mut())
                     .lazy_backward_paramodulation(
                         record,
                         problem,
@@ -421,7 +424,7 @@ impl Tableau {
                     terms,
                     &self.literals,
                 );
-                let (extension, consequence) = some(self.stack.last_mut())
+                let (extension, consequence) = unwrap(self.stack.last_mut())
                     .variable_backward_paramodulation(
                         record,
                         problem,
@@ -446,7 +449,7 @@ impl Tableau {
                     terms,
                     &self.literals,
                 );
-                let (extension, consequence) = some(self.stack.last_mut())
+                let (extension, consequence) = unwrap(self.stack.last_mut())
                     .strict_forward_paramodulation(
                         record,
                         problem,
@@ -472,7 +475,7 @@ impl Tableau {
                     terms,
                     &self.literals,
                 );
-                let (extension, consequence) = some(self.stack.last_mut())
+                let (extension, consequence) = unwrap(self.stack.last_mut())
                     .lazy_forward_paramodulation(
                         record,
                         problem,
@@ -504,7 +507,7 @@ impl Tableau {
 
     fn extension_validity(&mut self) {
         let valid_in = self.stack.len() + Offset::new(-1);
-        let literal = some(self.stack.last()).current_literal();
+        let literal = self.current_clause().current_literal();
         self.valid.resize(self.literals.len());
         self.valid[literal] = valid_in;
     }
@@ -531,7 +534,7 @@ impl Tableau {
     }
 
     fn close_branches(&mut self) {
-        let last = some(self.stack.last());
+        let last = self.current_clause();
         if !last.is_empty() {
             return;
         }
@@ -561,7 +564,7 @@ impl Tableau {
         literals: &Literals,
     ) {
         let current =
-            &self.literals[some(self.stack.last()).current_literal()];
+            &self.literals[self.current_clause().current_literal()];
 
         for path in self
             .path_literals()

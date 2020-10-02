@@ -29,7 +29,7 @@ pub(crate) fn dump(name: &str, problem: &Problem, proof: &[Rule]) {
             constraints_ok
         });
         if possible.len() > 1 {
-            let y = some(possible.iter().position(|rule| rule == step));
+            let y = unwrap(possible.iter().position(|rule| rule == step));
             goal.graph(&mut graph, &possible);
             goal.restore();
             print!("{{");

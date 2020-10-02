@@ -54,7 +54,7 @@ impl Bindings {
         term: Id<Term>,
     ) -> Id<Node> {
         let (resolved, view) = self.view(symbols, terms, term);
-        if let Some(node) = graph.get_term(resolved) {
+        if let Some(node) = graph.get_possible_term(resolved) {
             graph.store_term(term, node);
             return node;
         }

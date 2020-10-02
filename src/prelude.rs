@@ -11,4 +11,4 @@ pub(crate) use crate::util::id::Id;
 pub(crate) use crate::util::lut::LUT;
 pub(crate) use crate::util::offset::Offset;
 pub(crate) use crate::util::range::Range;
-pub(crate) use crate::util::unreachable::{some, unreachable};
+pub(crate) use crate::util::unreachable::{unreachable, unwrap};

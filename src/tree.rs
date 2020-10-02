@@ -153,8 +153,8 @@ impl Tree {
     }
 
     fn choose_child(&self, current: Id<Node>) -> Id<Node> {
-        some(self.open_children(current).max_by(|x, y| {
-            some(self.nodes[*x].score.partial_cmp(&self.nodes[*y].score))
+        unwrap(self.open_children(current).max_by(|x, y| {
+            unwrap(self.nodes[*x].score.partial_cmp(&self.nodes[*y].score))
         }))
     }
 
@@ -173,7 +173,7 @@ impl Tree {
             .open_children(node)
             .map(|child| &self.nodes[child])
             .map(|child| child.score + child.log_prior)
-            .max_by(|x, y| some(x.partial_cmp(y)))
+            .max_by(|x, y| unwrap(x.partial_cmp(y)))
             .unwrap_or_default();
     }
 }

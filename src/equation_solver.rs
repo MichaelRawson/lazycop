@@ -150,13 +150,13 @@ impl EquationSolver {
     }
 
     fn alias(&mut self, x: Id<Variable>, y: Id<Variable>) {
-        let x_alias = some(self.to_alias[x.transmute()]);
-        let y_alias = some(self.to_alias[y.transmute()]);
+        let x_alias = unwrap(self.to_alias[x.transmute()]);
+        let y_alias = unwrap(self.to_alias[y.transmute()]);
         self.aliases.merge(x_alias, y_alias);
     }
 
     fn bind(&mut self, x: Id<Variable>, term: Id<Term>) {
-        let alias = some(self.to_alias[x.transmute()]);
+        let alias = unwrap(self.to_alias[x.transmute()]);
         self.from_alias[alias] = term;
     }
 }

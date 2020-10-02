@@ -109,7 +109,14 @@ impl Graph {
         self.terms[term] = Some(node);
     }
 
-    pub(crate) fn get_term(&self, term: Id<Term>) -> Option<Id<Node>> {
+    pub(crate) fn get_term(&self, term: Id<Term>) -> Id<Node> {
+        unwrap(self.terms[term])
+    }
+
+    pub(crate) fn get_possible_term(
+        &self,
+        term: Id<Term>,
+    ) -> Option<Id<Node>> {
         self.terms[term]
     }
 
@@ -121,11 +128,8 @@ impl Graph {
         self.literals[literal] = Some(node);
     }
 
-    pub(crate) fn get_literal(
-        &self,
-        literal: Id<Literal>,
-    ) -> Option<Id<Node>> {
-        self.literals[literal]
+    pub(crate) fn get_literal(&self, literal: Id<Literal>) -> Id<Node> {
+        unwrap(self.literals[literal])
     }
 
     pub(crate) fn predicate(&mut self, term: Id<Node>) -> Id<Node> {
