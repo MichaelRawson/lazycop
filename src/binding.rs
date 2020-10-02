@@ -37,7 +37,7 @@ impl Bindings {
         self.bound
             .range()
             .into_iter()
-            .filter(move |variable| self.save[*variable].is_none())
+            .filter(move |variable| self.save[*variable] != self.bound[*variable])
             .filter_map(move |variable| {
                 self.bound[variable].map(|term| (variable, term))
             })

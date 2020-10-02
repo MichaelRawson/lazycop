@@ -147,8 +147,7 @@ impl TSTP {
     }
 
     fn print_term(&self, symbols: &Symbols, terms: &Terms, term: Id<Term>) {
-        let (_resolved, view) = self.bindings.view(symbols, terms, term);
-        match view {
+        match terms.view(symbols, term) {
             TermView::Variable(x) => self.print_variable(x),
             TermView::Function(symbol, args) => {
                 Self::print_symbol(symbols, symbol);
