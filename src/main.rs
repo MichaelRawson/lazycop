@@ -35,7 +35,6 @@ use crate::io::tstp::TSTP;
 use crate::options::Options;
 use crate::output::OutputInfo;
 use crate::problem_builder::ProblemBuilder;
-use crate::search::SearchResult;
 use crate::symbol::Symbols;
 
 fn main() {
@@ -80,13 +79,6 @@ fn main() {
     let problem = builder.finish(symbols);
     std::mem::drop(loader);
     let (statistics, result) = search::search(&problem, &options);
-
-    if options.dump_training_data {
-        if let SearchResult::Proof(proof) = result {
-            crate::training::dump(&name, &problem, &proof);
-        }
-        return;
-    }
 
     options
         .output

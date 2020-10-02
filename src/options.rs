@@ -36,12 +36,12 @@ pub(crate) struct Options {
     #[structopt(long)]
     pub(crate) dump_clauses: bool,
 
-    /// dump training data instead of proof
-    #[structopt(long)]
-    pub(crate) dump_training_data: bool,
-
     /// proof output
-    #[structopt(default_value="tstp", possible_values=&["tstp"], long)]
+    #[structopt(
+        long,
+        default_value="tstp",
+        possible_values=&["tstp", "training"],
+    )]
     pub(crate) output: Output,
 
     #[structopt(skip = Instant::now())]

@@ -4,6 +4,7 @@ use crate::io::{exit, szs};
 use crate::problem::Problem;
 use crate::search::SearchResult;
 use crate::statistics::Statistics;
+use crate::training;
 use std::str::FromStr;
 
 #[derive(Default)]
@@ -15,6 +16,7 @@ pub(crate) struct OutputInfo {
 
 pub(crate) enum Output {
     TSTP,
+    Training,
 }
 
 impl FromStr for Output {
@@ -23,8 +25,18 @@ impl FromStr for Output {
     fn from_str(output: &str) -> Result<Self, Self::Err> {
         match output {
             "tstp" => Ok(Self::TSTP),
+            "training" => Ok(Self::Training),
             _ => Err(format!("{}: not a valid proof output", output)),
         }
+    }
+}
+
+fn training(name: &str, problem: &Problem, result: SearchResult) -> ! {
+    if let SearchResult::Proof(proof) = result {
+        training::dump(&name, &problem, &proof);
+        exit::success()
+    } else {
+        exit::failure()
     }
 }
 
@@ -93,6 +105,7 @@ impl Output {
     ) -> ! {
         match self {
             Self::TSTP => tstp(name, problem, info, result, statistics),
+            Self::Training => training(name, problem, result),
         }
     }
 }
