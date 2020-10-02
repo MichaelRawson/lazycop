@@ -12,6 +12,7 @@ pub(crate) enum Node {
     Predicate,
     Equality,
     Negation,
+    Lemma,
     Clause,
     Start,
     Reflexivity,
@@ -153,6 +154,12 @@ impl Graph {
         let negation = self.node(Node::Negation);
         self.connect(negation, target);
         negation
+    }
+
+    pub(crate) fn lemma(&mut self, literal: Id<Node>) -> Id<Node> {
+        let node = self.node(Node::Lemma);
+        self.connect(node, literal);
+        node
     }
 
     pub(crate) fn clause(&mut self) -> Id<Node> {

@@ -130,7 +130,8 @@ impl Tableau {
                     bindings,
                 );
                 graph.store_literal(lemma, node);
-                graph.connect(node, root);
+                let lemma = graph.lemma(node);
+                graph.connect(root, lemma);
             }
         }
 
