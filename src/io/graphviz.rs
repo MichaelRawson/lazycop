@@ -51,7 +51,7 @@ impl Graphviz {
     pub(crate) fn start(&self) {
         println!("digraph proof {{");
         println!("\tnode [fontname=monospace, shape=rectangle];");
-        println!("\tstart;");
+        println!("\tstart [label=\"*\"];");
     }
 
     pub(crate) fn finish(self) {
@@ -121,9 +121,11 @@ impl Record for Graphviz {
                 println!("\t{} -> {} [style=bold];", parent, lemma.index());
             }
         }
+        else {
+            println!("\t{}:s -> {}:s [style=bold];", parent, parent);
+        }
 
-        for deduction in deductions {
-            let mut first_literal = true;
+        if let Some(deduction) = deductions.next() {
             for literal in *deduction {
                 print!("\t{} [label=\"", literal.index());
                 self.tstp.print_literal(
@@ -132,20 +134,10 @@ impl Record for Graphviz {
                     &literals[literal],
                 );
                 println!("\"];");
-                if first_literal {
-                    println!(
-                        "\t{} -> {} [style=bold];",
-                        parent,
-                        literal.index()
-                    );
-                    first_literal = false;
-                } else {
-                    println!("\t{} -> {};", parent, literal.index());
-                }
+                println!("\t{} -> {};", parent, literal.index());
             }
             self.todo.extend(deduction.into_iter().rev());
         }
-        println!();
     }
 
     fn lemma(
