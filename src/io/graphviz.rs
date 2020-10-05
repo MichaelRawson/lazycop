@@ -1,6 +1,6 @@
-use crate::io::tstp::TSTP;
 use crate::prelude::*;
 use crate::record::{Inference, Record};
+use crate::util::fresh::Fresh;
 
 pub(crate) struct GraphvizInference {
     axiom: Option<Range<Literal>>,
@@ -42,9 +42,9 @@ impl Inference for GraphvizInference {
 
 #[derive(Default)]
 pub(crate) struct Graphviz {
-    tstp: TSTP,
     todo: Vec<Id<Literal>>,
     lemmas: LUT<Literal, Option<Id<Literal>>>,
+    fresh: Fresh,
 }
 
 impl Graphviz {
@@ -56,6 +56,69 @@ impl Graphviz {
 
     pub(crate) fn finish(self) {
         println!("}}");
+    }
+
+    fn print_symbol(symbols: &Symbols, symbol: Id<Symbol>) {
+        match &symbols[symbol].name {
+            Name::Regular(word) => print!("{}", word),
+            Name::Quoted(quoted) => print!("'{}'", quoted),
+            Name::Skolem(skolem) => print!("sK{}", skolem),
+            Name::Definition(definition) => print!("sP{}", definition),
+        }
+    }
+
+    fn print_variable(&mut self, x: Id<Variable>) {
+        print!("X{}", self.fresh.get(x));
+    }
+
+    fn print_term(
+        &mut self,
+        symbols: &Symbols,
+        terms: &Terms,
+        term: Id<Term>,
+    ) {
+        match terms.view(symbols, term) {
+            TermView::Variable(x) => self.print_variable(x),
+            TermView::Function(symbol, args) => {
+                Self::print_symbol(symbols, symbol);
+                let mut args = args.into_iter();
+                if let Some(first) = args.next() {
+                    print!("(");
+                    let first = terms.resolve(first);
+                    self.print_term(symbols, terms, first);
+                    for arg in args {
+                        print!(",");
+                        let term = terms.resolve(arg);
+                        self.print_term(symbols, terms, term);
+                    }
+                    print!(")");
+                }
+            }
+        }
+    }
+
+    pub(crate) fn print_literal(
+        &mut self,
+        symbols: &Symbols,
+        terms: &Terms,
+        literal: &Literal,
+    ) {
+        if literal.is_predicate() {
+            if !literal.polarity {
+                print!("~");
+            }
+            let p = literal.get_predicate();
+            self.print_term(symbols, terms, p);
+        } else {
+            let (left, right) = literal.get_equality();
+            self.print_term(symbols, terms, left);
+            print!(" ");
+            if !literal.polarity {
+                print!("!");
+            }
+            print!("= ");
+            self.print_term(symbols, terms, right);
+        }
     }
 
     fn get_parent(&mut self) -> String {
@@ -77,6 +140,7 @@ impl Record for Graphviz {
         inference: &Self::Inference,
     ) {
         self.lemmas.resize(literals.len());
+        self.fresh.resize(terms.len().transmute());
         let is_start = self.todo.is_empty();
         let mut deductions = inference.deductions.iter();
         deductions.next();
@@ -88,7 +152,7 @@ impl Record for Graphviz {
             let mut first_literal = true;
             for literal in axiom {
                 print!("\t{} [label=\"", literal.index());
-                self.tstp.print_literal(
+                self.print_literal(
                     &problem.symbols,
                     terms,
                     &literals[literal],
@@ -127,7 +191,7 @@ impl Record for Graphviz {
         if let Some(deduction) = deductions.next() {
             for literal in *deduction {
                 print!("\t{} [label=\"", literal.index());
-                self.tstp.print_literal(
+                self.print_literal(
                     &problem.symbols,
                     terms,
                     &literals[literal],
