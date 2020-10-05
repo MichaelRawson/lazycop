@@ -1,4 +1,3 @@
-use crate::binding::Bindings;
 use crate::prelude::*;
 use crate::util::range::RangeIterator;
 use std::cmp::Ordering;
@@ -13,7 +12,7 @@ fn symbol_precedence(
 ) -> Ordering {
     let left_arity = symbols[left].arity;
     let right_arity = symbols[right].arity;
-    left_arity.cmp(&right_arity).then(right.cmp(&left))
+    left_arity.cmp(&right_arity).then(right.index().cmp(&left.index()))
 }
 
 fn alpha(

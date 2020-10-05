@@ -1,4 +1,3 @@
-use crate::binding::Bindings;
 use crate::cnf;
 use crate::equation_solver::EquationSolver;
 use crate::occurs::SkipCheck;
@@ -223,6 +222,7 @@ impl Record for TSTP {
         literals: &Literals,
         inference: &TSTPInference,
     ) {
+        self.variable_map.borrow_mut().resize(terms.len().transmute());
         self.bindings.resize(terms.len());
         self.bindings.save();
         let symbols = &problem.symbols;

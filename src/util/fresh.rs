@@ -7,10 +7,11 @@ pub(crate) struct Fresh {
 }
 
 impl Fresh {
+    pub(crate) fn resize(&mut self, len: Length<Variable>) {
+        self.map.resize(len);
+    }
+
     pub(crate) fn get(&mut self, variable: Id<Variable>) -> usize {
-        if variable >= self.map.len() {
-            self.map.resize(variable + Offset::new(1));
-        }
         if let Some(count) = self.map[variable] {
             return count;
         }

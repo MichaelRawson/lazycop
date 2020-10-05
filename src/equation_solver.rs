@@ -1,4 +1,3 @@
-use crate::binding::Bindings;
 use crate::occurs::Occurs;
 use crate::prelude::*;
 use crate::util::disjoint_set::{Disjoint, Set};
@@ -17,8 +16,8 @@ pub(crate) struct EquationSolver {
 impl EquationSolver {
     pub(crate) fn clear(&mut self) {
         self.aliases.clear();
-        self.to_alias.resize(Id::default());
-        self.from_alias.resize(Id::default());
+        self.to_alias.resize(Length::default());
+        self.from_alias.resize(Length::default());
     }
 
     pub(crate) fn save(&mut self) {

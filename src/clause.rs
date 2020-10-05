@@ -1,4 +1,3 @@
-use crate::binding::Bindings;
 use crate::constraint::Constraints;
 use crate::prelude::*;
 use crate::record::{Inference, Record};
@@ -70,13 +69,13 @@ impl Clause {
         literals: &mut Literals,
         clause: Id<ProblemClause>,
     ) -> Self {
-        let start = literals.len();
-        let offset = terms.current_offset();
+        let start = literals.end();
+        let offset = terms.offset();
         let clause = &problem.clauses[clause];
         terms.extend(&clause.terms);
         literals.extend(&clause.literals);
 
-        let end = literals.len();
+        let end = literals.end();
         for id in Range::new(start, end) {
             literals[id].offset(offset);
         }
@@ -191,14 +190,14 @@ impl Clause {
         constraints.assert_eq(target, from);
         constraints.assert_gt(from, to);
 
-        let start = literals.len();
+        let start = literals.end();
         literals.push(literals[onto].subst(
             &problem.symbols,
             terms,
             target,
             fresh,
         ));
-        let end = literals.len();
+        let end = literals.end();
         let consequence = Self::new(start, end);
 
         record.inference(
@@ -279,13 +278,13 @@ impl Clause {
             Self::extension(problem, terms, literals, constraints, extension);
         let p = &literals[self.current];
         let q = &literals[extension.current];
-        let disequation_start = literals.len();
+        let disequation_start = literals.end();
 
-        let fresh_start = terms.len();
+        let fresh_start = terms.end();
         for _ in p.get_predicate_arguments(&problem.symbols, terms) {
             terms.add_variable();
         }
-        let fresh_end = terms.len();
+        let fresh_end = terms.end();
         let fresh = Range::new(fresh_start, fresh_end);
 
         let mut inference = R::Inference::new("lazy_extension");
@@ -296,7 +295,7 @@ impl Clause {
             inference.equation(fresh, s);
             literals.push(Literal::disequation(fresh, t));
         }
-        let disequation_end = literals.len();
+        let disequation_end = literals.end();
         let disequations = Self::new(disequation_start, disequation_end);
 
         record.inference(
@@ -330,7 +329,7 @@ impl Clause {
                 constraints,
                 paramodulation,
             );
-        let start = literals.len();
+        let start = literals.end();
         let fresh = terms.add_variable();
         constraints.assert_eq(target, from);
         constraints.assert_gt(from, fresh);
@@ -342,7 +341,7 @@ impl Clause {
             target,
             fresh,
         ));
-        let end = literals.len();
+        let end = literals.end();
         let consequence = Self::new(start, end);
 
         record.inference(
@@ -377,7 +376,7 @@ impl Clause {
                 constraints,
                 paramodulation,
             );
-        let start = literals.len();
+        let start = literals.end();
         let fresh = terms.add_variable();
         let placeholder =
             terms.fresh_function(&problem.symbols, terms.symbol(from));
@@ -397,7 +396,7 @@ impl Clause {
             target,
             fresh,
         ));
-        let end = literals.len();
+        let end = literals.end();
         let consequence = Self::new(start, end);
 
         record.inference(
@@ -433,7 +432,7 @@ impl Clause {
                 paramodulation,
             );
 
-        let start = literals.len();
+        let start = literals.end();
         let fresh = terms.add_variable();
         literals.push(Literal::disequation(fresh, to));
         literals.push(literals[self.current].subst(
@@ -442,7 +441,7 @@ impl Clause {
             target,
             fresh,
         ));
-        let end = literals.len();
+        let end = literals.end();
         let consequence = Self::new(start, end);
 
         constraints.assert_eq(target, from);
@@ -485,14 +484,14 @@ impl Clause {
             );
         constraints.assert_eq(target, from);
 
-        let start = literals.len();
+        let start = literals.end();
         literals.push(literals[extension.current].subst(
             &problem.symbols,
             terms,
             target,
             fresh,
         ));
-        let end = literals.len();
+        let end = literals.end();
         let consequence = Self::new(start, end);
 
         record.inference(
@@ -535,7 +534,7 @@ impl Clause {
         constraints.assert_eq(placeholder, from);
         constraints.assert_neq(target, from);
 
-        let start = literals.len();
+        let start = literals.end();
         for (s, t) in
             term_argument_pairs(&problem.symbols, terms, placeholder, target)
         {
@@ -548,7 +547,7 @@ impl Clause {
             target,
             fresh,
         ));
-        let end = literals.len();
+        let end = literals.end();
         let consequence = Self::new(start, end);
 
         record.inference(
@@ -614,7 +613,7 @@ impl Clause {
         let (from, to) = if l2r { (left, right) } else { (right, left) };
         let occurrence =
             &problem.index.subterm_occurrences[extension.occurrence];
-        let target = occurrence.subterm + terms.current_offset();
+        let target = occurrence.subterm + terms.offset();
         let extension = Self::extend(
             problem,
             terms,

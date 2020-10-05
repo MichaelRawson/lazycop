@@ -19,15 +19,19 @@ enum Item {
 #[derive(Default)]
 pub(crate) struct Terms {
     items: Block<Item>,
-    save: Id<Item>,
+    save: Length<Item>,
 }
 
 impl Terms {
-    pub(crate) fn len(&self) -> Id<Term> {
+    pub(crate) fn end(&self) -> Id<Term> {
+        self.items.end().transmute()
+    }
+
+    pub(crate) fn len(&self) -> Length<Term> {
         self.items.len().transmute()
     }
 
-    pub(crate) fn current_offset(&self) -> Offset<Term> {
+    pub(crate) fn offset(&self) -> Offset<Term> {
         self.items.offset().transmute()
     }
 
@@ -70,7 +74,7 @@ impl Terms {
         symbol: Id<Symbol>,
     ) -> Id<Term> {
         let arity = symbols[symbol].arity;
-        let start = self.items.len();
+        let start = self.items.end();
         for _ in 0..arity {
             self.add_variable();
         }
@@ -150,7 +154,7 @@ impl Terms {
 
     pub(crate) fn resolve(&self, argument: Id<Argument>) -> Id<Term> {
         let item = argument.transmute();
-        let resolved = item + self.offset(item);
+        let resolved = item + self.offset_of(item);
         resolved.transmute()
     }
 
@@ -194,7 +198,54 @@ impl Terms {
         }
     }
 
-    fn offset(&self, id: Id<Item>) -> Offset<Item> {
+    pub(crate) fn graph(
+        &self,
+        graph: &mut Graph,
+        symbols: &Symbols,
+        bindings: &Bindings,
+        term: Id<Term>,
+    ) -> Id<Node> {
+        if let Some(node) = graph.get_possible_term(term) {
+            return node;
+        }
+        let node = match self.view(symbols, term) {
+            TermView::Variable(x) => {
+                let variable = graph.variable();
+                if let Some(bound) = bindings.get(x) {
+                    if x.transmute() != bound {
+                        let bound =
+                            self.graph(graph, symbols, bindings, bound);
+                        graph.connect(variable, bound);
+                    }
+                }
+                variable
+            }
+            TermView::Function(f, args) => {
+                let symbol = graph.symbol(symbols, f);
+                if Range::is_empty(args) {
+                    symbol
+                } else {
+                    let application = graph.application(symbol);
+                    let mut previous = symbol;
+                    for arg in args {
+                        let arg = self.graph(
+                            graph,
+                            symbols,
+                            bindings,
+                            self.resolve(arg),
+                        );
+                        let arg = graph.argument(application, previous, arg);
+                        previous = arg;
+                    }
+                    application
+                }
+            }
+        };
+        graph.store_term(term, node);
+        node
+    }
+
+    fn offset_of(&self, id: Id<Item>) -> Offset<Item> {
         match self.items[id.transmute()] {
             Item::Offset(offset) => offset,
             _ => unreachable(),
@@ -202,9 +253,6 @@ impl Terms {
     }
 
     fn add_reference(&mut self, referred: Id<Item>) {
-        let id = self.items.len();
-        let offset = referred - id;
-        let item = Item::Offset(offset);
-        self.items.push(item);
+        self.items.push(Item::Offset(referred - self.items.end()));
     }
 }

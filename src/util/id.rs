@@ -1,6 +1,5 @@
 use crate::prelude::*;
 use std::cmp::Ordering;
-use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::ops::{Add, Sub};
 
@@ -82,11 +81,5 @@ impl<T> PartialOrd for Id<T> {
 impl<T> Ord for Id<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.id.cmp(&other.id)
-    }
-}
-
-impl<T> Hash for Id<T> {
-    fn hash<H: Hasher>(&self, hash: &mut H) {
-        self.id.hash(hash);
     }
 }

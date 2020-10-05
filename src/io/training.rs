@@ -16,7 +16,7 @@ fn array<T: std::fmt::Display>(data: &[T]) {
 
 pub(crate) fn dump(name: &str, problem: &Problem, proof: &[Rule]) {
     let mut goal = Goal::new(problem);
-    let mut graph = Graph::default();
+    let mut graph = Graph::new(problem);
     let mut possible = vec![];
 
     for step in proof.iter() {

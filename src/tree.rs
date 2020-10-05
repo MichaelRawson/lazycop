@@ -86,11 +86,11 @@ impl Tree {
     }
 
     pub(crate) fn expand(&mut self, leaf: Id<Node>, data: &[(Rule, u32)]) {
-        let start = self.nodes.len();
+        let start = self.nodes.end();
         for (rule, estimate) in data {
             self.nodes.push(Node::leaf(leaf, *rule, *estimate));
         }
-        let end = self.nodes.len();
+        let end = self.nodes.end();
         self.nodes[leaf].children = Range::new(start, end);
         self.propagate_expansion(leaf);
     }

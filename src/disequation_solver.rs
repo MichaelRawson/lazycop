@@ -1,4 +1,3 @@
-use crate::binding::Bindings;
 use crate::constraint::SymmetricDisequation;
 use crate::prelude::*;
 
@@ -13,8 +12,8 @@ pub(crate) struct DisequationSolver {
     atomic: Block<AtomicDisequation>,
     solved: Block<Range<AtomicDisequation>>,
 
-    save_atomic: Id<AtomicDisequation>,
-    save_solved: Id<Range<AtomicDisequation>>,
+    save_atomic: Length<AtomicDisequation>,
+    save_solved: Length<Range<AtomicDisequation>>,
 }
 
 impl DisequationSolver {
@@ -41,13 +40,14 @@ impl DisequationSolver {
         disequations: I,
     ) -> bool {
         for (left, right) in disequations {
-            let start = self.atomic.len();
+            let reset = self.atomic.len();
+            let start = self.atomic.end();
             if self.simplify_disequation(symbols, terms, bindings, left, right)
             {
-                self.atomic.truncate(start);
+                self.atomic.truncate(reset);
                 continue;
             }
-            let end = self.atomic.len();
+            let end = self.atomic.end();
             if start == end {
                 return false;
             }
@@ -74,34 +74,36 @@ impl DisequationSolver {
                 right2,
             } = symmetric;
 
-            let start = self.atomic.len();
+            let reset = self.atomic.len();
+            let start = self.atomic.end();
             if self
                 .simplify_disequation(symbols, terms, bindings, left1, left2)
                 || self.simplify_disequation(
                     symbols, terms, bindings, right1, right2,
                 )
             {
-                self.atomic.truncate(start);
+                self.atomic.truncate(reset);
                 continue;
             }
-            let end = self.atomic.len();
+            let end = self.atomic.end();
             if start == end {
                 return false;
             }
             let solved = Range::new(start, end);
             self.solved.push(solved);
 
-            let start = self.atomic.len();
+            let reset = self.atomic.len();
+            let start = self.atomic.end();
             if self
                 .simplify_disequation(symbols, terms, bindings, left1, right2)
                 || self.simplify_disequation(
                     symbols, terms, bindings, right1, left2,
                 )
             {
-                self.atomic.truncate(start);
+                self.atomic.truncate(reset);
                 continue;
             }
-            let end = self.atomic.len();
+            let end = self.atomic.end();
             if start == end {
                 return false;
             }

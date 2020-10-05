@@ -71,7 +71,7 @@ impl ProblemBuilder {
                 let term = self.term(terms, term);
                 let atom = Atom::Predicate(term);
                 let symbol = atom.get_predicate_symbol(terms);
-                let clause = self.clauses.len();
+                let clause = self.clauses.end();
                 let literal = literals.push(Literal::new(polarity, atom));
 
                 self.index.add_predicate_occurrence(
@@ -88,7 +88,7 @@ impl ProblemBuilder {
                 self.has_equality = true;
                 let left = self.term(terms, left);
                 let right = self.term(terms, right);
-                let clause = self.clauses.len();
+                let clause = self.clauses.end();
 
                 let atom = Atom::Equality(left, right);
                 let literal = literals.push(Literal::new(polarity, atom));

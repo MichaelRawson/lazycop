@@ -103,7 +103,7 @@ fn evaluation_task(
     let mut inferences = vec![];
     let mut scores = vec![];
     let mut goal = Goal::new(problem);
-    let mut graph = Graph::default();
+    let mut graph = Graph::new(problem);
 
     while !stop.load(Ordering::Relaxed) {
         let node = if let Some(node) =

@@ -1,5 +1,6 @@
 use crate::util::block::Block;
 use crate::util::id::Id;
+use crate::util::length::Length;
 use crate::util::range::Range;
 use std::marker::PhantomData;
 use std::ops::{Index, IndexMut};
@@ -10,7 +11,7 @@ pub(crate) struct LUT<K, V> {
 }
 
 impl<K, V> LUT<K, V> {
-    pub(crate) fn len(&self) -> Id<K> {
+    pub(crate) fn len(&self) -> Length<K> {
         self.block.len().transmute()
     }
 
@@ -26,7 +27,7 @@ impl<K, V: Copy> LUT<K, V> {
 }
 
 impl<K, V: Default> LUT<K, V> {
-    pub(crate) fn resize(&mut self, len: Id<K>) {
+    pub(crate) fn resize(&mut self, len: Length<K>) {
         self.block.resize(len.transmute());
     }
 }

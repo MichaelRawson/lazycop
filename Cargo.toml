@@ -9,9 +9,6 @@ homepage = "https://github.com/MichaelRawson/lazycop"
 repository = "https://github.com/MichaelRawson/lazycop"
 license = "MIT"
 
-[features]
-nn = ["cudann"]
-
 [dependencies]
 crossbeam-utils = "0.7"
 fnv = "1.0"

@@ -10,8 +10,12 @@ impl<T> Block<T> {
         self.items.clear();
     }
 
-    pub(crate) fn len(&self) -> Id<T> {
+    pub(crate) fn end(&self) -> Id<T> {
         Id::new(self.items.len() as u32)
+    }
+
+    pub(crate) fn len(&self) -> Length<T> {
+        Length::new(self.items.len() as u32)
     }
 
     pub(crate) fn offset(&self) -> Offset<T> {
@@ -31,11 +35,11 @@ impl<T> Block<T> {
     }
 
     pub(crate) fn range(&self) -> Range<T> {
-        Range::new(Id::default(), self.len())
+        Range::new(Id::default(), self.end())
     }
 
     pub(crate) fn push(&mut self, item: T) -> Id<T> {
-        let id = self.len();
+        let id = self.end();
         self.items.push(item);
         id
     }
@@ -44,7 +48,7 @@ impl<T> Block<T> {
         self.items.pop()
     }
 
-    pub(crate) fn truncate(&mut self, len: Id<T>) {
+    pub(crate) fn truncate(&mut self, len: Length<T>) {
         self.items.truncate(len.index() as usize);
     }
 }
@@ -61,7 +65,7 @@ impl<T: Copy> Block<T> {
 }
 
 impl<T: Default> Block<T> {
-    pub(crate) fn resize(&mut self, len: Id<T>) {
+    pub(crate) fn resize(&mut self, len: Length<T>) {
         self.items
             .resize_with(len.index() as usize, Default::default);
     }

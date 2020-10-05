@@ -8,7 +8,7 @@ pub(crate) struct Bindings {
 
 impl Bindings {
     pub(crate) fn clear(&mut self) {
-        self.bound.resize(Id::default());
+        self.bound.resize(Length::default());
     }
 
     pub(crate) fn save(&mut self) {
@@ -19,12 +19,16 @@ impl Bindings {
         self.bound.copy_from(&self.save);
     }
 
-    pub(crate) fn resize(&mut self, len: Id<Term>) {
+    pub(crate) fn resize(&mut self, len: Length<Term>) {
         self.bound.resize(len.transmute());
     }
 
     pub(crate) fn bind(&mut self, x: Id<Variable>, term: Id<Term>) {
         self.bound[x] = Some(term);
+    }
+
+    pub(crate) fn get(&self, x: Id<Variable>) -> Option<Id<Term>> {
+        self.bound[x]
     }
 
     pub(crate) fn is_bound(&self, x: Id<Variable>) -> bool {
@@ -44,46 +48,6 @@ impl Bindings {
                 self.bound[variable].map(|term| (variable, term))
             })
             .filter(|(variable, term)| variable.transmute() != *term)
-    }
-
-    pub(crate) fn graph(
-        &self,
-        graph: &mut Graph,
-        symbols: &Symbols,
-        terms: &Terms,
-        term: Id<Term>,
-    ) -> Id<Node> {
-        let (resolved, view) = self.view(symbols, terms, term);
-        if let Some(node) = graph.get_possible_term(resolved) {
-            graph.store_term(term, node);
-            return node;
-        }
-        let node = match view {
-            TermView::Variable(_) => graph.variable(),
-            TermView::Function(f, args) => {
-                let symbol = graph.symbol(symbols, f);
-                if Range::is_empty(args) {
-                    symbol
-                } else {
-                    let application = graph.application(symbol);
-                    let mut previous = symbol;
-                    for arg in args {
-                        let arg = self.graph(
-                            graph,
-                            symbols,
-                            terms,
-                            terms.resolve(arg),
-                        );
-                        let arg = graph.argument(application, previous, arg);
-                        previous = arg;
-                    }
-                    application
-                }
-            }
-        };
-        graph.store_term(term, node);
-        graph.store_term(resolved, node);
-        node
     }
 
     pub(crate) fn view(

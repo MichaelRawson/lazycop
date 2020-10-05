@@ -1,6 +1,7 @@
+use crate::clause::Clause;
 use crate::prelude::*;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 #[repr(u32)]
 pub(crate) enum Node {
     Symbol,
@@ -24,6 +25,13 @@ pub(crate) enum Node {
     LazyParamodulation,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct ProblemClauseRecord {
+    pub(crate) node: Id<Node>,
+    pub(crate) term_offset: Offset<Term>,
+    pub(crate) literal_offset: Offset<Literal>,
+}
+
 #[derive(Default)]
 pub(crate) struct Graph {
     pub(crate) nodes: Block<u32>,
@@ -33,25 +41,34 @@ pub(crate) struct Graph {
     symbols: LUT<Symbol, Option<Id<Node>>>,
     terms: LUT<Term, Option<Id<Node>>>,
     literals: LUT<Literal, Option<Id<Node>>>,
+    problem_clauses: LUT<ProblemClause, Option<ProblemClauseRecord>>,
 }
 
 impl Graph {
+    pub(crate) fn new(problem: &Problem) -> Self {
+        let mut new = Self::default();
+        new.symbols.resize(problem.symbols.len());
+        new.problem_clauses.resize(problem.clauses.len());
+        new
+    }
+
     pub(crate) fn node_labels(&self) -> &[u32] {
         self.nodes.as_ref()
     }
 
     pub(crate) fn clear(&mut self) {
+        for id in self.symbols.range() {
+            self.symbols[id] = None;
+        }
+        for id in self.problem_clauses.range() {
+            self.problem_clauses[id] = None;
+        }
         self.nodes.clear();
         self.sources.clear();
         self.targets.clear();
         self.rules.clear();
-        self.symbols.resize(Id::default());
-        self.terms.resize(Id::default());
-        self.literals.resize(Id::default());
-    }
-
-    pub(crate) fn signature(&mut self, symbols: &Symbols) {
-        self.symbols.resize(symbols.len());
+        self.terms.resize(Length::default());
+        self.literals.resize(Length::default());
     }
 
     pub(crate) fn resize_for(&mut self, terms: &Terms, literals: &Literals) {
@@ -164,6 +181,36 @@ impl Graph {
 
     pub(crate) fn clause(&mut self) -> Id<Node> {
         self.node(Node::Clause)
+    }
+
+    #[must_use]
+    pub(crate) fn problem_clause(
+        &mut self,
+        problem: &Problem,
+        terms: &mut Terms,
+        literals: &mut Literals,
+        bindings: &mut Bindings,
+        problem_clause: Id<ProblemClause>,
+    ) -> ProblemClauseRecord {
+        if let Some(record) = self.problem_clauses[problem_clause] {
+            return record;
+        }
+
+        let term_offset = terms.offset();
+        let literal_offset = literals.offset();
+        let new = Clause::copy(problem, terms, literals, problem_clause);
+        bindings.resize(terms.len());
+        self.resize_for(terms, literals);
+        let node =
+            new.graph(self, &problem.symbols, terms, literals, bindings);
+
+        let record = ProblemClauseRecord {
+            node,
+            term_offset,
+            literal_offset,
+        };
+        self.problem_clauses[problem_clause] = Some(record);
+        record
     }
 
     pub(crate) fn start(&mut self, clause: Id<Node>) -> Id<Node> {

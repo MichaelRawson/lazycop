@@ -1,39 +1,39 @@
 use crate::index::*;
 use crate::prelude::*;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Start {
     pub(crate) clause: Id<ProblemClause>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Reduction {
     pub(crate) literal: Id<Literal>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Extension {
     pub(crate) occurrence: Id<PredicateOccurrence>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Demodulation {
     pub(crate) literal: Id<Literal>,
     pub(crate) target: Id<Term>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BackwardParamodulation {
     pub(crate) occurrence: Id<EqualityOccurrence>,
     pub(crate) target: Id<Term>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ForwardParamodulation {
     pub(crate) occurrence: Id<SubtermOccurrence>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Rule {
     Start(Start),
     Reflexivity,

@@ -120,8 +120,7 @@ impl Record for Graphviz {
             } else {
                 println!("\t{} -> {} [style=bold];", parent, lemma.index());
             }
-        }
-        else {
+        } else {
             println!("\t{}:s -> {}:s [style=bold];", parent, parent);
         }
 

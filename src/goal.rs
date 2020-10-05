@@ -1,4 +1,3 @@
-use crate::binding::Bindings;
 use crate::constraint::Constraints;
 use crate::disequation_solver::DisequationSolver;
 use crate::equation_solver::EquationSolver;
@@ -154,7 +153,6 @@ impl<'problem> Goal<'problem> {
     }
 
     pub(crate) fn graph(&mut self, graph: &mut Graph, rules: &[Rule]) {
-        graph.signature(&self.problem.symbols);
         self.tableau.graph(
             graph,
             &self.problem,

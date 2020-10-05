@@ -1,4 +1,3 @@
-use crate::binding::Bindings;
 use crate::clause::Clause;
 use crate::constraint::Constraints;
 use crate::infer;
@@ -26,7 +25,7 @@ pub(crate) struct Tableau {
     valid: LUT<Literal, Id<Clause>>,
     lemmata: LUT<Clause, Vec<Id<Literal>>>,
 
-    save_literals: Id<Literal>,
+    save_literals: Length<Literal>,
     save_stack: Block<Clause>,
     save_valid: LUT<Literal, Id<Clause>>,
     save_lemmata: LUT<Clause, Vec<Id<Literal>>>,
@@ -74,7 +73,7 @@ impl Tableau {
     pub(crate) fn clear(&mut self) {
         self.literals.clear();
         self.stack.clear();
-        self.valid.resize(Id::default());
+        self.valid.resize(Length::default());
     }
 
     pub(crate) fn save(&mut self) {
@@ -122,6 +121,7 @@ impl Tableau {
             }
             let current = self.stack[clause].current_literal();
             link = Some(graph.get_literal(current));
+
             for lemma in self.lemmata[clause].iter().copied() {
                 let node = self.literals[lemma].graph(
                     graph,
@@ -141,31 +141,18 @@ impl Tableau {
             .map(|clause| clause.current_literal())
             .unwrap_or_default();
 
-        fn copy_clause(
-            graph: &mut Graph,
-            problem: &Problem,
-            terms: &mut Terms,
-            literals: &mut Literals,
-            bindings: &mut Bindings,
-            problem_clause: Id<ProblemClause>,
-        ) -> Id<Node> {
-            let new = Clause::copy(problem, terms, literals, problem_clause);
-            bindings.resize(terms.len());
-            graph.resize_for(terms, literals);
-            new.graph(graph, &problem.symbols, terms, literals, bindings)
-        };
-
         for rule in rules {
             match rule {
                 Rule::Start(start) => {
-                    let root = copy_clause(
-                        graph,
-                        problem,
-                        terms,
-                        &mut self.literals,
-                        bindings,
-                        start.clause,
-                    );
+                    let root = graph
+                        .problem_clause(
+                            problem,
+                            terms,
+                            &mut self.literals,
+                            bindings,
+                            start.clause,
+                        )
+                        .node;
                     graph.start(root);
                 }
                 Rule::Reflexivity => {
@@ -197,15 +184,16 @@ impl Tableau {
                     let current = graph.get_literal(current);
                     let occurrence = &problem.index.predicate_occurrences
                         [extension.occurrence];
-                    let mate = occurrence.literal + self.literals.offset();
-                    copy_clause(
-                        graph,
-                        problem,
-                        terms,
-                        &mut self.literals,
-                        bindings,
-                        occurrence.clause,
-                    );
+                    let mate = occurrence.literal
+                        + graph
+                            .problem_clause(
+                                problem,
+                                terms,
+                                &mut self.literals,
+                                bindings,
+                                occurrence.clause,
+                            )
+                            .literal_offset;
                     let mate = graph.get_literal(mate);
                     graph.extension(rule.is_strict(), current, mate);
                 }
@@ -214,15 +202,16 @@ impl Tableau {
                 | Rule::VariableBackwardParamodulation(paramodulation) => {
                     let occurrence = &problem.index.equality_occurrences
                         [paramodulation.occurrence];
-                    let mate = occurrence.literal + self.literals.offset();
-                    copy_clause(
-                        graph,
-                        problem,
-                        terms,
-                        &mut self.literals,
-                        bindings,
-                        occurrence.clause,
-                    );
+                    let mate = occurrence.literal
+                        + graph
+                            .problem_clause(
+                                problem,
+                                terms,
+                                &mut self.literals,
+                                bindings,
+                                occurrence.clause,
+                            )
+                            .literal_offset;
                     let (left, right) = self.literals[mate].get_equality();
                     let from = if occurrence.l2r { left } else { right };
                     let from = graph.get_term(from);
@@ -235,15 +224,16 @@ impl Tableau {
                 | Rule::RLStrictForwardParamodulation(paramodulation) => {
                     let occurrence = &problem.index.subterm_occurrences
                         [paramodulation.occurrence];
-                    let target = occurrence.subterm + terms.current_offset();
-                    copy_clause(
-                        graph,
-                        problem,
-                        terms,
-                        &mut self.literals,
-                        bindings,
-                        occurrence.clause,
-                    );
+                    let target = occurrence.subterm
+                        + graph
+                            .problem_clause(
+                                problem,
+                                terms,
+                                &mut self.literals,
+                                bindings,
+                                occurrence.clause,
+                            )
+                            .term_offset;
                     let (left, right) = self.literals[current].get_equality();
                     let from = if rule.is_l2r() { left } else { right };
                     let target = graph.get_term(target);
@@ -507,7 +497,7 @@ impl Tableau {
     }
 
     fn extension_validity(&mut self) {
-        let valid_in = self.stack.len() + Offset::new(-1);
+        let valid_in = self.stack.end() + Offset::new(-1);
         let literal = self.current_clause().current_literal();
         self.valid.resize(self.literals.len());
         self.valid[literal] = valid_in;
@@ -523,7 +513,7 @@ impl Tableau {
             .map(|id| id + Offset::new(1))
             .unwrap_or(self.valid[reduction]);
 
-        for affected in Range::new(valid_in, self.stack.len())
+        for affected in Range::new(valid_in, self.stack.end())
             .into_iter()
             .rev()
             .skip(1)

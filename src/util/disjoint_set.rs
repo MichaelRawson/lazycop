@@ -12,7 +12,7 @@ pub(crate) struct Disjoint {
 }
 
 impl Disjoint {
-    pub(crate) fn len(&self) -> Id<Set> {
+    pub(crate) fn len(&self) -> Length<Set> {
         self.sets.len()
     }
 
@@ -25,7 +25,7 @@ impl Disjoint {
     }
 
     pub(crate) fn singleton(&mut self) -> Id<Set> {
-        let parent = self.sets.len();
+        let parent = self.sets.end();
         let rank = 0;
         let set = Set { parent, rank };
         self.sets.push(set)
