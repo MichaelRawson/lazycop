@@ -21,8 +21,8 @@ libmodel.so : model.o
 model.o : weights.h model.cu
 	$(NVCC) $(NVCC_FLAGS) -c -o $@ model.cu
 
-weights.h : weights.py model.pt
-	$(PYTHON) weights.py model.pt > $@
+weights.h : model.pt
+	python3 ../model2c.py $< > $@
 
 clean :
 	$(RM) test libmodel.a libmodel.so model.o weights.h

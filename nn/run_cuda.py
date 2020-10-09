@@ -7,7 +7,7 @@ import torch
 
 from data import examples
 
-so = CDLL('./libmodel.so')
+so = CDLL('cuda/libmodel.so')
 init = so.init
 init.restype = None
 init.argtypes = []

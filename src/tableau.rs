@@ -40,7 +40,7 @@ impl Tableau {
         unwrap(self.stack.last())
     }
 
-    pub(crate) fn num_open_literals(&self) -> u32 {
+    pub(crate) fn size(&self) -> u32 {
         self.stack
             .range()
             .into_iter()

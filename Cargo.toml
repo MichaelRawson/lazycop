@@ -20,4 +20,4 @@ tptp = "0.24"
 
 [dependencies.cudann]
 optional = true
-path = "cudann"
+path = "nn/cuda"

@@ -73,8 +73,8 @@ impl<'problem> Goal<'problem> {
         self.tableau.is_empty()
     }
 
-    pub(crate) fn num_open_literals(&self) -> u32 {
-        self.tableau.num_open_literals()
+    pub(crate) fn size(&self) -> u32 {
+        self.tableau.size()
     }
 
     pub(crate) fn apply_rule<R: Record>(

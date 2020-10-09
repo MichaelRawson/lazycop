@@ -1,19 +1,20 @@
 import torch
 from torch.nn import BatchNorm1d, Embedding, Linear, Module, ModuleList, Parameter
 from torch.nn.functional import relu_
-from torch_scatter import scatter_mean, scatter_max
+from torch.nn.init import xavier_normal_
+from torch_scatter import scatter_mean
 
-NODE_TYPES = 18
+NODE_TYPES = 19
 CHANNELS = 64
 HIDDEN = 1024
-LAYERS = 16
+LAYERS = 24
 
 class Conv(Module):
     def __init__(self):
         super().__init__()
         self.bn = BatchNorm1d(CHANNELS)
         self.weight = Linear(CHANNELS, CHANNELS)
-        torch.nn.init.xavier_normal_(self.weight.weight)
+        xavier_normal_(self.weight.weight)
 
     def forward(self, x, sources, targets):
         x = scatter_mean(x[sources], targets, dim_size=x.shape[0], dim=0)

@@ -71,8 +71,7 @@ fn expansion_task(
                     proof = Some(script);
                 }
 
-                let estimate = goal.num_open_literals();
-                data.push((rule, estimate));
+                data.push((rule, goal.size()));
                 statistics.increment_retained_goals();
             } else {
                 statistics.increment_eliminated_goals();

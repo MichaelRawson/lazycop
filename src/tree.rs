@@ -1,5 +1,7 @@
 use crate::prelude::*;
 
+const LAMBDA: f32 = 1.0;
+
 pub(crate) struct Node {
     parent: Id<Node>,
     children: Range<Node>,
@@ -12,10 +14,14 @@ pub(crate) struct Node {
 }
 
 impl Node {
-    fn leaf(parent: Id<Node>, rule: Rule, estimate: u32) -> Self {
+    fn leaf(
+        parent: Id<Node>,
+        rule: Rule,
+        estimate: u32,
+        log_prior: f32,
+    ) -> Self {
         let children = Range::new(Id::default(), Id::default());
-        let log_prior = 0.0;
-        let score = -(estimate as f32).ln();
+        let score = -LAMBDA * estimate as f32;
         let closed = false;
         Self {
             parent,
@@ -41,7 +47,7 @@ pub(crate) struct Tree {
 impl Default for Tree {
     fn default() -> Self {
         let mut nodes = Block::default();
-        nodes.push(Node::leaf(Id::default(), Rule::Reflexivity, 0));
+        nodes.push(Node::leaf(Id::default(), Rule::Reflexivity, 0, 0.0));
         Self { nodes }
     }
 }
@@ -86,9 +92,10 @@ impl Tree {
     }
 
     pub(crate) fn expand(&mut self, leaf: Id<Node>, data: &[(Rule, u32)]) {
+        let log_prior = -(data.len() as f32).ln();
         let start = self.nodes.end();
         for (rule, estimate) in data {
-            self.nodes.push(Node::leaf(leaf, *rule, *estimate));
+            self.nodes.push(Node::leaf(leaf, *rule, *estimate, log_prior));
         }
         let end = self.nodes.end();
         self.nodes[leaf].children = Range::new(start, end);

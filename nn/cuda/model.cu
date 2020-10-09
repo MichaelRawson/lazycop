@@ -491,6 +491,8 @@ static void upload(
 		(float *)(p_upload + backward_node_norm_offset);
 	auto p_rules = (int32_t *)(p_upload + rules_offset);
 
+	memcpy(p_nodes, h_nodes, num_nodes * sizeof(float));
+	memcpy(p_rules, h_rules, num_rules * sizeof(float));
 	memset(p_forward_node_norm, 0, num_nodes * sizeof(float));
 	memset(p_backward_node_norm, 0, num_nodes * sizeof(float));
 	for(uint32_t i = 0; i < num_edges; i++) {
@@ -502,8 +504,6 @@ static void upload(
 		p_backward_node_norm[source] += 1.0f;
 	}
 	for(uint32_t i = 0; i < num_nodes; i++) {
-		p_nodes[i] = h_nodes[i];
-		p_rules[i] = h_rules[i];
 		p_forward_node_norm[i] = 1.0f /
 			(1.0f + p_forward_node_norm[i]);
 		p_backward_node_norm[i] = 1.0f /
@@ -609,6 +609,7 @@ extern "C" void init() {
 		OUTPUT_WEIGHT_DATA,
 		sizeof(OUTPUT_WEIGHT_DATA)
 	);
+	CUDAOK(cudaStreamSynchronize(CU_STREAM_PER_THREAD));
 }
 
 #include <cstdio>

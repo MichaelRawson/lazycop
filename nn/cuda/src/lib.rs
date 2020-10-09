@@ -1,5 +1,3 @@
-const CONFIDENCE: f32 = 0.1;
-
 pub struct Input<'a> {
     pub nodes: &'a [u32],
     pub sources: &'a [u32],
@@ -50,9 +48,6 @@ pub fn model(input: Input, output: &mut Vec<f32>) {
         )
     };
 
-    for logit in output.iter_mut() {
-        *logit *= CONFIDENCE;
-    }
     let max_logit = output
         .iter()
         .max_by(|x, y| x.partial_cmp(y).expect("bad float comparison"))
