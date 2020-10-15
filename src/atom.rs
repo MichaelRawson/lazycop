@@ -21,17 +21,11 @@ impl Atom {
     }
 
     pub(crate) fn is_predicate(&self) -> bool {
-        match self {
-            Atom::Predicate(_) => true,
-            _ => false,
-        }
+        matches!(self, Atom::Predicate(_))
     }
 
     pub(crate) fn is_equality(&self) -> bool {
-        match self {
-            Atom::Equality(_, _) => true,
-            _ => false,
-        }
+        matches!(self, Atom::Equality(_, _))
     }
 
     pub(crate) fn get_predicate(&self) -> Id<Term> {

@@ -7,7 +7,7 @@ from torch_scatter import scatter_mean
 NODE_TYPES = 19
 CHANNELS = 64
 HIDDEN = 1024
-LAYERS = 24
+LAYERS = 8
 
 class Conv(Module):
     def __init__(self):

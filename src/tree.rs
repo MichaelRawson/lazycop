@@ -1,33 +1,39 @@
 use crate::prelude::*;
 
+#[cfg(feature = "cudann")]
 const LAMBDA: f32 = 1.0;
 
 pub(crate) struct Node {
     parent: Id<Node>,
     children: Range<Node>,
     rule: Rule,
+    #[cfg(feature = "cudann")]
     log_prior: f32,
+    #[cfg(feature = "cudann")]
     score: f32,
+    #[cfg(not(feature = "cudann"))]
+    score: i32,
     closed: bool,
     #[cfg(feature = "cudann")]
     evaluated: bool,
 }
 
 impl Node {
-    fn leaf(
-        parent: Id<Node>,
-        rule: Rule,
-        estimate: u32,
-        log_prior: f32,
-    ) -> Self {
+    fn leaf(parent: Id<Node>, rule: Rule, estimate: u32) -> Self {
         let children = Range::new(Id::default(), Id::default());
-        let score = -LAMBDA * estimate as f32;
         let closed = false;
+
+        #[cfg(feature = "cudann")]
+        let score = -LAMBDA * estimate as f32;
+        #[cfg(not(feature = "cudann"))]
+        let score = -(estimate as i32);
+
         Self {
             parent,
             children,
             rule,
-            log_prior,
+            #[cfg(feature = "cudann")]
+            log_prior: 0.0,
             score,
             closed,
             #[cfg(feature = "cudann")]
@@ -47,7 +53,7 @@ pub(crate) struct Tree {
 impl Default for Tree {
     fn default() -> Self {
         let mut nodes = Block::default();
-        nodes.push(Node::leaf(Id::default(), Rule::Reflexivity, 0, 0.0));
+        nodes.push(Node::leaf(Id::default(), Rule::Reflexivity, 0));
         Self { nodes }
     }
 }
@@ -92,10 +98,9 @@ impl Tree {
     }
 
     pub(crate) fn expand(&mut self, leaf: Id<Node>, data: &[(Rule, u32)]) {
-        let log_prior = -(data.len() as f32).ln();
         let start = self.nodes.end();
         for (rule, estimate) in data {
-            self.nodes.push(Node::leaf(leaf, *rule, *estimate, log_prior));
+            self.nodes.push(Node::leaf(leaf, *rule, *estimate));
         }
         let end = self.nodes.end();
         self.nodes[leaf].children = Range::new(start, end);
@@ -175,12 +180,22 @@ impl Tree {
             .filter(move |child| !self.nodes[*child].closed)
     }
 
+    #[cfg(feature = "cudann")]
     fn update_score(&mut self, node: Id<Node>) {
         self.nodes[node].score = self
             .open_children(node)
             .map(|child| &self.nodes[child])
             .map(|child| child.score + child.log_prior)
             .max_by(|x, y| unwrap(x.partial_cmp(y)))
+            .unwrap_or_default();
+    }
+
+    #[cfg(not(feature = "cudann"))]
+    fn update_score(&mut self, node: Id<Node>) {
+        self.nodes[node].score = self
+            .open_children(node)
+            .map(|child| self.nodes[child].score)
+            .max()
             .unwrap_or_default();
     }
 }
