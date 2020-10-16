@@ -35,7 +35,6 @@ static cublasLtHandle_t BLAS_HANDLE;
 static cublasLtMatmulDesc_t MM_DESC;
 static cublasLtMatrixLayout_t
 	CONV_WEIGHT_DESC,
-	HIDDEN_WEIGHT_DESC,
 	OUTPUT_WEIGHT_DESC;
 static cublasLtMatmulPreference_t MM_PREFERENCE;
 static float
@@ -44,8 +43,6 @@ static float
 	*BACK_WEIGHTS = NULL,
 	*OUT_BIAS = NULL,
 	*BACK_BIAS = NULL,
-	*HIDDEN_WEIGHTS = NULL,
-	*HIDDEN_BIAS = NULL,
 	*OUTPUT_WEIGHTS = NULL;
 
 // thread-local global variables, changed once-per-cycle
@@ -62,8 +59,7 @@ static thread_local float
 	*back = NULL,
 	*out_scratch = NULL,
 	*back_scratch = NULL,
-	*selected = NULL,
-	*hidden = NULL;
+	*selected = NULL;
 static thread_local uint32_t
 	num_nodes = 0,
 	num_edges = 0,
@@ -77,16 +73,13 @@ static thread_local uint32_t
 	back_capacity = 0,
 	out_scratch_capacity = 0,
 	back_scratch_capacity = 0,
-	selected_capacity = 0,
-	hidden_capacity = 0;
+	selected_capacity = 0;
 static thread_local cublasLtMatrixLayout_t
 	node_desc,
 	selected_desc,
-	hidden_desc,
 	output_desc;
 static thread_local cublasLtMatmulHeuristicResult_t
 	conv_heuristic,
-	hidden_heuristic,
 	output_heuristic;
 
 static void upload_weights(float **device, const float *data, size_t size) {
@@ -317,27 +310,6 @@ static void select_rules() {
 	);
 }
 
-__global__ void k_hidden_bias_relu(
-	int32_t num_rules,
-	float *bias,
-	float *hidden
-) {
-	auto channel = threadIdx.x;
-	#pragma unroll UNROLL
-	for(int i = 0; i < num_rules; i++) {
-		auto index = HIDDEN * i + channel;
-		float activated = fmaxf(
-			0.0f,
-			__ldg(hidden + index) + __ldg(bias + channel)
-		);
-		__stcg(hidden + index, activated);
-	}
-}
-
-static void hidden_bias_relu() {
-	k_hidden_bias_relu<<<1, HIDDEN>>>(num_rules, HIDDEN_BIAS, hidden);
-}
-
 static void residual(int32_t layer) {
 	float *out_weights = OUT_WEIGHTS + CHANNELS * CHANNELS * layer;
 	float *back_weights = BACK_WEIGHTS + CHANNELS * CHANNELS * layer;
@@ -396,13 +368,6 @@ static void upload(
 			0
 		));
 		BLASOK(cublasLtMatrixLayoutCreate(
-			&hidden_desc,
-			DATA_TYPE,
-			0,
-			0,
-			0
-		));
-		BLASOK(cublasLtMatrixLayoutCreate(
 			&output_desc,
 			DATA_TYPE,
 			0,
@@ -413,7 +378,6 @@ static void upload(
 	}
 	init_matrix_layout(node_desc, num_nodes, CHANNELS);
 	init_matrix_layout(selected_desc, num_rules, CHANNELS);
-	init_matrix_layout(hidden_desc, num_rules, HIDDEN);
 	init_matrix_layout(output_desc, num_rules, 1);
 	int _num_results;
 	BLASOK(cublasLtMatmulAlgoGetHeuristic(
@@ -432,18 +396,6 @@ static void upload(
 		BLAS_HANDLE,
 		MM_DESC,
 		selected_desc,
-		HIDDEN_WEIGHT_DESC,
-		hidden_desc,
-		hidden_desc,
-		MM_PREFERENCE,
-		1,
-		&hidden_heuristic,
-		&_num_results
-	));
-	BLASOK(cublasLtMatmulAlgoGetHeuristic(
-		BLAS_HANDLE,
-		MM_DESC,
-		hidden_desc,
 		OUTPUT_WEIGHT_DESC,
 		output_desc,
 		output_desc,
@@ -478,7 +430,6 @@ static void upload(
 	DEVICE_ALLOC(out_scratch, num_nodes * CHANNELS);
 	DEVICE_ALLOC(back_scratch, num_nodes * CHANNELS);
 	DEVICE_ALLOC(selected, num_rules * CHANNELS);
-	DEVICE_ALLOC(hidden, num_rules * HIDDEN);
 	PAGE_ALLOC(p_upload, upload_bytes);
 	PAGE_ALLOC(p_download, num_rules);
 
@@ -553,21 +504,13 @@ extern "C" void init() {
 	));
 	init_matrix_layout(CONV_WEIGHT_DESC, CHANNELS, CHANNELS);
 	BLASOK(cublasLtMatrixLayoutCreate(
-		&HIDDEN_WEIGHT_DESC,
-		DATA_TYPE,
-		0,
-		0,
-		0
-	));
-	init_matrix_layout(HIDDEN_WEIGHT_DESC, CHANNELS, HIDDEN);
-	BLASOK(cublasLtMatrixLayoutCreate(
 		&OUTPUT_WEIGHT_DESC,
 		DATA_TYPE,
 		0,
 		0,
 		0
 	));
-	init_matrix_layout(OUTPUT_WEIGHT_DESC, HIDDEN, 1);
+	init_matrix_layout(OUTPUT_WEIGHT_DESC, CHANNELS, 1);
 
 	upload_weights(
 		&EMBED_WEIGHTS,
@@ -593,16 +536,6 @@ extern "C" void init() {
 		&BACK_BIAS,
 		BACK_BIAS_DATA,
 		sizeof(BACK_BIAS_DATA)
-	);
-	upload_weights(
-		&HIDDEN_WEIGHTS,
-		HIDDEN_WEIGHT_DATA,
-		sizeof(HIDDEN_WEIGHT_DATA)
-	);
-	upload_weights(
-		&HIDDEN_BIAS,
-		HIDDEN_BIAS_DATA,
-		sizeof(HIDDEN_BIAS_DATA)
 	);
 	upload_weights(
 		&OUTPUT_WEIGHTS,
@@ -638,19 +571,9 @@ extern "C" void model(
 	}
 	select_rules();
 	mm(
-		&hidden_heuristic,
+		&output_heuristic,
 		selected_desc,
 		selected,
-		HIDDEN_WEIGHT_DESC,
-		HIDDEN_WEIGHTS,
-		hidden_desc,
-		hidden
-	);
-	hidden_bias_relu();
-	mm(
-		&output_heuristic,
-		hidden_desc,
-		hidden,
 		OUTPUT_WEIGHT_DESC,
 		OUTPUT_WEIGHTS,
 		output_desc,

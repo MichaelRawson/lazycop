@@ -2,100 +2,70 @@ import sys
 
 import torch
 from torch.optim import SGD
-from torch.optim.lr_scheduler import OneCycleLR
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.functional import cross_entropy, log_softmax
+from torch_scatter import scatter_log_softmax
 
 from model import Model
 from data import loader, upload
 
 BATCH = 64
-MAX_LR = 0.1
+LR = 1e-3
 MOMENTUM = 0.9
-WEIGHT_DECAY = 1e-5
-MAX_STEPS = int(6e5 / BATCH)
+WEIGHT_DECAY = 1e-4
 
 def compute_loss(model, example):
-    nodes, sources, targets, rules, y = upload(example)
+    nodes, sources, targets, rules, graph, y = upload(example)
     logits = model(
         nodes,
         sources,
         targets,
         rules
     )
-    return cross_entropy(
-        logits.unsqueeze(dim=0),
-        y.unsqueeze(dim=0)
-    )
+    log_softmax = scatter_log_softmax(logits, graph, dim=0)
+    return -log_softmax[y].mean()
 
 def validate(model):
     loss = 0
-    total = 0
-    for example in loader('../data/validate.gz'):
+    count = 0
+    for example in loader('../data/validate.gz', BATCH):
         with torch.no_grad():
-            loss += compute_loss(model, example).detach()
-        total += 1
-
-    return loss / total
+            loss += compute_loss(model, example)
+        count += 1
+    return loss / count
 
 if __name__ == '__main__':
     torch.manual_seed(0)
     model = Model().to('cuda')
     optimiser = SGD(
         model.parameters(),
-        lr=MAX_LR,
-        momentum=MOMENTUM,
+        lr=LR,
         weight_decay=WEIGHT_DECAY,
+        momentum=MOMENTUM,
         nesterov=True
     )
-    scheduler = OneCycleLR(
-        optimiser,
-        max_lr=MAX_LR,
-        total_steps=MAX_STEPS,
-        cycle_momentum=False
-    )
     seen = 0
+    best = float('inf')
     summary = SummaryWriter()
     while True:
+        for example in loader('../data/train.gz', BATCH):
+            loss = compute_loss(model, example)
+            loss.backward()
+            seen += 1
+            optimiser.step()
+            optimiser.zero_grad()
+            summary.add_scalar(
+                'loss/training',
+                loss,
+                seen
+            )
+
+        validation = validate(model)
         summary.add_scalar(
             'loss/validation',
-            validate(model),
+            validation,
             seen
         )
-
-        batch = 0
-        for example in loader('../data/train.gz'):
-            if seen >= BATCH * MAX_STEPS:
-                summary.add_scalar(
-                    'loss/validation',
-                    validate(model),
-                    seen
-                )
-                torch.save(model.state_dict(), 'model.pt')
-                print("done")
-                import sys
-                sys.exit(0)
-
-            loss = compute_loss(model, example)
-            loss = loss / BATCH
-            loss.backward()
-            batch += loss.detach()
-            seen += 1
-
-            if seen % BATCH == 0:
-                summary.add_scalar(
-                    'optim/LR',
-                    optimiser.param_groups[0]['lr'],
-                    seen
-                )
-                summary.add_scalar(
-                    'loss/training',
-                    batch,
-                    seen
-                )
-                batch = 0
-                optimiser.step()
-                scheduler.step()
-                optimiser.zero_grad()
-
-        torch.save(model.state_dict(), 'model.pt')
+        if validation < best:
+            best = validation
+            torch.save(model.state_dict(), 'model.pt')

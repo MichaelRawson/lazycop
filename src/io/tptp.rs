@@ -10,8 +10,7 @@ use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tptp::parsers::TPTPIterator;
-use tptp::syntax as st;
+use tptp::TPTPIterator;
 
 fn report_os_error<D: fmt::Display>(path: D, e: std::io::Error) -> ! {
     println!("% error reading {}: {}", path, e);
@@ -76,7 +75,7 @@ impl<'a> TPTPFile<'a> {
         Self { _map, parser, path }
     }
 
-    fn next(&mut self) -> Option<st::TPTPInput<'a>> {
+    fn next(&mut self) -> Option<tptp::meta::TPTPInput<'a>> {
         let result = self.parser.next()?;
         let input = result.unwrap_or_else(|_| report_syntax_error());
         Some(input)
@@ -95,7 +94,7 @@ impl<'a> TPTPProblem<'a> {
         Self { stack, empty }
     }
 
-    fn next(&mut self) -> Option<st::AnnotatedFormula<'a>> {
+    fn next(&mut self) -> Option<tptp::meta::AnnotatedFormula<'a>> {
         loop {
             let input = loop {
                 let top = self.stack.last_mut()?;
@@ -107,9 +106,11 @@ impl<'a> TPTPProblem<'a> {
                 }
             };
             match input {
-                st::TPTPInput::Annotated(annotated) => break Some(annotated),
-                st::TPTPInput::Include(include) => {
-                    let path = include.file_name.as_ref().as_ref();
+                tptp::meta::TPTPInput::Annotated(annotated) => {
+                    return Some(*annotated)
+                }
+                tptp::meta::TPTPInput::Include(include) => {
+                    let path = include.file_name.0.0;
                     let path = Path::new(path);
                     let old = self.current_path();
                     let old = Some(old.as_ref().as_ref());
@@ -126,10 +127,10 @@ impl<'a> TPTPProblem<'a> {
 
 pub(crate) struct Loader<'a> {
     problem: TPTPProblem<'a>,
-    unbound: Vec<(st::Variable<'a>, cnf::Variable)>,
-    bound: Vec<(st::Variable<'a>, cnf::Variable)>,
+    unbound: Vec<(tptp::common::Variable<'a>, cnf::Variable)>,
+    bound: Vec<(tptp::common::Variable<'a>, cnf::Variable)>,
     fresh: u32,
-    functors: FnvHashMap<st::Functor<'a>, Id<Symbol>>,
+    functors: FnvHashMap<tptp::common::Functor<'a>, Id<Symbol>>,
 }
 
 impl<'a> Loader<'a> {
@@ -168,17 +169,17 @@ impl<'a> Loader<'a> {
     fn functor(
         &mut self,
         symbols: &mut Symbols,
-        functor: st::Functor<'a>,
+        functor: tptp::common::Functor<'a>,
         arity: u32,
     ) -> Id<Symbol> {
         if let Some(id) = self.functors.get(&functor) {
             *id
         } else {
             let name = match functor.0 {
-                st::AtomicWord::Lower(ref word) => {
+                tptp::common::AtomicWord::Lower(ref word) => {
                     Name::Regular(format!("{}", word))
                 }
-                st::AtomicWord::SingleQuoted(ref sq) => {
+                tptp::common::AtomicWord::SingleQuoted(ref sq) => {
                     Name::Quoted(sq.0.to_string())
                 }
             };
@@ -192,13 +193,13 @@ impl<'a> Loader<'a> {
     fn fof_plain_term(
         &mut self,
         symbols: &mut Symbols,
-        plain: st::FofPlainTerm<'a>,
+        plain: tptp::fof::PlainTerm<'a>,
     ) -> cnf::Term {
         match plain {
-            st::FofPlainTerm::Constant(c) => {
+            tptp::fof::PlainTerm::Constant(c) => {
                 cnf::Term::Fun(self.functor(symbols, c.0, 0), vec![])
             }
-            st::FofPlainTerm::Function(f, args) => {
+            tptp::fof::PlainTerm::Function(f, args) => {
                 let args: Vec<_> = args
                     .0
                     .into_iter()
@@ -215,10 +216,10 @@ impl<'a> Loader<'a> {
     fn fof_term(
         &mut self,
         symbols: &mut Symbols,
-        term: st::FofTerm<'a>,
+        term: tptp::fof::Term<'a>,
     ) -> cnf::Term {
         match term {
-            st::FofTerm::Variable(var) => {
+            tptp::fof::Term::Variable(var) => {
                 if let Some((_, bound)) =
                     self.bound.iter().rev().find(|(bound, _)| bound == &var)
                 {
@@ -237,11 +238,11 @@ impl<'a> Loader<'a> {
                     cnf::Term::Var(fresh)
                 }
             }
-            st::FofTerm::Function(function) => match function {
-                st::FofFunctionTerm::Plain(plain) => {
+            tptp::fof::Term::Function(function) => match *function {
+                tptp::fof::FunctionTerm::Plain(plain) => {
                     self.fof_plain_term(symbols, plain)
                 }
-                st::FofFunctionTerm::Defined(defined) => {
+                tptp::fof::FunctionTerm::Defined(defined) => {
                     report_inappropriate(defined)
                 }
             },
@@ -251,28 +252,28 @@ impl<'a> Loader<'a> {
     fn fof_atomic_formula(
         &mut self,
         symbols: &mut Symbols,
-        atomic: st::FofAtomicFormula<'a>,
+        atomic: tptp::fof::AtomicFormula<'a>,
     ) -> cnf::Formula {
         match atomic {
-            st::FofAtomicFormula::Plain(plain) => {
+            tptp::fof::AtomicFormula::Plain(plain) => {
                 let pred = self.fof_plain_term(symbols, plain.0);
                 cnf::Formula::Atom(cnf::Atom::Pred(pred))
             }
-            st::FofAtomicFormula::Defined(defined) => match defined {
-                st::FofDefinedAtomicFormula::Plain(plain) => {
+            tptp::fof::AtomicFormula::Defined(defined) => match defined {
+                tptp::fof::DefinedAtomicFormula::Plain(plain) => {
                     match ((((((plain.0).0).0).0).0).0).0 {
                         "true" => cnf::Formula::And(vec![]),
                         "false" => cnf::Formula::Or(vec![]),
                         _ => report_inappropriate(plain),
                     }
                 }
-                st::FofDefinedAtomicFormula::Infix(infix) => {
+                tptp::fof::DefinedAtomicFormula::Infix(infix) => {
                     let left = self.fof_term(symbols, *infix.left);
                     let right = self.fof_term(symbols, *infix.right);
                     cnf::Formula::Atom(cnf::Atom::Eq(left, right))
                 }
             },
-            st::FofAtomicFormula::System(system) => {
+            tptp::fof::AtomicFormula::System(system) => {
                 report_inappropriate(system)
             }
         }
@@ -281,13 +282,13 @@ impl<'a> Loader<'a> {
     fn fof_unitary_formula(
         &mut self,
         symbols: &mut Symbols,
-        unitary: st::FofUnitaryFormula<'a>,
+        unitary: tptp::fof::UnitaryFormula<'a>,
     ) -> cnf::Formula {
         match unitary {
-            st::FofUnitaryFormula::Quantified(quantified) => {
+            tptp::fof::UnitaryFormula::Quantified(quantified) => {
                 let quantifier = match quantified.quantifier {
-                    st::FofQuantifier::Forall => cnf::Formula::Forall,
-                    st::FofQuantifier::Exists => cnf::Formula::Exists,
+                    tptp::fof::Quantifier::Forall => cnf::Formula::Forall,
+                    tptp::fof::Quantifier::Exists => cnf::Formula::Exists,
                 };
                 let bound = quantified.bound.0;
                 let num_bound = bound.len();
@@ -305,10 +306,10 @@ impl<'a> Loader<'a> {
 
                 formula
             }
-            st::FofUnitaryFormula::Atomic(atomic) => {
-                self.fof_atomic_formula(symbols, atomic)
+            tptp::fof::UnitaryFormula::Atomic(atomic) => {
+                self.fof_atomic_formula(symbols, *atomic)
             }
-            st::FofUnitaryFormula::Parenthesised(logic) => {
+            tptp::fof::UnitaryFormula::Parenthesised(logic) => {
                 self.fof_logic_formula(symbols, *logic)
             }
         }
@@ -317,7 +318,7 @@ impl<'a> Loader<'a> {
     fn fof_infix_unary(
         &mut self,
         symbols: &mut Symbols,
-        infix: st::FofInfixUnary<'a>,
+        infix: tptp::fof::InfixUnary<'a>,
     ) -> cnf::Formula {
         let left = self.fof_term(symbols, *infix.left);
         let right = self.fof_term(symbols, *infix.right);
@@ -327,13 +328,13 @@ impl<'a> Loader<'a> {
     fn fof_unary_formula(
         &mut self,
         symbols: &mut Symbols,
-        unary: st::FofUnaryFormula<'a>,
+        unary: tptp::fof::UnaryFormula<'a>,
     ) -> cnf::Formula {
         match unary {
-            st::FofUnaryFormula::Unary(_, unary) => {
+            tptp::fof::UnaryFormula::Unary(_, unary) => {
                 self.fof_unit_formula(symbols, *unary).negated()
             }
-            st::FofUnaryFormula::InfixUnary(infix) => {
+            tptp::fof::UnaryFormula::InfixUnary(infix) => {
                 self.fof_infix_unary(symbols, infix)
             }
         }
@@ -342,13 +343,13 @@ impl<'a> Loader<'a> {
     fn fof_unit_formula(
         &mut self,
         symbols: &mut Symbols,
-        unit: st::FofUnitFormula<'a>,
+        unit: tptp::fof::UnitFormula<'a>,
     ) -> cnf::Formula {
         match unit {
-            st::FofUnitFormula::Unitary(unitary) => {
+            tptp::fof::UnitFormula::Unitary(unitary) => {
                 self.fof_unitary_formula(symbols, unitary)
             }
-            st::FofUnitFormula::Unary(unary) => {
+            tptp::fof::UnitFormula::Unary(unary) => {
                 self.fof_unary_formula(symbols, unary)
             }
         }
@@ -357,49 +358,49 @@ impl<'a> Loader<'a> {
     fn fof_logic_formula(
         &mut self,
         symbols: &mut Symbols,
-        logic: st::FofLogicFormula<'a>,
+        logic: tptp::fof::LogicFormula<'a>,
     ) -> cnf::Formula {
         match logic {
-            st::FofLogicFormula::Binary(binary) => match binary {
-                st::FofBinaryFormula::Nonassoc(nonassoc) => {
+            tptp::fof::LogicFormula::Binary(binary) => match binary {
+                tptp::fof::BinaryFormula::Nonassoc(nonassoc) => {
                     let left = self.fof_unit_formula(symbols, *nonassoc.left);
                     let right =
                         self.fof_unit_formula(symbols, *nonassoc.right);
                     match nonassoc.op {
-                        st::NonassocConnective::LRImplies => {
+                        tptp::common::NonassocConnective::LRImplies => {
                             cnf::Formula::Or(vec![left.negated(), right])
                         }
-                        st::NonassocConnective::RLImplies => {
+                        tptp::common::NonassocConnective::RLImplies => {
                             cnf::Formula::Or(vec![left, right.negated()])
                         }
-                        st::NonassocConnective::Equivalent => {
+                        tptp::common::NonassocConnective::Equivalent => {
                             cnf::Formula::Equiv(
                                 Box::new(left),
                                 Box::new(right),
                             )
                         }
-                        st::NonassocConnective::NotEquivalent => {
+                        tptp::common::NonassocConnective::NotEquivalent => {
                             cnf::Formula::Equiv(
                                 Box::new(left),
                                 Box::new(right),
                             )
                             .negated()
                         }
-                        st::NonassocConnective::NotOr => {
+                        tptp::common::NonassocConnective::NotOr => {
                             cnf::Formula::Or(vec![left, right]).negated()
                         }
-                        st::NonassocConnective::NotAnd => {
+                        tptp::common::NonassocConnective::NotAnd => {
                             cnf::Formula::And(vec![left, right]).negated()
                         }
                     }
                 }
-                st::FofBinaryFormula::Assoc(assoc) => match assoc {
-                    st::FofBinaryAssoc::Or(or) => cnf::Formula::Or(
+                tptp::fof::BinaryFormula::Assoc(assoc) => match assoc {
+                    tptp::fof::BinaryAssoc::Or(or) => cnf::Formula::Or(
                         or.0.into_iter()
                             .map(|unit| self.fof_unit_formula(symbols, unit))
                             .collect(),
                     ),
-                    st::FofBinaryAssoc::And(and) => cnf::Formula::And(
+                    tptp::fof::BinaryAssoc::And(and) => cnf::Formula::And(
                         and.0
                             .into_iter()
                             .map(|unit| self.fof_unit_formula(symbols, unit))
@@ -407,10 +408,10 @@ impl<'a> Loader<'a> {
                     ),
                 },
             },
-            st::FofLogicFormula::Unary(unary) => {
+            tptp::fof::LogicFormula::Unary(unary) => {
                 self.fof_unary_formula(symbols, unary)
             }
-            st::FofLogicFormula::Unitary(unitary) => {
+            tptp::fof::LogicFormula::Unitary(unitary) => {
                 self.fof_unitary_formula(symbols, unitary)
             }
         }
@@ -419,27 +420,29 @@ impl<'a> Loader<'a> {
     fn literal(
         &mut self,
         symbols: &mut Symbols,
-        literal: st::Literal<'a>,
+        literal: tptp::cnf::Literal<'a>,
     ) -> cnf::Formula {
         match literal {
-            st::Literal::Atomic(atomic) => {
+            tptp::cnf::Literal::Atomic(atomic) => {
                 self.fof_atomic_formula(symbols, atomic)
             }
-            st::Literal::NegatedAtomic(atomic) => {
+            tptp::cnf::Literal::NegatedAtomic(atomic) => {
                 self.fof_atomic_formula(symbols, atomic).negated()
             }
-            st::Literal::Infix(infix) => self.fof_infix_unary(symbols, infix),
+            tptp::cnf::Literal::Infix(infix) => {
+                self.fof_infix_unary(symbols, infix)
+            }
         }
     }
 
     fn cnf_formula(
         &mut self,
         symbols: &mut Symbols,
-        cnf: st::CnfFormula<'a>,
+        cnf: tptp::cnf::Formula<'a>,
     ) -> cnf::Formula {
         let mut literals = match cnf {
-            st::CnfFormula::Disjunction(disjunction) => disjunction,
-            st::CnfFormula::Parenthesised(disjunction) => disjunction,
+            tptp::cnf::Formula::Disjunction(disjunction) => disjunction,
+            tptp::cnf::Formula::Parenthesised(disjunction) => disjunction,
         }
         .0;
         if literals.len() == 1 {
@@ -454,18 +457,27 @@ impl<'a> Loader<'a> {
         )
     }
 
+    fn fof_formula(
+        &mut self,
+        symbols: &mut Symbols,
+        fof: tptp::fof::Formula<'a>,
+    ) -> cnf::Formula {
+        self.fof_logic_formula(symbols, fof.0)
+    }
+
     fn annotated_formula(
         &mut self,
         symbols: &mut Symbols,
-        formula: st::AnnotatedFormula<'a>,
+        formula: tptp::meta::AnnotatedFormula<'a>,
     ) -> (bool, bool, String, cnf::Formula) {
         let (is_cnf, name, mut role, mut formula) = match formula {
-            st::AnnotatedFormula::Fof(fof) => {
-                let formula =
-                    self.fof_logic_formula(symbols, (*fof.formula).0);
+            tptp::meta::AnnotatedFormula::Fof(fof) => {
+                let fof = fof.0;
+                let formula = self.fof_formula(symbols, *fof.formula);
                 (false, format!("{}", fof.name), fof.role, formula)
             }
-            st::AnnotatedFormula::Cnf(cnf) => {
+            tptp::meta::AnnotatedFormula::Cnf(cnf) => {
+                let cnf = cnf.0;
                 let formula = self.cnf_formula(symbols, *cnf.formula);
                 (true, format!("{}", cnf.name), cnf.role, formula)
             }
@@ -474,11 +486,11 @@ impl<'a> Loader<'a> {
         self.unbound.clear();
         self.fresh = 0;
 
-        if role == st::FormulaRole::Conjecture {
+        if role == tptp::meta::FormulaRole::Conjecture {
             formula = formula.negated();
-            role = st::FormulaRole::NegatedConjecture;
+            role = tptp::meta::FormulaRole::NegatedConjecture;
         }
-        let conjecture = role == st::FormulaRole::NegatedConjecture;
+        let conjecture = role == tptp::meta::FormulaRole::NegatedConjecture;
         (is_cnf, conjecture, name, formula)
     }
 }

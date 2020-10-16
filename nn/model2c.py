@@ -1,7 +1,7 @@
 import torch
 import sys
 
-from model import NODE_TYPES, CHANNELS, HIDDEN, LAYERS, Model
+from model import NODE_TYPES, CHANNELS, LAYERS, Model
 
 def fmt_weights(tensor):
     for value in tensor.reshape(-1):
@@ -16,7 +16,6 @@ if __name__ == '__main__':
 
     print(f"const uint32_t NODE_TYPES = {NODE_TYPES};")
     print(f"const uint32_t CHANNELS = {CHANNELS};")
-    print(f"const uint32_t HIDDEN = {HIDDEN};")
     print(f"const uint32_t LAYERS = {LAYERS};")
 
     print("static const float EMBED_WEIGHTS_DATA[] = {")
@@ -41,13 +40,6 @@ if __name__ == '__main__':
     print("static const float BACK_BIAS_DATA[] = {")
     for i in range(LAYERS):
         fmt_weights(weights[f'conv.{i}.back.weight.bias'])
-    print("};")
-
-    print("static const float HIDDEN_WEIGHT_DATA[] = {")
-    fmt_weights(weights['hidden.weight'].t())
-    print("};")
-    print("static const float HIDDEN_BIAS_DATA[] = {")
-    fmt_weights(weights['hidden.bias'])
     print("};")
 
     print("static const float OUTPUT_WEIGHT_DATA[] = {")

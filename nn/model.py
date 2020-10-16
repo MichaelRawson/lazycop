@@ -6,8 +6,7 @@ from torch_scatter import scatter_mean
 
 NODE_TYPES = 19
 CHANNELS = 64
-HIDDEN = 1024
-LAYERS = 8
+LAYERS = 24
 
 class Conv(Module):
     def __init__(self):
@@ -49,8 +48,7 @@ class Model(Module):
         super().__init__()
         self.embedding = Embedding(NODE_TYPES, CHANNELS)
         self.conv = ModuleList([BiConv() for i in range(LAYERS)])
-        self.hidden = Linear(CHANNELS, HIDDEN)
-        self.output = Linear(HIDDEN, 1, bias=False)
+        self.output = Linear(CHANNELS, 1, bias=False)
 
     def fuse(self):
         for conv in self.conv:
@@ -67,5 +65,4 @@ class Model(Module):
         for conv in self.conv:
             x = x + conv(x, sources, targets)
         x = x[rules]
-        x = relu_(self.hidden(x))
         return self.output(x).squeeze()
