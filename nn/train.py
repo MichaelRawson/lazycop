@@ -2,17 +2,21 @@ import sys
 
 import torch
 from torch.optim import SGD
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.functional import cross_entropy, log_softmax
 from torch_scatter import scatter_log_softmax
 
-from model import Model
+from model import Model, LAYERS, CHANNELS
 from data import loader, upload
 
 BATCH = 64
-LR = 1e-3
 MOMENTUM = 0.9
 WEIGHT_DECAY = 1e-4
+TRAIN = loader('../data/train.gz', BATCH)
+VALIDATE = loader('../data/validate.gz', BATCH)
+T_MAX = 2000
+LR = 0.01
 
 def compute_loss(model, example):
     nodes, sources, targets, rules, graph, y = upload(example)
@@ -28,7 +32,7 @@ def compute_loss(model, example):
 def validate(model):
     loss = 0
     count = 0
-    for example in loader('../data/validate.gz', BATCH):
+    for example in VALIDATE:
         with torch.no_grad():
             loss += compute_loss(model, example)
         count += 1
@@ -44,28 +48,40 @@ if __name__ == '__main__':
         momentum=MOMENTUM,
         nesterov=True
     )
-    seen = 0
+    batch = 0
     best = float('inf')
     summary = SummaryWriter()
     while True:
-        for example in loader('../data/train.gz', BATCH):
+        for example in TRAIN:
+            if batch % T_MAX == 0:
+                validation = validate(model)
+                summary.add_scalar(
+                    'loss/validation',
+                    validation,
+                    batch
+                )
+                if validation < best:
+                    best = validation
+                    torch.save(model.state_dict(), 'model.pt')
+                for group in optimiser.param_groups:
+                    group['lr'] = LR
+                scheduler = CosineAnnealingLR(optimiser, T_max=T_MAX)
+
             loss = compute_loss(model, example)
             loss.backward()
-            seen += 1
+            batch += 1
             optimiser.step()
+            scheduler.step()
             optimiser.zero_grad()
             summary.add_scalar(
                 'loss/training',
                 loss,
-                seen
+                batch
+            )
+            summary.add_scalar(
+                'LR',
+                optimiser.param_groups[0]['lr'],
+                batch
             )
 
-        validation = validate(model)
-        summary.add_scalar(
-            'loss/validation',
-            validation,
-            seen
-        )
-        if validation < best:
-            best = validation
-            torch.save(model.state_dict(), 'model.pt')
+

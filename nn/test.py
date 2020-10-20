@@ -16,5 +16,4 @@ if __name__ == '__main__':
             logits = model(nodes, sources, targets, rules)
 
         policy = torch.softmax(logits, dim=0)
-        print(policy.to('cpu'))
-        print(y.to('cpu'))
+        print(len(policy), policy[y])

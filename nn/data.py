@@ -2,7 +2,7 @@ import json
 import gzip
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
 
 def upload(example):
     return tuple(item.to('cuda') for item in example)
@@ -22,13 +22,16 @@ def examples(path, self_loops=True, validate=False):
                 targets = torch.cat((identity, targets))
             yield nodes, sources, targets, rules, y
 
-class Examples(torch.utils.data.IterableDataset):
+class Examples(Dataset):
     def __init__(self, path):
-        self.path = path
+        self.examples = list(examples(path))
         super().__init__()
 
-    def __iter__(self):
-        return examples(self.path)
+    def __getitem__(self, n):
+        return self.examples[n]
+
+    def __len__(self):
+        return len(self.examples)
 
 def collate(batch):
     bnodes = []
@@ -67,6 +70,8 @@ def loader(path, batch):
         examples,
         collate_fn=collate,
         batch_size=batch,
+        shuffle=True,
         num_workers=1,
-        pin_memory=True
+        pin_memory=True,
+        drop_last=True
     )
