@@ -75,7 +75,7 @@ impl<'a> TPTPFile<'a> {
         Self { _map, parser, path }
     }
 
-    fn next(&mut self) -> Option<tptp::meta::TPTPInput<'a>> {
+    fn next(&mut self) -> Option<tptp::top::TPTPInput<'a>> {
         let result = self.parser.next()?;
         let input = result.unwrap_or_else(|_| report_syntax_error());
         Some(input)
@@ -94,7 +94,7 @@ impl<'a> TPTPProblem<'a> {
         Self { stack, empty }
     }
 
-    fn next(&mut self) -> Option<tptp::meta::AnnotatedFormula<'a>> {
+    fn next(&mut self) -> Option<tptp::top::AnnotatedFormula<'a>> {
         loop {
             let input = loop {
                 let top = self.stack.last_mut()?;
@@ -106,10 +106,10 @@ impl<'a> TPTPProblem<'a> {
                 }
             };
             match input {
-                tptp::meta::TPTPInput::Annotated(annotated) => {
+                tptp::top::TPTPInput::Annotated(annotated) => {
                     return Some(*annotated)
                 }
-                tptp::meta::TPTPInput::Include(include) => {
+                tptp::top::TPTPInput::Include(include) => {
                     let path = include.file_name.0.0;
                     let path = Path::new(path);
                     let old = self.current_path();
@@ -468,15 +468,15 @@ impl<'a> Loader<'a> {
     fn annotated_formula(
         &mut self,
         symbols: &mut Symbols,
-        formula: tptp::meta::AnnotatedFormula<'a>,
+        formula: tptp::top::AnnotatedFormula<'a>,
     ) -> (bool, bool, String, cnf::Formula) {
         let (is_cnf, name, mut role, mut formula) = match formula {
-            tptp::meta::AnnotatedFormula::Fof(fof) => {
+            tptp::top::AnnotatedFormula::Fof(fof) => {
                 let fof = fof.0;
                 let formula = self.fof_formula(symbols, *fof.formula);
                 (false, format!("{}", fof.name), fof.role, formula)
             }
-            tptp::meta::AnnotatedFormula::Cnf(cnf) => {
+            tptp::top::AnnotatedFormula::Cnf(cnf) => {
                 let cnf = cnf.0;
                 let formula = self.cnf_formula(symbols, *cnf.formula);
                 (true, format!("{}", cnf.name), cnf.role, formula)
@@ -486,11 +486,11 @@ impl<'a> Loader<'a> {
         self.unbound.clear();
         self.fresh = 0;
 
-        if role == tptp::meta::FormulaRole::Conjecture {
+        if role == tptp::top::FormulaRole::Conjecture {
             formula = formula.negated();
-            role = tptp::meta::FormulaRole::NegatedConjecture;
+            role = tptp::top::FormulaRole::NegatedConjecture;
         }
-        let conjecture = role == tptp::meta::FormulaRole::NegatedConjecture;
+        let conjecture = role == tptp::top::FormulaRole::NegatedConjecture;
         (is_cnf, conjecture, name, formula)
     }
 }
