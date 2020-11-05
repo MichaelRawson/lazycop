@@ -10,7 +10,7 @@ use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tptp::{cnf, fof, top, TPTPIterator};
+use tptp::{cnf, common, fof, top, TPTPIterator};
 
 fn report_os_error<D: fmt::Display>(path: D, e: std::io::Error) -> ! {
     println!("% error reading {}: {}", path, e);
@@ -127,10 +127,10 @@ impl<'a> TPTPProblem<'a> {
 
 pub(crate) struct Loader<'a> {
     problem: TPTPProblem<'a>,
-    unbound: Vec<(tptp::common::Variable<'a>, clausify::Variable)>,
-    bound: Vec<(tptp::common::Variable<'a>, clausify::Variable)>,
+    unbound: Vec<(common::Variable<'a>, clausify::Variable)>,
+    bound: Vec<(common::Variable<'a>, clausify::Variable)>,
     fresh: u32,
-    functors: FnvHashMap<tptp::common::Functor<'a>, Id<Symbol>>,
+    functors: FnvHashMap<common::Functor<'a>, Id<Symbol>>,
 }
 
 impl<'a> Loader<'a> {
@@ -169,17 +169,17 @@ impl<'a> Loader<'a> {
     fn functor(
         &mut self,
         symbols: &mut Symbols,
-        functor: tptp::common::Functor<'a>,
+        functor: common::Functor<'a>,
         arity: u32,
     ) -> Id<Symbol> {
         if let Some(id) = self.functors.get(&functor) {
             *id
         } else {
             let name = match functor.0 {
-                tptp::common::AtomicWord::Lower(ref word) => {
+                common::AtomicWord::Lower(ref word) => {
                     Name::Regular(format!("{}", word))
                 }
-                tptp::common::AtomicWord::SingleQuoted(ref sq) => {
+                common::AtomicWord::SingleQuoted(ref sq) => {
                     Name::Quoted(sq.0.to_string())
                 }
             };
@@ -365,29 +365,29 @@ impl<'a> Loader<'a> {
                     let right =
                         self.fof_unit_formula(symbols, *nonassoc.right);
                     match nonassoc.op {
-                        tptp::common::NonassocConnective::LRImplies => {
+                        common::NonassocConnective::LRImplies => {
                             clausify::Formula::Or(vec![left.negated(), right])
                         }
-                        tptp::common::NonassocConnective::RLImplies => {
+                        common::NonassocConnective::RLImplies => {
                             clausify::Formula::Or(vec![left, right.negated()])
                         }
-                        tptp::common::NonassocConnective::Equivalent => {
+                        common::NonassocConnective::Equivalent => {
                             clausify::Formula::Equiv(
                                 Box::new(left),
                                 Box::new(right),
                             )
                         }
-                        tptp::common::NonassocConnective::NotEquivalent => {
+                        common::NonassocConnective::NotEquivalent => {
                             clausify::Formula::Equiv(
                                 Box::new(left),
                                 Box::new(right),
                             )
                             .negated()
                         }
-                        tptp::common::NonassocConnective::NotOr => {
+                        common::NonassocConnective::NotOr => {
                             clausify::Formula::Or(vec![left, right]).negated()
                         }
-                        tptp::common::NonassocConnective::NotAnd => {
+                        common::NonassocConnective::NotAnd => {
                             clausify::Formula::And(vec![left, right]).negated()
                         }
                     }
