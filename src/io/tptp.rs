@@ -10,7 +10,7 @@ use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tptp::{TPTPIterator, cnf, fof, top};
+use tptp::{cnf, fof, top, TPTPIterator};
 
 fn report_os_error<D: fmt::Display>(path: D, e: std::io::Error) -> ! {
     println!("% error reading {}: {}", path, e);
@@ -110,7 +110,7 @@ impl<'a> TPTPProblem<'a> {
                     return Some(*annotated)
                 }
                 top::TPTPInput::Include(include) => {
-                    let path = include.file_name.0.0;
+                    let path = (include.file_name.0).0;
                     let path = Path::new(path);
                     let old = self.current_path();
                     let old = Some(old.as_ref().as_ref());
@@ -273,9 +273,7 @@ impl<'a> Loader<'a> {
                     clausify::Formula::Atom(clausify::Atom::Eq(left, right))
                 }
             },
-            fof::AtomicFormula::System(system) => {
-                report_inappropriate(system)
-            }
+            fof::AtomicFormula::System(system) => report_inappropriate(system),
         }
     }
 
@@ -429,9 +427,7 @@ impl<'a> Loader<'a> {
             cnf::Literal::NegatedAtomic(atomic) => {
                 self.fof_atomic_formula(symbols, atomic).negated()
             }
-            cnf::Literal::Infix(infix) => {
-                self.fof_infix_unary(symbols, infix)
-            }
+            cnf::Literal::Infix(infix) => self.fof_infix_unary(symbols, infix),
         }
     }
 

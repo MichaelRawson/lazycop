@@ -94,7 +94,10 @@ impl TSTP {
         }
     }
 
-    fn print_clausifier_literal(symbols: &Symbols, literal: &clausify::Literal) {
+    fn print_clausifier_literal(
+        symbols: &Symbols,
+        literal: &clausify::Literal,
+    ) {
         let clausify::Literal(polarity, atom) = literal;
         match atom {
             clausify::Atom::Pred(term) => {
