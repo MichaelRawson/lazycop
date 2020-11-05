@@ -1,4 +1,4 @@
-use crate::cnf;
+use crate::clausify;
 use crate::io::exit;
 use crate::io::szs;
 use crate::prelude::*;
@@ -10,7 +10,7 @@ use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tptp::TPTPIterator;
+use tptp::{TPTPIterator, cnf, fof, top};
 
 fn report_os_error<D: fmt::Display>(path: D, e: std::io::Error) -> ! {
     println!("% error reading {}: {}", path, e);
@@ -75,7 +75,7 @@ impl<'a> TPTPFile<'a> {
         Self { _map, parser, path }
     }
 
-    fn next(&mut self) -> Option<tptp::top::TPTPInput<'a>> {
+    fn next(&mut self) -> Option<top::TPTPInput<'a>> {
         let result = self.parser.next()?;
         let input = result.unwrap_or_else(|_| report_syntax_error());
         Some(input)
@@ -94,7 +94,7 @@ impl<'a> TPTPProblem<'a> {
         Self { stack, empty }
     }
 
-    fn next(&mut self) -> Option<tptp::top::AnnotatedFormula<'a>> {
+    fn next(&mut self) -> Option<top::AnnotatedFormula<'a>> {
         loop {
             let input = loop {
                 let top = self.stack.last_mut()?;
@@ -106,10 +106,10 @@ impl<'a> TPTPProblem<'a> {
                 }
             };
             match input {
-                tptp::top::TPTPInput::Annotated(annotated) => {
+                top::TPTPInput::Annotated(annotated) => {
                     return Some(*annotated)
                 }
-                tptp::top::TPTPInput::Include(include) => {
+                top::TPTPInput::Include(include) => {
                     let path = include.file_name.0.0;
                     let path = Path::new(path);
                     let old = self.current_path();
@@ -127,8 +127,8 @@ impl<'a> TPTPProblem<'a> {
 
 pub(crate) struct Loader<'a> {
     problem: TPTPProblem<'a>,
-    unbound: Vec<(tptp::common::Variable<'a>, cnf::Variable)>,
-    bound: Vec<(tptp::common::Variable<'a>, cnf::Variable)>,
+    unbound: Vec<(tptp::common::Variable<'a>, clausify::Variable)>,
+    bound: Vec<(tptp::common::Variable<'a>, clausify::Variable)>,
     fresh: u32,
     functors: FnvHashMap<tptp::common::Functor<'a>, Id<Symbol>>,
 }
@@ -152,7 +152,7 @@ impl<'a> Loader<'a> {
     pub(crate) fn next(
         &mut self,
         symbols: &mut Symbols,
-    ) -> Option<(bool, Origin, cnf::Formula)> {
+    ) -> Option<(bool, Origin, clausify::Formula)> {
         let annotated = self.problem.next()?;
         let path = self.problem.current_path();
         let (is_cnf, conjecture, name, formula) =
@@ -193,19 +193,19 @@ impl<'a> Loader<'a> {
     fn fof_plain_term(
         &mut self,
         symbols: &mut Symbols,
-        plain: tptp::fof::PlainTerm<'a>,
-    ) -> cnf::Term {
+        plain: fof::PlainTerm<'a>,
+    ) -> clausify::Term {
         match plain {
-            tptp::fof::PlainTerm::Constant(c) => {
-                cnf::Term::Fun(self.functor(symbols, c.0, 0), vec![])
+            fof::PlainTerm::Constant(c) => {
+                clausify::Term::Fun(self.functor(symbols, c.0, 0), vec![])
             }
-            tptp::fof::PlainTerm::Function(f, args) => {
+            fof::PlainTerm::Function(f, args) => {
                 let args: Vec<_> = args
                     .0
                     .into_iter()
                     .map(|t| self.fof_term(symbols, t))
                     .collect();
-                cnf::Term::Fun(
+                clausify::Term::Fun(
                     self.functor(symbols, f, args.len() as u32),
                     args,
                 )
@@ -216,33 +216,33 @@ impl<'a> Loader<'a> {
     fn fof_term(
         &mut self,
         symbols: &mut Symbols,
-        term: tptp::fof::Term<'a>,
-    ) -> cnf::Term {
+        term: fof::Term<'a>,
+    ) -> clausify::Term {
         match term {
-            tptp::fof::Term::Variable(var) => {
+            fof::Term::Variable(var) => {
                 if let Some((_, bound)) =
                     self.bound.iter().rev().find(|(bound, _)| bound == &var)
                 {
-                    cnf::Term::Var(*bound)
+                    clausify::Term::Var(*bound)
                 } else if let Some((_, unbound)) = self
                     .unbound
                     .iter()
                     .rev()
                     .find(|(unbound, _)| unbound == &var)
                 {
-                    cnf::Term::Var(*unbound)
+                    clausify::Term::Var(*unbound)
                 } else {
-                    let fresh = cnf::Variable(self.fresh);
+                    let fresh = clausify::Variable(self.fresh);
                     self.unbound.push((var, fresh));
                     self.fresh += 1;
-                    cnf::Term::Var(fresh)
+                    clausify::Term::Var(fresh)
                 }
             }
-            tptp::fof::Term::Function(function) => match *function {
-                tptp::fof::FunctionTerm::Plain(plain) => {
+            fof::Term::Function(function) => match *function {
+                fof::FunctionTerm::Plain(plain) => {
                     self.fof_plain_term(symbols, plain)
                 }
-                tptp::fof::FunctionTerm::Defined(defined) => {
+                fof::FunctionTerm::Defined(defined) => {
                     report_inappropriate(defined)
                 }
             },
@@ -252,28 +252,28 @@ impl<'a> Loader<'a> {
     fn fof_atomic_formula(
         &mut self,
         symbols: &mut Symbols,
-        atomic: tptp::fof::AtomicFormula<'a>,
-    ) -> cnf::Formula {
+        atomic: fof::AtomicFormula<'a>,
+    ) -> clausify::Formula {
         match atomic {
-            tptp::fof::AtomicFormula::Plain(plain) => {
+            fof::AtomicFormula::Plain(plain) => {
                 let pred = self.fof_plain_term(symbols, plain.0);
-                cnf::Formula::Atom(cnf::Atom::Pred(pred))
+                clausify::Formula::Atom(clausify::Atom::Pred(pred))
             }
-            tptp::fof::AtomicFormula::Defined(defined) => match defined {
-                tptp::fof::DefinedAtomicFormula::Plain(plain) => {
+            fof::AtomicFormula::Defined(defined) => match defined {
+                fof::DefinedAtomicFormula::Plain(plain) => {
                     match ((((((plain.0).0).0).0).0).0).0 {
-                        "true" => cnf::Formula::And(vec![]),
-                        "false" => cnf::Formula::Or(vec![]),
+                        "true" => clausify::Formula::And(vec![]),
+                        "false" => clausify::Formula::Or(vec![]),
                         _ => report_inappropriate(plain),
                     }
                 }
-                tptp::fof::DefinedAtomicFormula::Infix(infix) => {
+                fof::DefinedAtomicFormula::Infix(infix) => {
                     let left = self.fof_term(symbols, *infix.left);
                     let right = self.fof_term(symbols, *infix.right);
-                    cnf::Formula::Atom(cnf::Atom::Eq(left, right))
+                    clausify::Formula::Atom(clausify::Atom::Eq(left, right))
                 }
             },
-            tptp::fof::AtomicFormula::System(system) => {
+            fof::AtomicFormula::System(system) => {
                 report_inappropriate(system)
             }
         }
@@ -282,18 +282,18 @@ impl<'a> Loader<'a> {
     fn fof_unitary_formula(
         &mut self,
         symbols: &mut Symbols,
-        unitary: tptp::fof::UnitaryFormula<'a>,
-    ) -> cnf::Formula {
+        unitary: fof::UnitaryFormula<'a>,
+    ) -> clausify::Formula {
         match unitary {
-            tptp::fof::UnitaryFormula::Quantified(quantified) => {
+            fof::UnitaryFormula::Quantified(quantified) => {
                 let quantifier = match quantified.quantifier {
-                    tptp::fof::Quantifier::Forall => cnf::Formula::Forall,
-                    tptp::fof::Quantifier::Exists => cnf::Formula::Exists,
+                    fof::Quantifier::Forall => clausify::Formula::Forall,
+                    fof::Quantifier::Exists => clausify::Formula::Exists,
                 };
                 let bound = quantified.bound.0;
                 let num_bound = bound.len();
                 for x in bound {
-                    self.bound.push((x, cnf::Variable(self.fresh)));
+                    self.bound.push((x, clausify::Variable(self.fresh)));
                     self.fresh += 1;
                 }
 
@@ -306,10 +306,10 @@ impl<'a> Loader<'a> {
 
                 formula
             }
-            tptp::fof::UnitaryFormula::Atomic(atomic) => {
+            fof::UnitaryFormula::Atomic(atomic) => {
                 self.fof_atomic_formula(symbols, *atomic)
             }
-            tptp::fof::UnitaryFormula::Parenthesised(logic) => {
+            fof::UnitaryFormula::Parenthesised(logic) => {
                 self.fof_logic_formula(symbols, *logic)
             }
         }
@@ -318,23 +318,23 @@ impl<'a> Loader<'a> {
     fn fof_infix_unary(
         &mut self,
         symbols: &mut Symbols,
-        infix: tptp::fof::InfixUnary<'a>,
-    ) -> cnf::Formula {
+        infix: fof::InfixUnary<'a>,
+    ) -> clausify::Formula {
         let left = self.fof_term(symbols, *infix.left);
         let right = self.fof_term(symbols, *infix.right);
-        cnf::Formula::Atom(cnf::Atom::Eq(left, right)).negated()
+        clausify::Formula::Atom(clausify::Atom::Eq(left, right)).negated()
     }
 
     fn fof_unary_formula(
         &mut self,
         symbols: &mut Symbols,
-        unary: tptp::fof::UnaryFormula<'a>,
-    ) -> cnf::Formula {
+        unary: fof::UnaryFormula<'a>,
+    ) -> clausify::Formula {
         match unary {
-            tptp::fof::UnaryFormula::Unary(_, unary) => {
+            fof::UnaryFormula::Unary(_, unary) => {
                 self.fof_unit_formula(symbols, *unary).negated()
             }
-            tptp::fof::UnaryFormula::InfixUnary(infix) => {
+            fof::UnaryFormula::InfixUnary(infix) => {
                 self.fof_infix_unary(symbols, infix)
             }
         }
@@ -343,13 +343,13 @@ impl<'a> Loader<'a> {
     fn fof_unit_formula(
         &mut self,
         symbols: &mut Symbols,
-        unit: tptp::fof::UnitFormula<'a>,
-    ) -> cnf::Formula {
+        unit: fof::UnitFormula<'a>,
+    ) -> clausify::Formula {
         match unit {
-            tptp::fof::UnitFormula::Unitary(unitary) => {
+            fof::UnitFormula::Unitary(unitary) => {
                 self.fof_unitary_formula(symbols, unitary)
             }
-            tptp::fof::UnitFormula::Unary(unary) => {
+            fof::UnitFormula::Unary(unary) => {
                 self.fof_unary_formula(symbols, unary)
             }
         }
@@ -358,49 +358,49 @@ impl<'a> Loader<'a> {
     fn fof_logic_formula(
         &mut self,
         symbols: &mut Symbols,
-        logic: tptp::fof::LogicFormula<'a>,
-    ) -> cnf::Formula {
+        logic: fof::LogicFormula<'a>,
+    ) -> clausify::Formula {
         match logic {
-            tptp::fof::LogicFormula::Binary(binary) => match binary {
-                tptp::fof::BinaryFormula::Nonassoc(nonassoc) => {
+            fof::LogicFormula::Binary(binary) => match binary {
+                fof::BinaryFormula::Nonassoc(nonassoc) => {
                     let left = self.fof_unit_formula(symbols, *nonassoc.left);
                     let right =
                         self.fof_unit_formula(symbols, *nonassoc.right);
                     match nonassoc.op {
                         tptp::common::NonassocConnective::LRImplies => {
-                            cnf::Formula::Or(vec![left.negated(), right])
+                            clausify::Formula::Or(vec![left.negated(), right])
                         }
                         tptp::common::NonassocConnective::RLImplies => {
-                            cnf::Formula::Or(vec![left, right.negated()])
+                            clausify::Formula::Or(vec![left, right.negated()])
                         }
                         tptp::common::NonassocConnective::Equivalent => {
-                            cnf::Formula::Equiv(
+                            clausify::Formula::Equiv(
                                 Box::new(left),
                                 Box::new(right),
                             )
                         }
                         tptp::common::NonassocConnective::NotEquivalent => {
-                            cnf::Formula::Equiv(
+                            clausify::Formula::Equiv(
                                 Box::new(left),
                                 Box::new(right),
                             )
                             .negated()
                         }
                         tptp::common::NonassocConnective::NotOr => {
-                            cnf::Formula::Or(vec![left, right]).negated()
+                            clausify::Formula::Or(vec![left, right]).negated()
                         }
                         tptp::common::NonassocConnective::NotAnd => {
-                            cnf::Formula::And(vec![left, right]).negated()
+                            clausify::Formula::And(vec![left, right]).negated()
                         }
                     }
                 }
-                tptp::fof::BinaryFormula::Assoc(assoc) => match assoc {
-                    tptp::fof::BinaryAssoc::Or(or) => cnf::Formula::Or(
+                fof::BinaryFormula::Assoc(assoc) => match assoc {
+                    fof::BinaryAssoc::Or(or) => clausify::Formula::Or(
                         or.0.into_iter()
                             .map(|unit| self.fof_unit_formula(symbols, unit))
                             .collect(),
                     ),
-                    tptp::fof::BinaryAssoc::And(and) => cnf::Formula::And(
+                    fof::BinaryAssoc::And(and) => clausify::Formula::And(
                         and.0
                             .into_iter()
                             .map(|unit| self.fof_unit_formula(symbols, unit))
@@ -408,10 +408,10 @@ impl<'a> Loader<'a> {
                     ),
                 },
             },
-            tptp::fof::LogicFormula::Unary(unary) => {
+            fof::LogicFormula::Unary(unary) => {
                 self.fof_unary_formula(symbols, unary)
             }
-            tptp::fof::LogicFormula::Unitary(unitary) => {
+            fof::LogicFormula::Unitary(unitary) => {
                 self.fof_unitary_formula(symbols, unitary)
             }
         }
@@ -420,16 +420,16 @@ impl<'a> Loader<'a> {
     fn literal(
         &mut self,
         symbols: &mut Symbols,
-        literal: tptp::cnf::Literal<'a>,
-    ) -> cnf::Formula {
+        literal: cnf::Literal<'a>,
+    ) -> clausify::Formula {
         match literal {
-            tptp::cnf::Literal::Atomic(atomic) => {
+            cnf::Literal::Atomic(atomic) => {
                 self.fof_atomic_formula(symbols, atomic)
             }
-            tptp::cnf::Literal::NegatedAtomic(atomic) => {
+            cnf::Literal::NegatedAtomic(atomic) => {
                 self.fof_atomic_formula(symbols, atomic).negated()
             }
-            tptp::cnf::Literal::Infix(infix) => {
+            cnf::Literal::Infix(infix) => {
                 self.fof_infix_unary(symbols, infix)
             }
         }
@@ -438,18 +438,18 @@ impl<'a> Loader<'a> {
     fn cnf_formula(
         &mut self,
         symbols: &mut Symbols,
-        cnf: tptp::cnf::Formula<'a>,
-    ) -> cnf::Formula {
+        cnf: cnf::Formula<'a>,
+    ) -> clausify::Formula {
         let mut literals = match cnf {
-            tptp::cnf::Formula::Disjunction(disjunction) => disjunction,
-            tptp::cnf::Formula::Parenthesised(disjunction) => disjunction,
+            cnf::Formula::Disjunction(disjunction) => disjunction,
+            cnf::Formula::Parenthesised(disjunction) => disjunction,
         }
         .0;
         if literals.len() == 1 {
             let literal = unwrap(literals.pop());
             return self.literal(symbols, literal);
         }
-        cnf::Formula::Or(
+        clausify::Formula::Or(
             literals
                 .into_iter()
                 .map(|literal| self.literal(symbols, literal))
@@ -460,23 +460,23 @@ impl<'a> Loader<'a> {
     fn fof_formula(
         &mut self,
         symbols: &mut Symbols,
-        fof: tptp::fof::Formula<'a>,
-    ) -> cnf::Formula {
+        fof: fof::Formula<'a>,
+    ) -> clausify::Formula {
         self.fof_logic_formula(symbols, fof.0)
     }
 
     fn annotated_formula(
         &mut self,
         symbols: &mut Symbols,
-        formula: tptp::top::AnnotatedFormula<'a>,
-    ) -> (bool, bool, String, cnf::Formula) {
+        formula: top::AnnotatedFormula<'a>,
+    ) -> (bool, bool, String, clausify::Formula) {
         let (is_cnf, name, mut role, mut formula) = match formula {
-            tptp::top::AnnotatedFormula::Fof(fof) => {
+            top::AnnotatedFormula::Fof(fof) => {
                 let fof = fof.0;
                 let formula = self.fof_formula(symbols, *fof.formula);
                 (false, format!("{}", fof.name), fof.role, formula)
             }
-            tptp::top::AnnotatedFormula::Cnf(cnf) => {
+            top::AnnotatedFormula::Cnf(cnf) => {
                 let cnf = cnf.0;
                 let formula = self.cnf_formula(symbols, *cnf.formula);
                 (true, format!("{}", cnf.name), cnf.role, formula)
@@ -486,11 +486,11 @@ impl<'a> Loader<'a> {
         self.unbound.clear();
         self.fresh = 0;
 
-        if role == tptp::top::FormulaRole::Conjecture {
+        if role == top::FormulaRole::Conjecture {
             formula = formula.negated();
-            role = tptp::top::FormulaRole::NegatedConjecture;
+            role = top::FormulaRole::NegatedConjecture;
         }
-        let conjecture = role == tptp::top::FormulaRole::NegatedConjecture;
+        let conjecture = role == top::FormulaRole::NegatedConjecture;
         (is_cnf, conjecture, name, formula)
     }
 }

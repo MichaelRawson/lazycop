@@ -1,4 +1,4 @@
-use crate::cnf;
+use crate::clausify;
 use crate::index::Index;
 use crate::prelude::*;
 
@@ -14,7 +14,7 @@ pub(crate) struct ProblemBuilder {
     negative_clauses: Vec<Id<ProblemClause>>,
     conjecture_clauses: Vec<Id<ProblemClause>>,
 
-    variables: Vec<(cnf::Variable, Id<Term>)>,
+    variables: Vec<(clausify::Variable, Id<Term>)>,
 }
 
 impl ProblemBuilder {
@@ -36,9 +36,9 @@ impl ProblemBuilder {
         )
     }
 
-    fn term(&mut self, terms: &mut Terms, term: cnf::Term) -> Id<Term> {
+    fn term(&mut self, terms: &mut Terms, term: clausify::Term) -> Id<Term> {
         match term {
-            cnf::Term::Var(x) => {
+            clausify::Term::Var(x) => {
                 let lookup = self.variables.iter().find(|(v, _)| v == &x);
                 if let Some((_, term)) = lookup {
                     *term
@@ -48,7 +48,7 @@ impl ProblemBuilder {
                     term
                 }
             }
-            cnf::Term::Fun(f, args) => {
+            clausify::Term::Fun(f, args) => {
                 let args = args
                     .into_iter()
                     .map(|arg| self.term(terms, arg))
@@ -63,11 +63,11 @@ impl ProblemBuilder {
         symbols: &Symbols,
         terms: &mut Terms,
         literals: &mut Literals,
-        literal: cnf::Literal,
+        literal: clausify::Literal,
     ) {
-        let cnf::Literal(polarity, atom) = literal;
+        let clausify::Literal(polarity, atom) = literal;
         match atom {
-            cnf::Atom::Pred(term) => {
+            clausify::Atom::Pred(term) => {
                 let term = self.term(terms, term);
                 let atom = Atom::Predicate(term);
                 let symbol = atom.get_predicate_symbol(terms);
@@ -84,7 +84,7 @@ impl ProblemBuilder {
                     );
                 }
             }
-            cnf::Atom::Eq(left, right) => {
+            clausify::Atom::Eq(left, right) => {
                 self.has_equality = true;
                 let left = self.term(terms, left);
                 let right = self.term(terms, right);
@@ -114,7 +114,7 @@ impl ProblemBuilder {
     fn clause(
         &mut self,
         symbols: &Symbols,
-        clause: Vec<cnf::Literal>,
+        clause: Vec<clausify::Literal>,
     ) -> (Terms, Literals) {
         let mut terms = Terms::default();
         let mut literals = Literals::default();
@@ -131,7 +131,7 @@ impl ProblemBuilder {
         &mut self,
         symbols: &Symbols,
         origin: Origin,
-        cnf: cnf::CNF,
+        cnf: clausify::CNF,
     ) {
         let is_conjecture = origin.conjecture;
         let is_empty = cnf.0.is_empty();

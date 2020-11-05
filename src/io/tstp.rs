@@ -1,4 +1,4 @@
-use crate::cnf;
+use crate::clausify;
 use crate::equation_solver::EquationSolver;
 use crate::occurs::SkipCheck;
 use crate::prelude::*;
@@ -75,18 +75,18 @@ impl TSTP {
         }
     }
 
-    fn print_cnf_term(symbols: &Symbols, term: &cnf::Term) {
+    fn print_clausifier_term(symbols: &Symbols, term: &clausify::Term) {
         match term {
-            cnf::Term::Var(cnf::Variable(n)) => print!("X{}", n),
-            cnf::Term::Fun(f, args) => {
+            clausify::Term::Var(clausify::Variable(n)) => print!("X{}", n),
+            clausify::Term::Fun(f, args) => {
                 Self::print_symbol(symbols, *f);
                 let mut args = args.iter();
                 if let Some(first) = args.next() {
                     print!("(");
-                    Self::print_cnf_term(symbols, first);
+                    Self::print_clausifier_term(symbols, first);
                     for rest in args {
                         print!(",");
-                        Self::print_cnf_term(symbols, rest);
+                        Self::print_clausifier_term(symbols, rest);
                     }
                     print!(")");
                 }
@@ -94,32 +94,32 @@ impl TSTP {
         }
     }
 
-    fn print_cnf_literal(symbols: &Symbols, literal: &cnf::Literal) {
-        let cnf::Literal(polarity, atom) = literal;
+    fn print_clausifier_literal(symbols: &Symbols, literal: &clausify::Literal) {
+        let clausify::Literal(polarity, atom) = literal;
         match atom {
-            cnf::Atom::Pred(term) => {
+            clausify::Atom::Pred(term) => {
                 if !*polarity {
                     print!("~");
                 }
-                Self::print_cnf_term(symbols, term);
+                Self::print_clausifier_term(symbols, term);
             }
-            cnf::Atom::Eq(left, right) => {
-                Self::print_cnf_term(symbols, left);
+            clausify::Atom::Eq(left, right) => {
+                Self::print_clausifier_term(symbols, left);
                 if *polarity {
                     print!(" = ");
                 } else {
                     print!(" != ");
                 }
-                Self::print_cnf_term(symbols, right);
+                Self::print_clausifier_term(symbols, right);
             }
         }
     }
 
-    pub(crate) fn print_cnf(
+    pub(crate) fn print_clausifier_clause(
         symbols: &Symbols,
         number: usize,
         conjecture: bool,
-        cnf: &cnf::CNF,
+        cnf: &clausify::CNF,
     ) {
         let role = if conjecture {
             "negated_conjecture"
@@ -129,13 +129,13 @@ impl TSTP {
         print!("cnf(c{}, {}, ", number, role);
         let mut literals = cnf.0.iter();
         if let Some(first) = literals.next() {
-            Self::print_cnf_literal(symbols, first);
+            Self::print_clausifier_literal(symbols, first);
         } else {
             print!("$false");
         }
         for rest in literals {
             print!(" | ");
-            Self::print_cnf_literal(symbols, rest);
+            Self::print_clausifier_literal(symbols, rest);
         }
         println!(").");
     }

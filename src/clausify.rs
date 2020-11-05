@@ -116,7 +116,7 @@ impl SkNNF {
 }
 
 #[derive(Default)]
-pub(crate) struct SkNNFTransform {
+struct SkNNFTransform {
     bound: Vec<Variable>,
     skolems: Vec<(Variable, Term)>,
     fresh: usize,
@@ -191,7 +191,7 @@ impl SkNNFTransform {
 }
 
 #[derive(Default)]
-pub(crate) struct CNFTransform {
+struct CNFTransform {
     todo: Vec<SkNNF>,
     vars: Vec<Variable>,
     fresh: usize,
