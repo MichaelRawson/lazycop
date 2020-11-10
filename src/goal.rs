@@ -92,8 +92,12 @@ impl<'problem> Goal<'problem> {
     }
 
     pub(crate) fn possible_rules<E: Extend<Rule>>(&self, possible: &mut E) {
-        self.tableau
-            .possible_rules(possible, self.problem, &self.terms);
+        self.tableau.possible_rules(
+            possible,
+            self.problem,
+            &self.terms,
+            &self.bindings,
+        );
     }
 
     pub(crate) fn simplify_constraints(&mut self) -> bool {

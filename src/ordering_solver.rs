@@ -107,9 +107,9 @@ fn lpo(
     s: Id<Term>,
     t: Id<Term>,
 ) -> Option<Ordering> {
-    let (s, sview) = bindings.view(symbols, terms, s);
-    let (t, tview) = bindings.view(symbols, terms, t);
-    match (sview, tview) {
+    let s = bindings.resolve(terms, s);
+    let t = bindings.resolve(terms, t);
+    match (terms.view(symbols, s), terms.view(symbols, t)) {
         (TermView::Variable(x), TermView::Variable(y)) => {
             if x == y {
                 Some(Ordering::Equal)

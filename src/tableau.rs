@@ -249,8 +249,9 @@ impl Tableau {
         possible: &mut E,
         problem: &Problem,
         terms: &Terms,
+        bindings: &Bindings,
     ) {
-        infer::rules(possible, self, problem, terms, &self.literals);
+        infer::rules(possible, self, problem, terms, &self.literals, bindings);
     }
 
     pub(crate) fn apply_rule<R: Record>(

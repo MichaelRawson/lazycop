@@ -50,18 +50,6 @@ impl Bindings {
             .filter(|(variable, term)| variable.transmute() != *term)
     }
 
-    pub(crate) fn view(
-        &self,
-        symbols: &Symbols,
-        terms: &Terms,
-        mut term: Id<Term>,
-    ) -> (Id<Term>, TermView) {
-        if terms.is_variable(term) {
-            term = self.lookup(term.transmute());
-        }
-        (term, terms.view(symbols, term))
-    }
-
     pub(crate) fn occurs(
         &self,
         symbols: &Symbols,
@@ -69,13 +57,21 @@ impl Bindings {
         x: Id<Variable>,
         term: Id<Term>,
     ) -> bool {
-        let (_, view) = self.view(symbols, terms, term);
-        match view {
+        let term = self.resolve(terms, term);
+        match terms.view(symbols, term) {
             TermView::Variable(y) => x == y,
             TermView::Function(_, args) => args
                 .into_iter()
                 .map(|t| terms.resolve(t))
                 .any(|t| self.occurs(symbols, terms, x, t)),
+        }
+    }
+
+    pub(crate) fn resolve(&self, terms: &Terms, term: Id<Term>) -> Id<Term> {
+        if terms.is_variable(term) {
+            self.lookup(term.transmute())
+        } else {
+            term
         }
     }
 

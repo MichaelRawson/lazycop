@@ -156,13 +156,13 @@ impl DisequationSolver {
         left: Id<Term>,
         right: Id<Term>,
     ) -> bool {
-        let (left, lview) = bindings.view(symbols, terms, left);
-        let (right, rview) = bindings.view(symbols, terms, right);
+        let left = bindings.resolve(terms, left);
+        let right = bindings.resolve(terms, right);
         if left == right {
             return false;
         }
         if let (TermView::Function(f, ss), TermView::Function(g, ts)) =
-            (lview, rview)
+            (terms.view(symbols, left), terms.view(symbols, right))
         {
             f != g
                 || ss
@@ -185,9 +185,9 @@ impl DisequationSolver {
         left: Id<Term>,
         right: Id<Term>,
     ) -> bool {
-        let (left, lview) = bindings.view(symbols, terms, left);
-        let (right, rview) = bindings.view(symbols, terms, right);
-        match (lview, rview) {
+        let left = bindings.resolve(terms, left);
+        let right = bindings.resolve(terms, right);
+        match (terms.view(symbols, left), terms.view(symbols, right)) {
             (TermView::Variable(x), TermView::Variable(y)) => {
                 if x == y {
                     return false;
