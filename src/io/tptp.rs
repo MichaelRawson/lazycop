@@ -470,23 +470,23 @@ impl<'a> Loader<'a> {
             top::AnnotatedFormula::Fof(fof) => {
                 let fof = fof.0;
                 let formula = self.fof_formula(symbols, *fof.formula);
-                (false, format!("{}", fof.name), fof.role, formula)
+                (false, format!("{}", fof.name), (fof.role.0).0, formula)
             }
             top::AnnotatedFormula::Cnf(cnf) => {
                 let cnf = cnf.0;
                 let formula = self.cnf_formula(symbols, *cnf.formula);
-                (true, format!("{}", cnf.name), cnf.role, formula)
+                (true, format!("{}", cnf.name), (cnf.role.0).0, formula)
             }
         };
         debug_assert!(self.bound.is_empty());
         self.unbound.clear();
         self.fresh = 0;
 
-        if role == top::FormulaRole::Conjecture {
+        if role == "conjecture" {
             formula = formula.negated();
-            role = top::FormulaRole::NegatedConjecture;
+            role = "negated_conjecture";
         }
-        let conjecture = role == top::FormulaRole::NegatedConjecture;
+        let conjecture = role == "negated_conjecture";
         (is_cnf, conjecture, name, formula)
     }
 }

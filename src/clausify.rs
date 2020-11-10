@@ -3,7 +3,7 @@ use crate::prelude::*;
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Variable(pub(crate) u32);
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) enum Term {
     Var(Variable),
     Fun(Id<Symbol>, Vec<Term>),
@@ -40,7 +40,7 @@ impl Term {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) enum Atom {
     Pred(Term),
     Eq(Term, Term),
@@ -67,7 +67,7 @@ impl Atom {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Literal(pub(crate) bool, pub(crate) Atom);
 
 #[derive(Clone)]
@@ -93,20 +93,18 @@ impl Literal {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 enum SkNNF {
     Lit(Literal),
     And(Vec<SkNNF>),
     Or(Vec<SkNNF>),
 }
 
-pub(crate) struct CNF(pub(crate) Vec<Literal>);
-
 impl SkNNF {
     fn vars<E: Extend<Variable>>(&self, vars: &mut E) {
         match self {
-            SkNNF::Lit(lit) => lit.vars(vars),
-            SkNNF::And(fs) | SkNNF::Or(fs) => {
+            Self::Lit(lit) => lit.vars(vars),
+            Self::And(fs) | Self::Or(fs) => {
                 for f in fs {
                     f.vars(vars);
                 }
@@ -114,6 +112,8 @@ impl SkNNF {
         }
     }
 }
+
+pub(crate) struct CNF(pub(crate) Vec<Literal>);
 
 #[derive(Default)]
 struct SkNNFTransform {
@@ -138,20 +138,16 @@ impl SkNNFTransform {
             (_, Formula::Atom(atom)) => {
                 SkNNF::Lit(Literal(polarity, atom.subst(&self.skolems)))
             }
-            (true, Formula::And(fs)) | (false, Formula::Or(fs)) => {
-                let fs = fs
-                    .into_iter()
+            (true, Formula::And(fs)) | (false, Formula::Or(fs)) => SkNNF::And(
+                fs.into_iter()
                     .map(|f| self.formula(symbols, polarity, f))
-                    .collect();
-                SkNNF::And(fs)
-            }
-            (true, Formula::Or(fs)) | (false, Formula::And(fs)) => {
-                let fs = fs
-                    .into_iter()
+                    .collect(),
+            ),
+            (true, Formula::Or(fs)) | (false, Formula::And(fs)) => SkNNF::Or(
+                fs.into_iter()
                     .map(|f| self.formula(symbols, polarity, f))
-                    .collect();
-                SkNNF::Or(fs)
-            }
+                    .collect(),
+            ),
             (_, Formula::Equiv(p, q)) => {
                 let p = *p;
                 let q = *q;
@@ -251,6 +247,14 @@ impl CNFTransform {
                             SkNNF::Or(gs) => {
                                 fs.extend(gs);
                             }
+                        }
+                    }
+                    let mut index = 0;
+                    while index < literals.len() {
+                        if literals[index + 1..].contains(&literals[index]) {
+                            literals.remove(index);
+                        } else {
+                            index += 1;
                         }
                     }
                     return Some(CNF(literals));
