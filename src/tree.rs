@@ -2,6 +2,10 @@ use crate::prelude::*;
 
 #[cfg(feature = "cudann")]
 const LAMBDA: f32 = 1.0;
+#[cfg(feature = "cudann")]
+const MIN_SCORE: f32 = f32::NEG_INFINITY;
+#[cfg(not(feature = "cudann"))]
+const MIN_SCORE: i32 = i32::MIN;
 
 pub(crate) struct Node {
     parent: Id<Node>,
@@ -53,7 +57,6 @@ pub(crate) struct Tree {
 
 impl Default for Tree {
     fn default() -> Self {
-        dbg!(std::mem::size_of::<Node>());
         let mut nodes = Block::default();
         nodes.push(Node::leaf(Id::default(), Rule::Reflexivity, 0));
         Self { nodes }
@@ -66,7 +69,7 @@ impl Tree {
     }
 
     pub(crate) fn select_for_expansion<E: Extend<Rule>>(
-        &self,
+        &mut self,
         rules: &mut E,
     ) -> Option<Id<Node>> {
         debug_assert!(!self.is_closed());
@@ -75,7 +78,13 @@ impl Tree {
             current = self.choose_child(current);
             rules.extend(std::iter::once(self.nodes[current].rule));
         }
-        Some(current)
+        if self.nodes[current].score == MIN_SCORE {
+            None
+        } else {
+            self.nodes[current].score = MIN_SCORE;
+            self.propagate_score(self.nodes[current].parent);
+            Some(current)
+        }
     }
 
     pub(crate) fn expand(&mut self, leaf: Id<Node>, data: &[(Rule, u32)]) {
@@ -144,7 +153,10 @@ impl Tree {
             }
             current = self.nodes[current].parent;
         }
+        self.propagate_score(current);
+    }
 
+    fn propagate_score(&mut self, mut current: Id<Node>) {
         loop {
             self.update_score(current);
             if current == Id::default() {

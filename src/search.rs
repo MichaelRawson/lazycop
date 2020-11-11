@@ -5,7 +5,7 @@ use crate::record::Silent;
 use crate::statistics::Statistics;
 use crate::tree::Tree;
 use crossbeam_utils::thread;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 const STACK_SIZE: usize = 0x10_00000;
@@ -20,7 +20,7 @@ fn expansion_task(
     problem: &Problem,
     options: &Options,
     statistics: &Statistics,
-    tree: &RwLock<Tree>,
+    tree: &Mutex<Tree>,
     stop: &AtomicBool,
 ) -> SearchResult {
     let mut rules = vec![];
@@ -30,7 +30,7 @@ fn expansion_task(
 
     while !stop.load(Ordering::Relaxed) && options.within_time_limit() {
         let leaf = {
-            let tree = tree.read();
+            let mut tree = tree.lock();
             if tree.is_closed() {
                 stop.store(true, Ordering::Relaxed);
                 return SearchResult::Exhausted;
@@ -70,7 +70,7 @@ fn expansion_task(
             goal.restore();
         }
 
-        tree.write().expand(leaf, &*data);
+        tree.lock().expand(leaf, &*data);
         statistics.increment_expanded_goals();
         goal.clear();
         rules.clear();
@@ -83,7 +83,7 @@ fn expansion_task(
 fn evaluation_task(
     problem: &Problem,
     statistics: &Statistics,
-    tree: &RwLock<Tree>,
+    tree: &Mutex<Tree>,
     stop: &AtomicBool,
 ) {
     let mut rules = vec![];
@@ -94,7 +94,7 @@ fn evaluation_task(
 
     while !stop.load(Ordering::Relaxed) {
         let node = if let Some(node) =
-            tree.read().select_for_evaluation(&mut rules)
+            tree.lock().select_for_evaluation(&mut rules)
         {
             node
         } else {
@@ -109,7 +109,7 @@ fn evaluation_task(
         debug_assert!(constraints_ok);
         goal.save();
 
-        inferences.extend(tree.read().child_rules(node));
+        inferences.extend(tree.lock().child_rules(node));
         debug_assert!(!inferences.is_empty());
 
         if inferences.len() == 1 {
@@ -126,7 +126,7 @@ fn evaluation_task(
             cudann::model(input, &mut scores);
         }
 
-        tree.write().evaluate(node, &scores);
+        tree.lock().evaluate(node, &scores);
         inferences.clear();
         goal.clear();
         graph.clear();
@@ -140,29 +140,31 @@ pub(crate) fn search(
 ) -> (Statistics, SearchResult) {
     let statistics = Statistics::new(problem);
     let result = Mutex::new(SearchResult::TimeOut);
-    let tree = RwLock::new(Tree::default());
+    let tree = Mutex::new(Tree::default());
     let stop = AtomicBool::new(false);
 
     thread::scope(|scope| {
-        scope
-            .builder()
-            .name("search".into())
-            .stack_size(STACK_SIZE)
-            .spawn(|_| {
-                let task_result = expansion_task(
-                    problem,
-                    options,
-                    &statistics,
-                    &tree,
-                    &stop,
-                );
+        for cpu in 0..num_cpus::get() {
+            scope
+                .builder()
+                .name(format!("search-{}", cpu))
+                .stack_size(STACK_SIZE)
+                .spawn(|_| {
+                    let task_result = expansion_task(
+                        problem,
+                        options,
+                        &statistics,
+                        &tree,
+                        &stop,
+                    );
 
-                let mut result = result.lock();
-                if let SearchResult::TimeOut = &*result {
-                    *result = task_result;
-                }
-            })
-            .expect("failed to spawn expansion thread");
+                    let mut result = result.lock();
+                    if let SearchResult::TimeOut = &*result {
+                        *result = task_result;
+                    }
+                })
+                .expect("failed to spawn expansion thread");
+        }
 
         #[cfg(feature = "cudann")]
         scope
