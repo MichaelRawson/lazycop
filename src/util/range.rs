@@ -15,8 +15,18 @@ impl<T> Range<T> {
         Self { start, stop }
     }
 
-    pub(crate) fn is_empty(range: Self) -> bool {
-        range.start == range.stop
+    pub(crate) fn new_invalid() -> Self {
+        let start = Id::default() + Offset::new(1);
+        let stop = Id::default();
+        Self { start, stop }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.start == self.stop
+    }
+
+    pub(crate) fn is_invalid(&self) -> bool {
+        self.start > self.stop
     }
 
     pub(crate) fn len(&self) -> i32 {

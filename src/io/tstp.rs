@@ -272,7 +272,7 @@ impl Record for TSTP {
         let mut remaining_deductions = inference.deductions.len();
         for deduction in &inference.deductions {
             remaining_deductions -= 1;
-            if Range::is_empty(*deduction) {
+            if deduction.is_empty() {
                 if remaining_deductions > 0 {
                     continue;
                 }

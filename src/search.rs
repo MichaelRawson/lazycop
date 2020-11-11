@@ -6,14 +6,14 @@ use crate::statistics::Statistics;
 use crate::tree::Tree;
 use crossbeam_utils::thread;
 use parking_lot::{Mutex, RwLock};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 const STACK_SIZE: usize = 0x10_00000;
 
 pub(crate) enum SearchResult {
     Proof(Vec<Rule>),
     Exhausted,
-    ResourceOut,
+    TimeOut,
 }
 
 fn expansion_task(
@@ -22,28 +22,19 @@ fn expansion_task(
     statistics: &Statistics,
     tree: &RwLock<Tree>,
     stop: &AtomicBool,
-    steps: &AtomicUsize,
 ) -> SearchResult {
     let mut rules = vec![];
-    let mut proof = None;
     let mut possible = vec![];
     let mut goal = Goal::new(problem);
     let mut data = vec![];
 
-    loop {
-        let should_stop = stop.load(Ordering::Relaxed);
-        let steps_so_far = steps.fetch_add(1, Ordering::Relaxed);
-        if should_stop || !options.within_resource_limits(steps_so_far) {
-            return SearchResult::ResourceOut;
-        }
-
+    while !stop.load(Ordering::Relaxed) && options.within_time_limit() {
         let leaf = {
             let tree = tree.read();
-
             if tree.is_closed() {
+                stop.store(true, Ordering::Relaxed);
                 return SearchResult::Exhausted;
             }
-
             if let Some(leaf) = tree.select_for_expansion(&mut rules) {
                 leaf
             } else {
@@ -53,7 +44,7 @@ fn expansion_task(
             }
         };
 
-        let mut record = Silent; //crate::io::tstp::TSTP::default();
+        let mut record = Silent;
         for rule in &rules {
             goal.apply_rule(&mut record, rule);
         }
@@ -66,9 +57,9 @@ fn expansion_task(
             goal.apply_rule(&mut Silent, &rule);
             if goal.solve_constraints() {
                 if goal.is_closed() {
-                    let mut script = rules.clone();
-                    script.push(rule);
-                    proof = Some(script);
+                    stop.store(true, Ordering::Relaxed);
+                    rules.push(rule);
+                    return SearchResult::Proof(rules);
                 }
 
                 data.push((rule, goal.size()));
@@ -84,11 +75,8 @@ fn expansion_task(
         goal.clear();
         rules.clear();
         data.clear();
-
-        if let Some(proof) = proof {
-            return SearchResult::Proof(proof);
-        }
     }
+    SearchResult::TimeOut
 }
 
 #[cfg(feature = "cudann")]
@@ -151,9 +139,8 @@ pub(crate) fn search(
     options: &Options,
 ) -> (Statistics, SearchResult) {
     let statistics = Statistics::new(problem);
-    let result = Mutex::new(SearchResult::ResourceOut);
+    let result = Mutex::new(SearchResult::TimeOut);
     let tree = RwLock::new(Tree::default());
-    let steps = AtomicUsize::default();
     let stop = AtomicBool::new(false);
 
     thread::scope(|scope| {
@@ -168,18 +155,11 @@ pub(crate) fn search(
                     &statistics,
                     &tree,
                     &stop,
-                    &steps,
                 );
-                stop.store(true, Ordering::Relaxed);
 
                 let mut result = result.lock();
-                match (&task_result, &*result) {
-                    (SearchResult::Proof(_), _)
-                    | (SearchResult::Exhausted, SearchResult::ResourceOut) => {
-                        *result = task_result;
-                    }
-                    (SearchResult::ResourceOut, _)
-                    | (SearchResult::Exhausted, _) => {}
+                if let SearchResult::TimeOut = &*result {
+                    *result = task_result;
                 }
             })
             .expect("failed to spawn expansion thread");

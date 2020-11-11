@@ -222,7 +222,7 @@ impl Terms {
             }
             TermView::Function(f, args) => {
                 let symbol = graph.symbol(symbols, f);
-                if Range::is_empty(args) {
+                if args.is_empty() {
                     symbol
                 } else {
                     let application = graph.application(symbol);

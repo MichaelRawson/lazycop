@@ -28,10 +28,6 @@ pub(crate) struct Options {
     #[structopt(long)]
     pub(crate) time: Option<u64>,
 
-    /// expansion limit
-    #[structopt(long)]
-    pub(crate) expansions: Option<usize>,
-
     /// print clause normal form and exit
     #[structopt(long)]
     pub(crate) dump_clauses: bool,
@@ -53,21 +49,13 @@ impl Options {
         Self::from_args()
     }
 
-    pub(crate) fn within_resource_limits(&self, expansions: usize) -> bool {
-        if let Some(max_expansion) = self.expansions {
-            if expansions >= max_expansion {
-                return false;
-            }
-        }
-
+    pub(crate) fn within_time_limit(&self) -> bool {
         if let Some(time_limit) = self.time {
             let elapsed = self.start_time.elapsed().as_secs();
-            if elapsed >= time_limit {
-                return false;
-            }
+            elapsed < time_limit
+        } else {
+            true
         }
-
-        true
     }
 
     pub(crate) fn problem_name(&self) -> String {

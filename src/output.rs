@@ -80,8 +80,8 @@ fn tstp(
             statistics.record(&mut record);
             exit::failure()
         }
-        SearchResult::ResourceOut => {
-            szs::resource_out(&name);
+        SearchResult::TimeOut => {
+            szs::time_out(&name);
             statistics.record(&mut record);
             exit::failure()
         }

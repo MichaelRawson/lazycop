@@ -13,7 +13,6 @@ pub(crate) struct Node {
     score: f32,
     #[cfg(not(feature = "cudann"))]
     score: i32,
-    closed: bool,
     #[cfg(feature = "cudann")]
     evaluated: bool,
 }
@@ -21,7 +20,6 @@ pub(crate) struct Node {
 impl Node {
     fn leaf(parent: Id<Node>, rule: Rule, estimate: u32) -> Self {
         let children = Range::new(Id::default(), Id::default());
-        let closed = false;
 
         #[cfg(feature = "cudann")]
         let score = -LAMBDA * estimate as f32;
@@ -35,14 +33,17 @@ impl Node {
             #[cfg(feature = "cudann")]
             log_prior: 0.0,
             score,
-            closed,
             #[cfg(feature = "cudann")]
             evaluated: false,
         }
     }
 
     fn is_leaf(&self) -> bool {
-        !self.closed && Range::is_empty(self.children)
+        self.children.is_empty()
+    }
+
+    fn is_closed(&self) -> bool {
+        self.children.is_invalid()
     }
 }
 
@@ -52,6 +53,7 @@ pub(crate) struct Tree {
 
 impl Default for Tree {
     fn default() -> Self {
+        dbg!(std::mem::size_of::<Node>());
         let mut nodes = Block::default();
         nodes.push(Node::leaf(Id::default(), Rule::Reflexivity, 0));
         Self { nodes }
@@ -60,7 +62,7 @@ impl Default for Tree {
 
 impl Tree {
     pub(crate) fn is_closed(&self) -> bool {
-        self.nodes[Id::default()].closed
+        self.nodes[Id::default()].is_closed()
     }
 
     pub(crate) fn select_for_expansion<E: Extend<Rule>>(
@@ -74,6 +76,16 @@ impl Tree {
             rules.extend(std::iter::once(self.nodes[current].rule));
         }
         Some(current)
+    }
+
+    pub(crate) fn expand(&mut self, leaf: Id<Node>, data: &[(Rule, u32)]) {
+        let start = self.nodes.end();
+        for (rule, estimate) in data {
+            self.nodes.push(Node::leaf(leaf, *rule, *estimate));
+        }
+        let end = self.nodes.end();
+        self.nodes[leaf].children = Range::new(start, end);
+        self.propagate_expansion(leaf);
     }
 
     #[cfg(feature = "cudann")]
@@ -95,16 +107,6 @@ impl Tree {
         } else {
             Some(current)
         }
-    }
-
-    pub(crate) fn expand(&mut self, leaf: Id<Node>, data: &[(Rule, u32)]) {
-        let start = self.nodes.end();
-        for (rule, estimate) in data {
-            self.nodes.push(Node::leaf(leaf, *rule, *estimate));
-        }
-        let end = self.nodes.end();
-        self.nodes[leaf].children = Range::new(start, end);
-        self.propagate_expansion(leaf);
     }
 
     #[cfg(feature = "cudann")]
@@ -134,9 +136,9 @@ impl Tree {
         while self.nodes[current]
             .children
             .into_iter()
-            .all(|child| self.nodes[child].closed)
+            .all(|child| self.nodes[child].is_closed())
         {
-            self.nodes[current].closed = true;
+            self.nodes[current].children = Range::new_invalid();
             if current == Id::default() {
                 return;
             }
@@ -177,7 +179,7 @@ impl Tree {
         self.nodes[parent]
             .children
             .into_iter()
-            .filter(move |child| !self.nodes[*child].closed)
+            .filter(move |child| !self.nodes[*child].is_closed())
     }
 
     #[cfg(feature = "cudann")]

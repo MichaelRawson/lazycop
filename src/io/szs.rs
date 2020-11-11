@@ -10,8 +10,8 @@ pub(crate) fn inappropriate() {
     println!("% SZS status Inappropriate");
 }
 
-pub(crate) fn resource_out(name: &str) {
-    println!("% SZS status ResourceOut for {}", name);
+pub(crate) fn time_out(name: &str) {
+    println!("% SZS status TimeOut for {}", name);
 }
 
 pub(crate) fn theorem(name: &str) {
