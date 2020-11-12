@@ -1,3 +1,4 @@
+use crate::constraint::Order;
 use crate::prelude::*;
 use crate::util::range::RangeIterator;
 use std::cmp::Ordering;
@@ -178,17 +179,17 @@ impl OrderingSolver {
             .all(|ordering| ordering == Ordering::Greater)
     }
 
-    pub(crate) fn simplify<I: Iterator<Item = (Id<Term>, Id<Term>)>>(
+    pub(crate) fn simplify<I: Iterator<Item = Order>>(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,
         bindings: &Bindings,
         orderings: I,
     ) -> bool {
-        for (left, right) in orderings {
-            match lpo(symbols, terms, bindings, left, right) {
+        for Order { more, less } in orderings {
+            match lpo(symbols, terms, bindings, more, less) {
                 None => {
-                    self.remaining.push((left, right));
+                    self.remaining.push((more, less));
                 }
                 Some(Ordering::Greater) => {}
                 Some(_) => {

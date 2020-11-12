@@ -1,4 +1,4 @@
-use crate::constraint::SymmetricDisequation;
+use crate::constraint::{Disequation, SymmetricDisequation};
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -32,14 +32,14 @@ impl DisequationSolver {
         self.solved.truncate(self.save_solved);
     }
 
-    pub(crate) fn simplify<I: Iterator<Item = (Id<Term>, Id<Term>)>>(
+    pub(crate) fn simplify<I: Iterator<Item = Disequation>>(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,
         bindings: &Bindings,
         disequations: I,
     ) -> bool {
-        for (left, right) in disequations {
+        for Disequation { left, right } in disequations {
             let reset = self.atomic.len();
             let start = self.atomic.end();
             if self.simplify_disequation(symbols, terms, bindings, left, right)
@@ -66,14 +66,9 @@ impl DisequationSolver {
         bindings: &Bindings,
         disequations: I,
     ) -> bool {
-        for symmetric in disequations {
-            let SymmetricDisequation {
-                left1,
-                left2,
-                right1,
-                right2,
-            } = symmetric;
-
+        for SymmetricDisequation { left, right } in disequations {
+            let (left1, left2) = left;
+            let (right1, right2) = right;
             let reset = self.atomic.len();
             let start = self.atomic.end();
             if self

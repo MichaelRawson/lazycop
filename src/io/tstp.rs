@@ -1,4 +1,5 @@
 use crate::clausify;
+use crate::constraint::Equation;
 use crate::equation_solver::EquationSolver;
 use crate::occurs::SkipCheck;
 use crate::prelude::*;
@@ -11,7 +12,7 @@ pub(crate) struct TSTPInference {
     name: &'static str,
     axiom: Option<(Id<ProblemClause>, Range<Literal>)>,
     lemmas: Vec<Id<Literal>>,
-    equations: Vec<(Id<Term>, Id<Term>)>,
+    equations: Vec<Equation>,
     deductions: Vec<Range<Literal>>,
 }
 
@@ -45,7 +46,7 @@ impl Inference for TSTPInference {
     }
 
     fn equation(&mut self, left: Id<Term>, right: Id<Term>) -> &mut Self {
-        self.equations.push((left, right));
+        self.equations.push(Equation { left, right });
         self
     }
 

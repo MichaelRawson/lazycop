@@ -1,3 +1,4 @@
+use crate::constraint::Equation;
 use crate::occurs::Occurs;
 use crate::prelude::*;
 use crate::util::disjoint_set::{Disjoint, Set};
@@ -32,10 +33,7 @@ impl EquationSolver {
         self.from_alias.copy_from(&self.save_from_alias);
     }
 
-    pub(crate) fn solve<
-        O: Occurs,
-        I: Iterator<Item = (Id<Term>, Id<Term>)>,
-    >(
+    pub(crate) fn solve<O: Occurs, I: Iterator<Item = Equation>>(
         &mut self,
         symbols: &Symbols,
         terms: &Terms,
@@ -43,7 +41,7 @@ impl EquationSolver {
         mut equations: I,
     ) -> bool {
         self.to_alias.resize(terms.len());
-        let success = equations.all(|(left, right)| {
+        let success = equations.all(|Equation { left, right }| {
             self.solve_equation::<O>(symbols, terms, left, right)
         });
         if !success {
