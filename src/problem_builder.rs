@@ -11,7 +11,6 @@ pub(crate) struct ProblemBuilder {
     has_axioms: bool,
     has_conjecture: bool,
     empty_clause: Option<Id<ProblemClause>>,
-    negative_clauses: Vec<Id<ProblemClause>>,
     conjecture_clauses: Vec<Id<ProblemClause>>,
 
     variables: Vec<(clausify::Variable, Id<Term>)>,
@@ -21,10 +20,10 @@ impl ProblemBuilder {
     pub(crate) fn finish(mut self, symbols: Symbols) -> Problem {
         let start = if let Some(empty) = self.empty_clause {
             vec![empty]
-        } else if !self.has_axioms || self.conjecture_clauses.is_empty() {
-            self.negative_clauses
-        } else {
+        } else if self.has_conjecture {
             self.conjecture_clauses
+        } else {
+            self.clauses.range().into_iter().collect()
         };
         self.index.set_signature(&symbols);
         Problem::new(
@@ -135,7 +134,6 @@ impl ProblemBuilder {
     ) {
         let is_conjecture = origin.conjecture;
         let is_empty = cnf.0.is_empty();
-        let is_negative = cnf.0.iter().all(|literal| !literal.0);
 
         let (terms, literals) = self.clause(symbols, cnf.0);
         let problem_clause = self.clauses.push(ProblemClause {
@@ -144,17 +142,14 @@ impl ProblemBuilder {
             origin,
         });
 
-        if is_conjecture {
+        if is_empty {
+            self.empty_clause = Some(problem_clause);
+        }
+        else if is_conjecture {
             self.conjecture_clauses.push(problem_clause);
             self.has_conjecture = true;
         } else {
             self.has_axioms = true;
-        }
-        if is_negative {
-            self.negative_clauses.push(problem_clause);
-        }
-        if is_empty {
-            self.empty_clause = Some(problem_clause);
         }
     }
 }

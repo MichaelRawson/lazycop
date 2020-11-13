@@ -63,15 +63,15 @@ fn expansion_task(
                 }
 
                 data.push((rule, goal.size()));
-                statistics.increment_retained_goals();
+                statistics.increment_retained_leaves();
             } else {
-                statistics.increment_eliminated_goals();
+                statistics.increment_eliminated_leaves();
             }
             goal.restore();
         }
 
         tree.lock().expand(leaf, &*data);
-        statistics.increment_expanded_goals();
+        statistics.increment_expanded_leaves();
         goal.clear();
         rules.clear();
         data.clear();

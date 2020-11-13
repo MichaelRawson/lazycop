@@ -70,6 +70,12 @@ impl Atom {
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Literal(pub(crate) bool, pub(crate) Atom);
 
+impl Literal {
+    fn vars<E: Extend<Variable>>(&self, vars: &mut E) {
+        self.1.vars(vars);
+    }
+}
+
 #[derive(Clone)]
 pub(crate) enum Formula {
     Atom(Atom),
@@ -84,12 +90,6 @@ pub(crate) enum Formula {
 impl Formula {
     pub(crate) fn negated(self) -> Self {
         Self::Not(Box::new(self))
-    }
-}
-
-impl Literal {
-    fn vars<E: Extend<Variable>>(&self, vars: &mut E) {
-        self.1.vars(vars);
     }
 }
 

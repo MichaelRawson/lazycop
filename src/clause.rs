@@ -140,6 +140,22 @@ impl Clause {
         );
     }
 
+    pub(crate) fn distinct_objects<R: Record>(
+        &mut self,
+        record: &mut R,
+        problem: &Problem,
+        terms: &Terms,
+        literals: &Literals,
+    ) {
+        self.close_literal();
+        record.inference(
+            problem,
+            terms,
+            literals,
+            R::Inference::new("distinct_objects").deduction(self.open()),
+        );
+    }
+
     pub(crate) fn reduction<R: Record>(
         &mut self,
         record: &mut R,
@@ -165,7 +181,6 @@ impl Clause {
         );
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn demodulation<R: Record>(
         &mut self,
         record: &mut R,
@@ -462,7 +477,6 @@ impl Clause {
         (extension, consequence)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn strict_forward_paramodulation<R: Record>(
         &mut self,
         record: &mut R,
@@ -509,7 +523,6 @@ impl Clause {
         (extension, consequence)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn lazy_forward_paramodulation<R: Record>(
         &mut self,
         record: &mut R,
@@ -628,7 +641,6 @@ impl Clause {
         (occurrence.clause, extension, target, fresh, from, to)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn extend(
         problem: &Problem,
         terms: &mut Terms,

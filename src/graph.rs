@@ -17,6 +17,7 @@ pub(crate) enum Node {
     Clause,
     Start,
     Reflexivity,
+    DistinctObjects,
     Reduction,
     StrictExtension,
     LazyExtension,
@@ -90,7 +91,9 @@ impl Graph {
             node
         } else {
             let node = match symbols[symbol].name {
-                Name::Regular(_) | Name::Quoted(_) => Node::Symbol,
+                Name::Regular(_) | Name::Quoted(_) | Name::Distinct(_) => {
+                    Node::Symbol
+                }
                 Name::Skolem(_) => Node::Skolem,
                 Name::Definition(_) => Node::Definition,
             };
@@ -221,6 +224,12 @@ impl Graph {
 
     pub(crate) fn reflexivity(&mut self, current: Id<Node>) -> Id<Node> {
         let node = self.rule(Node::Reflexivity);
+        self.connect(node, current);
+        node
+    }
+
+    pub(crate) fn distinct_objects(&mut self, current: Id<Node>) -> Id<Node> {
+        let node = self.rule(Node::DistinctObjects);
         self.connect(node, current);
         node
     }

@@ -10,7 +10,6 @@ It implements the lazy paramodulation calculus [1], an extension of the predicat
 lazyCoP also implements the following well-known refinements of the predicate calculus:
  - definitional clause normal form translation, as in [2]
  - relevancy information: lazyCoP will start with clauses related to the conjecture if present
- - start clauses: if no conjecture clauses are available, negative clauses are selected instead
  - tautology elimination: no clause added to the tableau may contain some kinds of tautology
  - path regularity: no literal can occur twice in any path
  - enforced _hochklappen_ ("folding up"): refutations of unit literal "lemmas" are available for re-use where possible

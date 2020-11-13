@@ -65,6 +65,8 @@ fn forward_demodulation_rules<E: Extend<Rule>>(
             continue;
         }
         let (left, right) = reduction.get_equality();
+        let left = bindings.resolve(terms, left);
+        let right = bindings.resolve(terms, right);
         literal.subterms(symbols, terms, &mut |target| {
             possible.extend(
                 demodulation(symbols, terms, bindings, id, target, left)
@@ -218,12 +220,20 @@ fn equality_rules<E: Extend<Rule>>(
     bindings: &Bindings,
     literal: &Literal,
 ) {
-    if !literal.polarity {
-        let (left, right) = literal.get_equality();
-        if internal_match(&problem.symbols, terms, bindings, left, right) {
-            possible.extend(once(Rule::Reflexivity));
+    let (left, right) = literal.get_equality();
+    let left = bindings.resolve(terms, left);
+    let right = bindings.resolve(terms, right);
+    if literal.polarity {
+        if !terms.is_variable(left) && !terms.is_variable(right) {
+            let f = terms.symbol(left);
+            let g = terms.symbol(right);
+            if f != g
+                && problem.symbols[f].is_distinct_object()
+                && problem.symbols[g].is_distinct_object()
+            {
+                possible.extend(once(Rule::DistinctObjects));
+            }
         }
-    } else {
         backward_demodulation_rules(
             possible,
             tableau,
@@ -231,11 +241,14 @@ fn equality_rules<E: Extend<Rule>>(
             terms,
             literals,
             bindings,
-            literal,
+            left,
+            right,
         );
         forward_paramodulation_rules(
-            possible, problem, terms, literal, bindings,
+            possible, problem, terms, bindings, left, right,
         );
+    } else if internal_match(&problem.symbols, terms, bindings, left, right) {
+        possible.extend(once(Rule::Reflexivity));
     }
 }
 
@@ -246,9 +259,9 @@ fn backward_demodulation_rules<E: Extend<Rule>>(
     terms: &Terms,
     literals: &Literals,
     bindings: &Bindings,
-    literal: &Literal,
+    left: Id<Term>,
+    right: Id<Term>,
 ) {
-    let (left, right) = literal.get_equality();
     for id in tableau.reduction_literals() {
         let reduction = &literals[id];
         reduction.subterms(symbols, terms, &mut |target| {
@@ -268,12 +281,10 @@ fn forward_paramodulation_rules<E: Extend<Rule>>(
     possible: &mut E,
     problem: &Problem,
     terms: &Terms,
-    literal: &Literal,
     bindings: &Bindings,
+    left: Id<Term>,
+    right: Id<Term>,
 ) {
-    let (left, right) = literal.get_equality();
-    let left = bindings.resolve(terms, left);
-    let right = bindings.resolve(terms, right);
     forward_paramodulation_rules_one_sided(
         possible, problem, terms, bindings, left, true,
     );
@@ -368,8 +379,6 @@ fn internal_match(
     left: Id<Term>,
     right: Id<Term>,
 ) -> bool {
-    let left = bindings.resolve(terms, left);
-    let right = bindings.resolve(terms, right);
     match (terms.view(symbols, left), terms.view(symbols, right)) {
         (TermView::Variable(_), _) | (_, TermView::Variable(_)) => true,
         (TermView::Function(f, ss), TermView::Function(g, ts)) if f == g => {
@@ -378,8 +387,8 @@ fn internal_match(
                     symbols,
                     terms,
                     bindings,
-                    terms.resolve(s),
-                    terms.resolve(t),
+                    bindings.resolve(terms, terms.resolve(s)),
+                    bindings.resolve(terms, terms.resolve(t)),
                 )
             })
         }
@@ -395,7 +404,6 @@ fn external_match(
     left: Id<Term>,
     right: Id<Term>,
 ) -> bool {
-    let left = bindings.resolve(terms, left);
     match (
         terms.view(symbols, left),
         external_terms.view(symbols, right),

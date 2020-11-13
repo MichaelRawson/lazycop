@@ -37,6 +37,7 @@ pub(crate) struct ForwardParamodulation {
 pub(crate) enum Rule {
     Start(Start),
     Reflexivity,
+    DistinctObjects,
     Reduction(Reduction),
     LRForwardDemodulation(Demodulation),
     RLForwardDemodulation(Demodulation),

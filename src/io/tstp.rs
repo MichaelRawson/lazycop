@@ -71,6 +71,7 @@ impl TSTP {
         match &symbols[symbol].name {
             Name::Regular(word) => print!("{}", word),
             Name::Quoted(quoted) => print!("'{}'", quoted),
+            Name::Distinct(distinct) => print!("\"{}\"", distinct),
             Name::Skolem(skolem) => print!("sK{}", skolem),
             Name::Definition(definition) => print!("sP{}", definition),
         }

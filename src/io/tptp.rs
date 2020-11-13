@@ -31,7 +31,7 @@ fn report_inappropriate<T: fmt::Display>(t: T) -> ! {
 }
 
 struct TPTPFile<'a> {
-    _map: Mmap,
+    _map: Option<Mmap>,
     parser: TPTPIterator<'a, ()>,
     path: Arc<PathBuf>,
 }
@@ -57,6 +57,18 @@ fn open_include(old: &Path, path: &Path) -> io::Result<File> {
         .unwrap_or_else(|| open_root(path))
 }
 
+fn map_file(file: File) -> io::Result<Option<Mmap>> {
+    let metadata = file.metadata()?;
+    let map = if metadata.len() > 0 {
+        let map = unsafe { Mmap::map(&file) }?;
+        Some(map)
+    }
+    else {
+        None
+    };
+    Ok(map)
+}
+
 impl<'a> TPTPFile<'a> {
     fn new(old: Option<&Path>, path: &Path) -> Self {
         let file = if let Some(old) = old {
@@ -64,12 +76,16 @@ impl<'a> TPTPFile<'a> {
         } else {
             open_root(path)
         };
-        let _map = file
-            .and_then(|file| unsafe { Mmap::map(&file) })
-            .unwrap_or_else(|e| report_os_error(path.display(), e));
 
-        let bytes = _map.as_ref();
-        let bytes: &'a [u8] = unsafe { std::mem::transmute(bytes) };
+        let _map = file.and_then(map_file)
+            .unwrap_or_else(|e| report_os_error(path.display(), e));
+        let bytes: &'a [u8] = if let Some(map) = _map.as_ref() {
+            let bytes = map.as_ref();
+            unsafe { std::mem::transmute(bytes) }
+        }
+        else {
+            &[]
+        };
         let parser = TPTPIterator::new(bytes);
         let path = Arc::new(path.into());
         Self { _map, parser, path }
@@ -131,6 +147,7 @@ pub(crate) struct Loader<'a> {
     bound: Vec<(common::Variable<'a>, clausify::Variable)>,
     fresh: u32,
     functors: FnvHashMap<common::Functor<'a>, Id<Symbol>>,
+    distinct_objects: FnvHashMap<common::DistinctObject<'a>, Id<Symbol>>,
 }
 
 impl<'a> Loader<'a> {
@@ -140,12 +157,14 @@ impl<'a> Loader<'a> {
         let bound = vec![];
         let fresh = 0;
         let functors = FnvHashMap::default();
+        let distinct_objects = FnvHashMap::default();
         Self {
             problem,
             unbound,
             bound,
             fresh,
             functors,
+            distinct_objects,
         }
     }
 
@@ -187,6 +206,31 @@ impl<'a> Loader<'a> {
             let id = symbols.push(symbol);
             self.functors.insert(functor, id);
             id
+        }
+    }
+
+    fn defined_term(
+        &mut self,
+        symbols: &mut Symbols,
+        defined: common::DefinedTerm<'a>,
+    ) -> clausify::Term {
+        match defined {
+            common::DefinedTerm::Number(number) => {
+                report_inappropriate(number)
+            }
+            common::DefinedTerm::Distinct(distinct) => {
+                let id = if let Some(id) = self.distinct_objects.get(&distinct)
+                {
+                    *id
+                } else {
+                    let name = Name::Distinct(distinct.0.to_string());
+                    let symbol = Symbol { name, arity: 0 };
+                    let id = symbols.push(symbol);
+                    self.distinct_objects.insert(distinct, id);
+                    id
+                };
+                clausify::Term::Fun(id, vec![])
+            }
         }
     }
 
@@ -242,10 +286,36 @@ impl<'a> Loader<'a> {
                 fof::FunctionTerm::Plain(plain) => {
                     self.fof_plain_term(symbols, plain)
                 }
-                fof::FunctionTerm::Defined(defined) => {
-                    report_inappropriate(defined)
+                fof::FunctionTerm::System(system) => {
+                    report_inappropriate(system)
                 }
+                fof::FunctionTerm::Defined(defined) => match defined {
+                    fof::DefinedTerm::Defined(defined) => {
+                        self.defined_term(symbols, defined)
+                    }
+                    fof::DefinedTerm::Atomic(atomic) => {
+                        report_inappropriate(atomic)
+                    }
+                },
             },
+        }
+    }
+
+    fn fof_defined_plain_formula(
+        plain: fof::DefinedPlainFormula<'a>,
+    ) -> clausify::Formula {
+        match plain.0 {
+            fof::DefinedPlainTerm::Constant(ref c) => {
+                let c = ((((c.0).0).0).0).0;
+                match c {
+                    "true" => clausify::Formula::And(vec![]),
+                    "false" => clausify::Formula::Or(vec![]),
+                    _ => report_inappropriate(plain),
+                }
+            }
+            fof::DefinedPlainTerm::Function(_, _) => {
+                report_inappropriate(plain)
+            }
         }
     }
 
@@ -261,11 +331,7 @@ impl<'a> Loader<'a> {
             }
             fof::AtomicFormula::Defined(defined) => match defined {
                 fof::DefinedAtomicFormula::Plain(plain) => {
-                    match ((((((plain.0).0).0).0).0).0).0 {
-                        "true" => clausify::Formula::And(vec![]),
-                        "false" => clausify::Formula::Or(vec![]),
-                        _ => report_inappropriate(plain),
-                    }
+                    Self::fof_defined_plain_formula(plain)
                 }
                 fof::DefinedAtomicFormula::Infix(infix) => {
                     let left = self.fof_term(symbols, *infix.left);

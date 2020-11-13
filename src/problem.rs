@@ -40,8 +40,4 @@ impl Problem {
     pub(crate) fn num_clauses(&self) -> u32 {
         self.clauses.len().index()
     }
-
-    pub(crate) fn num_start_clauses(&self) -> u32 {
-        self.start_clauses.len() as u32
-    }
 }

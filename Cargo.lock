@@ -325,9 +325,9 @@ dependencies = [
 
 [[package]]
 name = "tptp"
-version = "0.27.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c624b0316c511c46d671e01e47f7702abd5c2f6dd5d42eb2081b04ceb6275b2"
+checksum = "d307d656a633ee86516519cda4adb3b7f2dc1ec06ad7e742076f5e2c0f246ee1"
 dependencies = [
  "nom",
 ]

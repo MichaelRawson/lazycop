@@ -159,6 +159,10 @@ impl Tableau {
                     let current = graph.get_literal(current);
                     graph.reflexivity(current);
                 }
+                Rule::DistinctObjects => {
+                    let current = graph.get_literal(current);
+                    graph.distinct_objects(current);
+                }
                 Rule::Reduction(reduction) => {
                     let current = graph.get_literal(current);
                     let mate = graph.get_literal(reduction.literal);
@@ -282,6 +286,15 @@ impl Tableau {
                     terms,
                     &self.literals,
                     constraints,
+                );
+                self.close_branches(record);
+            }
+            Rule::DistinctObjects => {
+                unwrap(self.stack.last_mut()).distinct_objects(
+                    record,
+                    problem,
+                    terms,
+                    &self.literals,
                 );
                 self.close_branches(record);
             }
