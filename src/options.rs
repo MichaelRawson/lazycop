@@ -1,5 +1,6 @@
 use crate::output::Output;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::time::Instant;
 use structopt::StructOpt;
 
@@ -10,6 +11,21 @@ lazyCoP is an automatic theorem prover for first-order logic with equality.
 The system can read the TPTP FOF and CNF dialects and outputs TSTP or Graphviz.
 For more information, see the project repository.
 ";
+
+pub(crate) enum Dump {
+    CNF,
+}
+
+impl FromStr for Dump {
+    type Err = String;
+
+    fn from_str(dump: &str) -> Result<Self, Self::Err> {
+        match dump {
+            "cnf" => Ok(Self::CNF),
+            _ => Err(format!("{}: not a valid dump format", dump)),
+        }
+    }
+}
 
 #[derive(StructOpt)]
 #[structopt(
@@ -24,19 +40,23 @@ pub(crate) struct Options {
     #[structopt(parse(from_os_str))]
     pub(crate) path: PathBuf,
 
+    /// CPU cores
+    #[structopt(long)]
+    pub(crate) threads: Option<usize>,
+
     /// time limit (s)
     #[structopt(long)]
     pub(crate) time: Option<u64>,
 
-    /// print clause normal form and exit
-    #[structopt(long)]
-    pub(crate) dump_clauses: bool,
+    /// print input formulae and exit
+    #[structopt(long, possible_values=&["cnf"])]
+    pub(crate) dump: Option<Dump>,
 
     /// proof output
     #[structopt(
         long,
         default_value="tstp",
-        possible_values=&["tstp", "training", "graphviz"],
+        possible_values=&["tstp", "training"],
     )]
     pub(crate) output: Output,
 

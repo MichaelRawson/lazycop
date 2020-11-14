@@ -1,6 +1,6 @@
 use crate::goal::Goal;
+use crate::options::Options;
 use crate::prelude::*;
-use crate::record::Silent;
 
 fn array<T: std::fmt::Display>(data: &[T]) {
     let mut data = data.iter();
@@ -14,26 +14,26 @@ fn array<T: std::fmt::Display>(data: &[T]) {
     print!("]");
 }
 
-pub(crate) fn dump(name: &str, problem: &Problem, proof: &[Rule]) {
+pub(crate) fn dump(options: &Options, problem: &Problem, proof: Vec<Rule>) {
     let mut goal = Goal::new(problem);
     let mut graph = Graph::new(problem);
     let mut possible = vec![];
 
-    for step in proof.iter() {
+    for step in proof {
         goal.save();
         goal.possible_rules(&mut possible);
         possible.retain(|possible| {
-            goal.apply_rule(&mut Silent, &possible);
+            goal.apply_rule(*possible);
             let constraints_ok = goal.solve_constraints();
             goal.restore();
             constraints_ok
         });
         if possible.len() > 1 {
-            let y = unwrap(possible.iter().position(|rule| rule == step));
+            let y = unwrap(possible.iter().position(|rule| *rule == step));
             goal.graph(&mut graph, &possible);
             goal.restore();
             print!("{{");
-            print!("\"problem\":{:?}", name);
+            print!("\"problem\":{:?}", options.problem_name());
             print!(",\"nodes\":");
             array(graph.node_labels());
             print!(",\"sources\":");
@@ -48,7 +48,7 @@ pub(crate) fn dump(name: &str, problem: &Problem, proof: &[Rule]) {
 
         graph.clear();
         possible.clear();
-        goal.apply_rule(&mut Silent, step);
+        goal.apply_rule(step);
         let constraints_ok = goal.simplify_constraints();
         debug_assert!(constraints_ok);
     }

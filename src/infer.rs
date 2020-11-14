@@ -192,7 +192,7 @@ fn extension_rules<E: Extend<Rule>>(
 
     for occurrence in occurrences {
         let extension = Extension { occurrence };
-        if problem.has_equality {
+        if problem.info.has_equality {
             possible.extend(once(Rule::LazyExtension(extension)));
         }
 

@@ -1,10 +1,8 @@
-use crate::constraint::Constraints;
 use crate::disequation_solver::DisequationSolver;
 use crate::equation_solver::EquationSolver;
 use crate::occurs::{Check, SkipCheck};
 use crate::ordering_solver::OrderingSolver;
 use crate::prelude::*;
-use crate::record::Record;
 use crate::tableau::Tableau;
 
 pub(crate) struct Goal<'problem> {
@@ -37,6 +35,10 @@ impl<'problem> Goal<'problem> {
             equation_solver,
             ordering_solver,
         }
+    }
+
+    pub(crate) fn destruct(self) -> (Terms, Literals, Bindings) {
+        (self.terms, self.tableau.destruct(), self.bindings)
     }
 
     pub(crate) fn clear(&mut self) {
@@ -77,18 +79,13 @@ impl<'problem> Goal<'problem> {
         self.tableau.size()
     }
 
-    pub(crate) fn apply_rule<R: Record>(
-        &mut self,
-        record: &mut R,
-        rule: &Rule,
-    ) {
+    pub(crate) fn apply_rule(&mut self, rule: Rule) -> Option<Clause> {
         self.tableau.apply_rule(
-            record,
             &self.problem,
             &mut self.terms,
             &mut self.constraints,
             rule,
-        );
+        )
     }
 
     pub(crate) fn possible_rules<E: Extend<Rule>>(&self, possible: &mut E) {

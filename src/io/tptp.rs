@@ -62,8 +62,7 @@ fn map_file(file: File) -> io::Result<Option<Mmap>> {
     let map = if metadata.len() > 0 {
         let map = unsafe { Mmap::map(&file) }?;
         Some(map)
-    }
-    else {
+    } else {
         None
     };
     Ok(map)
@@ -77,13 +76,13 @@ impl<'a> TPTPFile<'a> {
             open_root(path)
         };
 
-        let _map = file.and_then(map_file)
+        let _map = file
+            .and_then(map_file)
             .unwrap_or_else(|e| report_os_error(path.display(), e));
         let bytes: &'a [u8] = if let Some(map) = _map.as_ref() {
             let bytes = map.as_ref();
             unsafe { std::mem::transmute(bytes) }
-        }
-        else {
+        } else {
             &[]
         };
         let parser = TPTPIterator::new(bytes);
@@ -171,18 +170,19 @@ impl<'a> Loader<'a> {
     pub(crate) fn next(
         &mut self,
         symbols: &mut Symbols,
-    ) -> Option<(bool, Origin, clausify::Formula)> {
+    ) -> Option<(Origin, clausify::Formula)> {
         let annotated = self.problem.next()?;
         let path = self.problem.current_path();
-        let (is_cnf, conjecture, name, formula) =
+        let (cnf, conjecture, name, formula) =
             self.annotated_formula(symbols, annotated);
         let name = Arc::new(name);
         let origin = Origin {
             conjecture,
+            cnf,
             path,
             name,
         };
-        Some((is_cnf, origin, formula))
+        Some((origin, formula))
     }
 
     fn functor(

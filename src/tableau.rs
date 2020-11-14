@@ -1,8 +1,5 @@
-use crate::clause::Clause;
-use crate::constraint::Constraints;
 use crate::infer;
 use crate::prelude::*;
-use crate::record::Record;
 use crate::rule::*;
 
 fn copy_lemmata(
@@ -32,6 +29,10 @@ pub(crate) struct Tableau {
 }
 
 impl Tableau {
+    pub(crate) fn destruct(self) -> Literals {
+        self.literals
+    }
+
     pub(crate) fn is_empty(&self) -> bool {
         self.stack.is_empty()
     }
@@ -258,49 +259,38 @@ impl Tableau {
         infer::rules(possible, self, problem, terms, &self.literals, bindings);
     }
 
-    pub(crate) fn apply_rule<R: Record>(
+    pub(crate) fn apply_rule(
         &mut self,
-        record: &mut R,
         problem: &Problem,
         terms: &mut Terms,
         constraints: &mut Constraints,
-        rule: &Rule,
-    ) {
-        match *rule {
+        rule: Rule,
+    ) -> Option<Clause> {
+        let mut axiom = None;
+        match rule {
             Rule::Start(start) => {
                 let start = Clause::start(
-                    record,
                     problem,
                     terms,
                     &mut self.literals,
                     constraints,
                     start,
                 );
+                axiom = Some(start);
                 self.push(start);
-                self.close_branches(record);
+                self.close_branches();
             }
             Rule::Reflexivity => {
-                unwrap(self.stack.last_mut()).reflexivity(
-                    record,
-                    problem,
-                    terms,
-                    &self.literals,
-                    constraints,
-                );
-                self.close_branches(record);
+                unwrap(self.stack.last_mut())
+                    .reflexivity(&self.literals, constraints);
+                self.close_branches();
             }
             Rule::DistinctObjects => {
-                unwrap(self.stack.last_mut()).distinct_objects(
-                    record,
-                    problem,
-                    terms,
-                    &self.literals,
-                );
-                self.close_branches(record);
+                unwrap(self.stack.last_mut()).distinct_objects();
+                self.close_branches();
             }
             Rule::Reduction(reduction) => {
                 unwrap(self.stack.last_mut()).reduction(
-                    record,
                     problem,
                     terms,
                     &mut self.literals,
@@ -308,7 +298,7 @@ impl Tableau {
                     reduction,
                 );
                 self.reduction_validity(reduction.literal);
-                self.close_branches(record);
+                self.close_branches();
             }
             Rule::LRForwardDemodulation(demodulation)
             | Rule::RLForwardDemodulation(demodulation)
@@ -320,7 +310,6 @@ impl Tableau {
                     &self.literals,
                 );
                 let consequence = unwrap(self.stack.last_mut()).demodulation(
-                    record,
                     problem,
                     terms,
                     &mut self.literals,
@@ -340,15 +329,15 @@ impl Tableau {
                 );
                 let extension = unwrap(self.stack.last_mut())
                     .strict_extension(
-                        record,
                         problem,
                         terms,
                         &mut self.literals,
                         constraints,
                         extension,
                     );
+                axiom = Some(extension);
                 self.push(extension);
-                self.close_branches(record);
+                self.close_branches();
             }
             Rule::LazyExtension(extension) => {
                 self.add_regularity_constraints(
@@ -358,13 +347,13 @@ impl Tableau {
                 );
                 let (extension, consequence) = unwrap(self.stack.last_mut())
                     .lazy_extension(
-                        record,
                         problem,
                         terms,
                         &mut self.literals,
                         constraints,
                         extension,
                     );
+                axiom = Some(extension);
                 self.push(extension);
                 self.extension_validity();
                 self.add_regularity_constraints(
@@ -373,7 +362,7 @@ impl Tableau {
                     &self.literals,
                 );
                 self.push(consequence);
-                self.close_branches(record);
+                self.close_branches();
             }
             Rule::StrictBackwardParamodulation(paramodulation) => {
                 self.add_regularity_constraints(
@@ -383,13 +372,13 @@ impl Tableau {
                 );
                 let (extension, consequence) = unwrap(self.stack.last_mut())
                     .strict_backward_paramodulation(
-                        record,
                         problem,
                         terms,
                         &mut self.literals,
                         constraints,
                         paramodulation,
                     );
+                axiom = Some(extension);
                 self.push(extension);
                 self.extension_validity();
                 self.add_regularity_constraints(
@@ -407,13 +396,13 @@ impl Tableau {
                 );
                 let (extension, consequence) = unwrap(self.stack.last_mut())
                     .lazy_backward_paramodulation(
-                        record,
                         problem,
                         terms,
                         &mut self.literals,
                         constraints,
                         paramodulation,
                     );
+                axiom = Some(extension);
                 self.push(extension);
                 self.extension_validity();
                 self.add_regularity_constraints(
@@ -431,13 +420,13 @@ impl Tableau {
                 );
                 let (extension, consequence) = unwrap(self.stack.last_mut())
                     .variable_backward_paramodulation(
-                        record,
                         problem,
                         terms,
                         &mut self.literals,
                         constraints,
                         paramodulation,
                     );
+                axiom = Some(extension);
                 self.push(extension);
                 self.extension_validity();
                 self.add_regularity_constraints(
@@ -456,7 +445,6 @@ impl Tableau {
                 );
                 let (extension, consequence) = unwrap(self.stack.last_mut())
                     .strict_forward_paramodulation(
-                        record,
                         problem,
                         terms,
                         &mut self.literals,
@@ -464,6 +452,7 @@ impl Tableau {
                         paramodulation,
                         rule.is_l2r(),
                     );
+                axiom = Some(extension);
                 self.push(extension);
                 self.extension_validity();
                 self.add_regularity_constraints(
@@ -482,7 +471,6 @@ impl Tableau {
                 );
                 let (extension, consequence) = unwrap(self.stack.last_mut())
                     .lazy_forward_paramodulation(
-                        record,
                         problem,
                         terms,
                         &mut self.literals,
@@ -490,6 +478,7 @@ impl Tableau {
                         paramodulation,
                         rule.is_l2r(),
                     );
+                axiom = Some(extension);
                 self.push(extension);
                 self.extension_validity();
                 self.add_regularity_constraints(
@@ -500,6 +489,7 @@ impl Tableau {
                 self.push(consequence);
             }
         }
+        axiom
     }
 
     fn push(&mut self, clause: Clause) {
@@ -538,7 +528,7 @@ impl Tableau {
         }
     }
 
-    fn close_branches<R: Record>(&mut self, record: &mut R) {
+    fn close_branches(&mut self) {
         let last = self.current_clause();
         if !last.is_empty() {
             return;
@@ -551,7 +541,6 @@ impl Tableau {
             let mut lemma = self.literals[id];
             lemma.polarity = !lemma.polarity;
             let lemma = self.literals.push(lemma);
-            record.lemma(&self.literals, id, lemma);
             self.valid.resize(self.literals.len());
             self.valid[lemma] = valid_in;
             self.lemmata[valid_in].push(lemma);

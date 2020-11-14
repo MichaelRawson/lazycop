@@ -14,7 +14,7 @@ crossbeam-utils = "0.7"
 fnv = "1.0"
 memmap = "0.7"
 num_cpus = "1.13"
-parking_lot = "0.11"
+spin = "0.7"
 structopt = "0.3"
 tptp = "0.28"
 

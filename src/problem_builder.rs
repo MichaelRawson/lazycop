@@ -1,6 +1,7 @@
 use crate::clausify;
 use crate::index::Index;
 use crate::prelude::*;
+use crate::problem::ProblemInfo;
 
 #[derive(Default)]
 pub(crate) struct ProblemBuilder {
@@ -8,6 +9,7 @@ pub(crate) struct ProblemBuilder {
     clauses: Block<ProblemClause>,
     index: Index,
 
+    not_cnf: bool,
     has_axioms: bool,
     has_conjecture: bool,
     empty_clause: Option<Id<ProblemClause>>,
@@ -26,13 +28,17 @@ impl ProblemBuilder {
             self.clauses.range().into_iter().collect()
         };
         self.index.set_signature(&symbols);
-        Problem::new(
-            symbols,
-            self.clauses,
-            start,
-            self.index,
-            self.has_equality,
-        )
+        let is_cnf = !self.not_cnf;
+        let has_axioms = self.has_axioms;
+        let has_conjecture = self.has_conjecture;
+        let has_equality = self.has_equality;
+        let info = ProblemInfo {
+            is_cnf,
+            has_axioms,
+            has_conjecture,
+            has_equality,
+        };
+        Problem::new(symbols, self.clauses, start, self.index, info)
     }
 
     fn term(&mut self, terms: &mut Terms, term: clausify::Term) -> Id<Term> {
@@ -132,6 +138,7 @@ impl ProblemBuilder {
         origin: Origin,
         cnf: clausify::CNF,
     ) {
+        self.not_cnf |= !origin.cnf;
         let is_conjecture = origin.conjecture;
         let is_empty = cnf.0.is_empty();
 
@@ -144,8 +151,7 @@ impl ProblemBuilder {
 
         if is_empty {
             self.empty_clause = Some(problem_clause);
-        }
-        else if is_conjecture {
+        } else if is_conjecture {
             self.conjecture_clauses.push(problem_clause);
             self.has_conjecture = true;
         } else {

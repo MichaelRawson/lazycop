@@ -1,6 +1,5 @@
 pub(crate) mod block;
 pub(crate) mod disjoint_set;
-pub(crate) mod fresh;
 pub(crate) mod id;
 pub(crate) mod length;
 pub(crate) mod lut;

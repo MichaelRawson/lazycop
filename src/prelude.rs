@@ -1,9 +1,10 @@
 pub(crate) use crate::atom::Atom;
 pub(crate) use crate::binding::Bindings;
+pub(crate) use crate::clause::Clause;
+pub(crate) use crate::constraint::Constraints;
 pub(crate) use crate::graph::{Graph, Node};
-pub(crate) use crate::io::origin::Origin;
 pub(crate) use crate::literal::{Literal, Literals};
-pub(crate) use crate::problem::{Problem, ProblemClause};
+pub(crate) use crate::problem::{Origin, Problem, ProblemClause};
 pub(crate) use crate::rule::Rule;
 pub(crate) use crate::symbol::{Name, Symbol, Symbols};
 pub(crate) use crate::term::{Argument, Term, TermView, Terms, Variable};

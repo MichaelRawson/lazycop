@@ -1,4 +1,3 @@
-use crate::clause::Clause;
 use crate::prelude::*;
 
 #[derive(Clone, Copy)]
@@ -201,7 +200,8 @@ impl Graph {
 
         let term_offset = terms.offset();
         let literal_offset = literals.offset();
-        let new = Clause::copy(problem, terms, literals, problem_clause);
+        let new =
+            Clause::new_from_axiom(problem, terms, literals, problem_clause);
         bindings.resize(terms.len());
         self.resize_for(terms, literals);
         let node =

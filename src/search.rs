@@ -1,11 +1,10 @@
 use crate::goal::Goal;
 use crate::options::Options;
 use crate::prelude::*;
-use crate::record::Silent;
 use crate::statistics::Statistics;
 use crate::tree::Tree;
 use crossbeam_utils::thread;
-use parking_lot::Mutex;
+use spin::mutex::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 const STACK_SIZE: usize = 0x10_00000;
@@ -39,14 +38,11 @@ fn expansion_task(
                 leaf
             } else {
                 rules.clear();
-                std::thread::yield_now();
                 continue;
             }
         };
-
-        let mut record = Silent;
         for rule in &rules {
-            goal.apply_rule(&mut record, rule);
+            goal.apply_rule(*rule);
         }
         let constraints_ok = goal.simplify_constraints();
         debug_assert!(constraints_ok);
@@ -54,7 +50,7 @@ fn expansion_task(
         goal.save();
 
         for rule in possible.drain(..) {
-            goal.apply_rule(&mut Silent, &rule);
+            goal.apply_rule(rule);
             if goal.solve_constraints() {
                 if goal.is_closed() {
                     stop.store(true, Ordering::Relaxed);
@@ -142,12 +138,13 @@ pub(crate) fn search(
     let result = Mutex::new(SearchResult::TimeOut);
     let tree = Mutex::new(Tree::default());
     let stop = AtomicBool::new(false);
+    let threads = options.threads.unwrap_or_else(num_cpus::get);
 
     thread::scope(|scope| {
-        for cpu in 0..num_cpus::get() {
+        for thread in 0..threads {
             scope
                 .builder()
-                .name(format!("search-{}", cpu))
+                .name(format!("search-{}", thread))
                 .stack_size(STACK_SIZE)
                 .spawn(|_| {
                     let task_result = expansion_task(

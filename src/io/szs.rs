@@ -22,7 +22,7 @@ pub(crate) fn unsatisfiable(name: &str) {
     println!("% SZS status Unsatisfiable for {}", name);
 }
 
-pub(crate) fn unknown(name: &str) {
+pub(crate) fn gave_up(name: &str) {
     println!("% SZS status Unknown for {}", name);
     println!("% help: conjecture did not follow from axioms");
     println!("% help: axioms could still be contradictory");
@@ -36,10 +36,10 @@ pub(crate) fn counter_satisfiable(name: &str) {
     println!("% SZS status CounterSatisfiable for {}", name);
 }
 
-pub(crate) fn begin_cnf_refutation(name: &str) {
-    println!("% SZS output begin CNFRefutation for {}", name);
+pub(crate) fn begin_proof(name: &str) {
+    println!("% SZS output begin Proof for {}", name);
 }
 
-pub(crate) fn end_cnf_refutation(name: &str) {
-    println!("% SZS output end CNFRefutation for {}", name);
+pub(crate) fn end_proof(name: &str) {
+    println!("% SZS output end Proof for {}", name);
 }
