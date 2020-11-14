@@ -196,6 +196,15 @@ impl TSTP {
     }
 
     pub(crate) fn print_statistics(&mut self, statistics: &Statistics) {
-        println!("% total symbols : {}", statistics.total_symbols);
+        println!("% problem symbols\t: {}", statistics.problem_symbols);
+        println!("% problem clauses\t: {}", statistics.problem_clauses);
+        println!(
+            "% eliminated leaves\t: {}",
+            statistics.load_eliminated_leaves()
+        );
+        println!("% retained leaves\t: {}", statistics.load_retained_leaves());
+        println!("% expanded leaves\t: {}", statistics.load_expanded_leaves());
+        #[cfg(feature = "cudann")]
+        println!("% expanded leaves\t: {}", statistics.load_evaluated_leaves());
     }
 }

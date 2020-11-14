@@ -99,7 +99,7 @@ fn evaluation_task(
             continue;
         };
         for rule in rules.drain(..) {
-            goal.apply_rule(&mut Silent, &rule);
+            goal.apply_rule(rule);
         }
         let constraints_ok = goal.simplify_constraints();
         debug_assert!(constraints_ok);
@@ -126,7 +126,7 @@ fn evaluation_task(
         inferences.clear();
         goal.clear();
         graph.clear();
-        statistics.increment_evaluated_goals();
+        statistics.increment_evaluated_leaves();
     }
 }
 
