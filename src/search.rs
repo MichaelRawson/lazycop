@@ -15,7 +15,7 @@ pub(crate) enum SearchResult {
     TimeOut,
 }
 
-fn expansion_task(
+fn search_task(
     problem: &Problem,
     options: &Options,
     statistics: &Statistics,
@@ -147,7 +147,7 @@ pub(crate) fn search(
                 .name(format!("search-{}", thread))
                 .stack_size(STACK_SIZE)
                 .spawn(|_| {
-                    let task_result = expansion_task(
+                    let task_result = search_task(
                         problem,
                         options,
                         &statistics,
@@ -160,7 +160,7 @@ pub(crate) fn search(
                         *result = task_result;
                     }
                 })
-                .expect("failed to spawn expansion thread");
+                .expect("failed to spawn search thread");
         }
 
         #[cfg(feature = "cudann")]
