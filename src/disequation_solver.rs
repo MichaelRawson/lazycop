@@ -151,8 +151,8 @@ impl DisequationSolver {
         left: Id<Term>,
         right: Id<Term>,
     ) -> bool {
-        let left = bindings.resolve(terms, left);
-        let right = bindings.resolve(terms, right);
+        let left = bindings.resolve(left);
+        let right = bindings.resolve(right);
         if left == right {
             return false;
         }
@@ -180,8 +180,8 @@ impl DisequationSolver {
         left: Id<Term>,
         right: Id<Term>,
     ) -> bool {
-        let left = bindings.resolve(terms, left);
-        let right = bindings.resolve(terms, right);
+        let left = bindings.resolve(left);
+        let right = bindings.resolve(right);
         match (terms.view(symbols, left), terms.view(symbols, right)) {
             (TermView::Variable(x), TermView::Variable(y)) => {
                 if x == y {

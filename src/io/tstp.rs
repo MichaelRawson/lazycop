@@ -104,7 +104,7 @@ impl TSTP {
         bindings: &Bindings,
         term: Id<Term>,
     ) {
-        let term = bindings.resolve(terms, term);
+        let term = bindings.resolve(term);
         match terms.view(symbols, term) {
             TermView::Variable(_) => print!("sG0"),
             TermView::Function(symbol, args) => {

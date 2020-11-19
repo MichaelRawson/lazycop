@@ -42,25 +42,16 @@ impl Bindings {
         x: Id<Variable>,
         term: Id<Term>,
     ) -> bool {
-        let term = self.resolve(terms, term);
+        let term = self.resolve(term);
         match terms.view(symbols, term) {
             TermView::Variable(y) => x == y,
             TermView::Function(_, args) => args
                 .into_iter()
-                .map(|t| terms.resolve(t))
-                .any(|t| self.occurs(symbols, terms, x, t)),
+                .any(|t| self.occurs(symbols, terms, x, terms.resolve(t))),
         }
     }
 
-    pub(crate) fn resolve(&self, terms: &Terms, term: Id<Term>) -> Id<Term> {
-        if terms.is_variable(term) {
-            self.lookup(term.transmute())
-        } else {
-            term
-        }
-    }
-
-    fn lookup(&self, x: Id<Variable>) -> Id<Term> {
-        self.bound[x].unwrap_or_else(|| x.transmute())
+    pub(crate) fn resolve(&self, x: Id<Term>) -> Id<Term> {
+        self.bound[x.transmute()].unwrap_or(x)
     }
 }

@@ -65,8 +65,8 @@ fn forward_demodulation_rules<E: Extend<Rule>>(
             continue;
         }
         let (left, right) = reduction.get_equality();
-        let left = bindings.resolve(terms, left);
-        let right = bindings.resolve(terms, right);
+        let left = bindings.resolve(left);
+        let right = bindings.resolve(right);
         literal.subterms(symbols, terms, &mut |target| {
             possible.extend(
                 demodulation(symbols, terms, bindings, id, target, left)
@@ -221,8 +221,8 @@ fn equality_rules<E: Extend<Rule>>(
     literal: &Literal,
 ) {
     let (left, right) = literal.get_equality();
-    let left = bindings.resolve(terms, left);
-    let right = bindings.resolve(terms, right);
+    let left = bindings.resolve(left);
+    let right = bindings.resolve(right);
     if literal.polarity {
         if !terms.is_variable(left) && !terms.is_variable(right) {
             let f = terms.symbol(left);
@@ -387,8 +387,8 @@ fn internal_match(
                     symbols,
                     terms,
                     bindings,
-                    bindings.resolve(terms, terms.resolve(s)),
-                    bindings.resolve(terms, terms.resolve(t)),
+                    bindings.resolve(terms.resolve(s)),
+                    bindings.resolve(terms.resolve(t)),
                 )
             })
         }
