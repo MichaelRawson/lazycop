@@ -17,7 +17,7 @@ fn copy_lemmata(
 
 #[derive(Default)]
 pub(crate) struct Tableau {
-    literals: Literals,
+    pub(crate) literals: Literals,
     stack: Block<Clause>,
     valid: LUT<Literal, Id<Clause>>,
     lemmata: LUT<Clause, Vec<Id<Literal>>>,
@@ -29,10 +29,6 @@ pub(crate) struct Tableau {
 }
 
 impl Tableau {
-    pub(crate) fn destruct(self) -> Literals {
-        self.literals
-    }
-
     pub(crate) fn is_empty(&self) -> bool {
         self.stack.is_empty()
     }

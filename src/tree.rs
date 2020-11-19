@@ -3,20 +3,20 @@ use crate::prelude::*;
 #[cfg(feature = "cudann")]
 const LAMBDA: f32 = 1.0;
 #[cfg(feature = "cudann")]
-const MIN_SCORE: f32 = f32::NEG_INFINITY;
+const INVALID_SCORE: f32 = f32::NEG_INFINITY;
 #[cfg(not(feature = "cudann"))]
-const MIN_SCORE: i32 = i32::MIN;
+const INVALID_SCORE: i32 = i32::MIN;
 
 pub(crate) struct Node {
     parent: Id<Node>,
     children: Range<Node>,
     rule: Rule,
-    #[cfg(feature = "cudann")]
-    log_prior: f32,
-    #[cfg(feature = "cudann")]
-    score: f32,
     #[cfg(not(feature = "cudann"))]
     score: i32,
+    #[cfg(feature = "cudann")]
+    score: f32,
+    #[cfg(feature = "cudann")]
+    log_prior: f32,
     #[cfg(feature = "cudann")]
     evaluated: bool,
 }
@@ -78,10 +78,10 @@ impl Tree {
             current = self.choose_child(current);
             rules.extend(std::iter::once(self.nodes[current].rule));
         }
-        if self.nodes[current].score == MIN_SCORE {
+        if self.nodes[current].score == INVALID_SCORE {
             None
         } else {
-            self.nodes[current].score = MIN_SCORE;
+            self.nodes[current].score = INVALID_SCORE;
             self.propagate_score(self.nodes[current].parent);
             Some(current)
         }
@@ -95,6 +95,23 @@ impl Tree {
         let end = self.nodes.end();
         self.nodes[leaf].children = Range::new(start, end);
         self.propagate_expansion(leaf);
+    }
+
+    #[cfg(feature = "smt")]
+    pub(crate) fn select_for_smt<E: Extend<Rule>>(
+        &self,
+        rules: &mut E,
+        start: Id<Node>,
+    ) -> Option<Id<Node>> {
+        let node = Range::new(start, self.nodes.end())
+            .into_iter()
+            .find(|id| !self.nodes[*id].is_closed())?;
+        let mut ancestor = node;
+        while ancestor != Id::default() {
+            rules.extend(std::iter::once(self.nodes[ancestor].rule));
+            ancestor = self.nodes[ancestor].parent;
+        }
+        Some(node)
     }
 
     #[cfg(feature = "cudann")]
@@ -157,11 +174,8 @@ impl Tree {
     }
 
     fn propagate_score(&mut self, mut current: Id<Node>) {
-        loop {
+        while current != Id::default() {
             self.update_score(current);
-            if current == Id::default() {
-                return;
-            }
             current = self.nodes[current].parent;
         }
     }

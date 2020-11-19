@@ -40,7 +40,7 @@ pub(crate) struct Options {
     #[structopt(parse(from_os_str))]
     pub(crate) path: PathBuf,
 
-    /// CPU cores
+    /// search threads
     #[structopt(long)]
     pub(crate) threads: Option<usize>,
 
@@ -48,7 +48,7 @@ pub(crate) struct Options {
     #[structopt(long)]
     pub(crate) time: Option<u64>,
 
-    /// print input formulae and exit
+    /// print data and exit
     #[structopt(long, possible_values=&["cnf"])]
     pub(crate) dump: Option<Dump>,
 

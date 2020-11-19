@@ -9,8 +9,11 @@ homepage = "https://github.com/MichaelRawson/lazycop"
 repository = "https://github.com/MichaelRawson/lazycop"
 license = "MIT"
 
+[features]
+smt = ["z3"]
+
 [dependencies]
-crossbeam-utils = "0.7"
+crossbeam-utils = "0.8"
 fnv = "1.0"
 memmap = "0.7"
 num_cpus = "1.13"
@@ -21,3 +24,7 @@ tptp = "0.28"
 [dependencies.cudann]
 optional = true
 path = "nn/cuda"
+
+[dependencies.z3]
+optional = true
+version = "0.7"

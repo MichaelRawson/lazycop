@@ -11,6 +11,8 @@ pub(crate) enum Name {
 pub(crate) struct Symbol {
     pub(crate) arity: u32,
     pub(crate) name: Name,
+    #[cfg(feature = "smt")]
+    pub(crate) is_predicate: bool,
 }
 
 impl Symbol {

@@ -3,7 +3,7 @@ use crate::prelude::*;
 #[derive(Clone, Copy)]
 pub(crate) struct Literal {
     pub(crate) polarity: bool,
-    atom: Atom,
+    pub(crate) atom: Atom,
 }
 
 impl Literal {

@@ -205,6 +205,9 @@ impl TSTP {
         println!("% retained leaves\t: {}", statistics.load_retained_leaves());
         println!("% expanded leaves\t: {}", statistics.load_expanded_leaves());
         #[cfg(feature = "cudann")]
-        println!("% expanded leaves\t: {}", statistics.load_evaluated_leaves());
+        println!(
+            "% expanded leaves\t: {}",
+            statistics.load_evaluated_leaves()
+        );
     }
 }

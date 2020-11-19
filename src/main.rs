@@ -22,6 +22,8 @@ mod problem;
 mod problem_builder;
 mod rule;
 mod search;
+#[cfg(feature = "smt")]
+mod smt;
 mod statistics;
 mod symbol;
 mod tableau;

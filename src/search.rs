@@ -1,6 +1,8 @@
 use crate::goal::Goal;
 use crate::options::Options;
 use crate::prelude::*;
+#[cfg(feature = "smt")]
+use crate::smt;
 use crate::statistics::Statistics;
 use crate::tree::Tree;
 use crossbeam_utils::thread;
@@ -22,10 +24,10 @@ fn search_task(
     tree: &Mutex<Tree>,
     stop: &AtomicBool,
 ) -> SearchResult {
+    let mut goal = Goal::new(problem);
     let mut rules = vec![];
     let mut possible = vec![];
-    let mut goal = Goal::new(problem);
-    let mut data = vec![];
+    let mut children = vec![];
 
     while !stop.load(Ordering::Relaxed) && options.within_time_limit() {
         let leaf = {
@@ -58,21 +60,66 @@ fn search_task(
                     return SearchResult::Proof(rules);
                 }
 
-                data.push((rule, goal.size()));
+                children.push((rule, goal.tableau.size()));
                 statistics.increment_retained_leaves();
             } else {
                 statistics.increment_eliminated_leaves();
             }
             goal.restore();
         }
+        tree.lock().expand(leaf, &*children);
 
-        tree.lock().expand(leaf, &*data);
         statistics.increment_expanded_leaves();
         goal.clear();
         rules.clear();
-        data.clear();
+        children.clear();
     }
+    stop.store(true, Ordering::Relaxed);
     SearchResult::TimeOut
+}
+
+#[cfg(feature = "smt")]
+fn smt_task(problem: &Problem, tree: &Mutex<Tree>, stop: &AtomicBool) {
+    let mut goal = Goal::new(problem);
+    let mut progress = Id::default() + Offset::new(1);
+    let mut rules = vec![];
+    let mut axioms = vec![];
+
+    let context = smt::context();
+    let solver = smt::Solver::new(&context, &problem.symbols);
+    let mut count = 0;
+    while !stop.load(Ordering::Relaxed) {
+        let id = if let Some(id) =
+            tree.lock().select_for_smt(&mut rules, progress)
+        {
+            progress = id + Offset::new(1);
+            id
+        } else {
+            std::thread::yield_now();
+            continue;
+        };
+        for rule in rules.drain(..).rev() {
+            axioms.extend(goal.apply_rule(rule));
+        }
+        let constraints_ok = goal.simplify_constraints();
+        debug_assert!(constraints_ok);
+
+        let ground = solver.ground(
+            &problem.symbols,
+            &goal.terms,
+            &goal.tableau.literals,
+            &goal.bindings,
+            axioms.drain(..),
+        );
+        solver.assert(id.index(), ground);
+        count += 1;
+        if count % 128 == 0 && solver.check() {
+            println!("% SZS status Theorem");
+            crate::io::exit::success();
+        }
+
+        goal.clear();
+    }
 }
 
 #[cfg(feature = "cudann")]
@@ -138,10 +185,15 @@ pub(crate) fn search(
     let result = Mutex::new(SearchResult::TimeOut);
     let tree = Mutex::new(Tree::default());
     let stop = AtomicBool::new(false);
-    let threads = options.threads.unwrap_or_else(num_cpus::get);
+
+    let available_search_threads = num_cpus::get();
+    #[cfg(feature = "smt")]
+    let available_search_threads = available_search_threads - 1;
+    let num_search_threads =
+        options.threads.unwrap_or(available_search_threads);
 
     thread::scope(|scope| {
-        for thread in 0..threads {
+        for thread in 0..num_search_threads {
             scope
                 .builder()
                 .name(format!("search-{}", thread))
@@ -162,6 +214,16 @@ pub(crate) fn search(
                 })
                 .expect("failed to spawn search thread");
         }
+
+        #[cfg(feature = "smt")]
+        scope
+            .builder()
+            .name("smt".into())
+            .stack_size(STACK_SIZE)
+            .spawn(|_| {
+                smt_task(problem, &tree, &stop);
+            })
+            .expect("failed to spawn SMT solver thread");
 
         #[cfg(feature = "cudann")]
         scope

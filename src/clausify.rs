@@ -170,7 +170,12 @@ impl SkNNFTransform {
                 let name = Name::Skolem(self.fresh);
                 self.fresh += 1;
                 let arity = self.bound.len() as u32;
-                let symbol = symbols.push(Symbol { name, arity });
+                let symbol = symbols.push(Symbol {
+                    name,
+                    arity,
+                    #[cfg(feature = "smt")]
+                    is_predicate: false,
+                });
                 let skolem = Term::Fun(
                     symbol,
                     self.bound.iter().copied().map(Term::Var).collect(),
@@ -205,7 +210,12 @@ impl CNFTransform {
         let arity = self.vars.len() as u32;
         let name = Name::Definition(self.fresh);
         self.fresh += 1;
-        let symbol = symbols.push(Symbol { arity, name });
+        let symbol = symbols.push(Symbol {
+            arity,
+            name,
+            #[cfg(feature = "smt")]
+            is_predicate: true,
+        });
         let term =
             Term::Fun(symbol, self.vars.drain(..).map(Term::Var).collect());
         let atom = Atom::Pred(term);

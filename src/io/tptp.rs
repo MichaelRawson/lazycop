@@ -190,6 +190,7 @@ impl<'a> Loader<'a> {
         symbols: &mut Symbols,
         functor: common::Functor<'a>,
         arity: u32,
+        #[cfg(feature = "smt")] is_predicate: bool,
     ) -> Id<Symbol> {
         if let Some(id) = self.functors.get(&functor) {
             *id
@@ -202,7 +203,12 @@ impl<'a> Loader<'a> {
                     Name::Quoted(sq.0.to_string())
                 }
             };
-            let symbol = Symbol { name, arity };
+            let symbol = Symbol {
+                name,
+                arity,
+                #[cfg(feature = "smt")]
+                is_predicate,
+            };
             let id = symbols.push(symbol);
             self.functors.insert(functor, id);
             id
@@ -224,7 +230,12 @@ impl<'a> Loader<'a> {
                     *id
                 } else {
                     let name = Name::Distinct(distinct.0.to_string());
-                    let symbol = Symbol { name, arity: 0 };
+                    let symbol = Symbol {
+                        name,
+                        arity: 0,
+                        #[cfg(feature = "smt")]
+                        is_predicate: false,
+                    };
                     let id = symbols.push(symbol);
                     self.distinct_objects.insert(distinct, id);
                     id
@@ -238,11 +249,19 @@ impl<'a> Loader<'a> {
         &mut self,
         symbols: &mut Symbols,
         plain: fof::PlainTerm<'a>,
+        #[cfg(feature = "smt")] is_predicate: bool,
     ) -> clausify::Term {
         match plain {
-            fof::PlainTerm::Constant(c) => {
-                clausify::Term::Fun(self.functor(symbols, c.0, 0), vec![])
-            }
+            fof::PlainTerm::Constant(c) => clausify::Term::Fun(
+                self.functor(
+                    symbols,
+                    c.0,
+                    0,
+                    #[cfg(feature = "smt")]
+                    is_predicate,
+                ),
+                vec![],
+            ),
             fof::PlainTerm::Function(f, args) => {
                 let args: Vec<_> = args
                     .0
@@ -250,7 +269,13 @@ impl<'a> Loader<'a> {
                     .map(|t| self.fof_term(symbols, t))
                     .collect();
                 clausify::Term::Fun(
-                    self.functor(symbols, f, args.len() as u32),
+                    self.functor(
+                        symbols,
+                        f,
+                        args.len() as u32,
+                        #[cfg(feature = "smt")]
+                        is_predicate,
+                    ),
                     args,
                 )
             }
@@ -283,9 +308,12 @@ impl<'a> Loader<'a> {
                 }
             }
             fof::Term::Function(function) => match *function {
-                fof::FunctionTerm::Plain(plain) => {
-                    self.fof_plain_term(symbols, plain)
-                }
+                fof::FunctionTerm::Plain(plain) => self.fof_plain_term(
+                    symbols,
+                    plain,
+                    #[cfg(feature = "smt")]
+                    false,
+                ),
                 fof::FunctionTerm::System(system) => {
                     report_inappropriate(system)
                 }
@@ -326,7 +354,12 @@ impl<'a> Loader<'a> {
     ) -> clausify::Formula {
         match atomic {
             fof::AtomicFormula::Plain(plain) => {
-                let pred = self.fof_plain_term(symbols, plain.0);
+                let pred = self.fof_plain_term(
+                    symbols,
+                    plain.0,
+                    #[cfg(feature = "smt")]
+                    true,
+                );
                 clausify::Formula::Atom(clausify::Atom::Pred(pred))
             }
             fof::AtomicFormula::Defined(defined) => match defined {

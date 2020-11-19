@@ -43,7 +43,6 @@ fn tstp(
             }
             let ok = goal.is_closed() && goal.solve_constraints();
             debug_assert!(ok);
-            let (terms, literals, bindings) = goal.destruct();
 
             if !info.is_cnf && info.has_conjecture {
                 szs::theorem(&name);
@@ -53,7 +52,11 @@ fn tstp(
             szs::begin_proof(&name);
             for axiom in axioms {
                 tstp.print_proof_clause(
-                    problem, &terms, &literals, &bindings, axiom,
+                    problem,
+                    &goal.terms,
+                    &goal.tableau.literals,
+                    &goal.bindings,
+                    axiom,
                 );
             }
             szs::end_proof(&name);

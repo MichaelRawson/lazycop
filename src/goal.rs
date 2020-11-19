@@ -7,9 +7,9 @@ use crate::tableau::Tableau;
 
 pub(crate) struct Goal<'problem> {
     problem: &'problem Problem,
-    terms: Terms,
-    tableau: Tableau,
-    bindings: Bindings,
+    pub(crate) terms: Terms,
+    pub(crate) tableau: Tableau,
+    pub(crate) bindings: Bindings,
     constraints: Constraints,
     disequation_solver: DisequationSolver,
     equation_solver: EquationSolver,
@@ -35,10 +35,6 @@ impl<'problem> Goal<'problem> {
             equation_solver,
             ordering_solver,
         }
-    }
-
-    pub(crate) fn destruct(self) -> (Terms, Literals, Bindings) {
-        (self.terms, self.tableau.destruct(), self.bindings)
     }
 
     pub(crate) fn clear(&mut self) {
@@ -73,10 +69,6 @@ impl<'problem> Goal<'problem> {
 
     pub(crate) fn is_closed(&self) -> bool {
         self.tableau.is_empty()
-    }
-
-    pub(crate) fn size(&self) -> u32 {
-        self.tableau.size()
     }
 
     pub(crate) fn apply_rule(&mut self, rule: Rule) -> Option<Clause> {
