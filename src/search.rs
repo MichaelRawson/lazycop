@@ -8,10 +8,10 @@ use crate::tree::Tree;
 use crossbeam_utils::thread;
 use spin::mutex::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(feature = "smt")]
-use std::time::{Duration, Instant};
 
 const STACK_SIZE: usize = 0x10_00000;
+#[cfg(feature = "smt")]
+const SMT_INTERVAL: usize = 1024;
 
 pub(crate) enum SearchResult {
     Proof(Vec<Rule>),
@@ -93,8 +93,7 @@ fn smt_task(
     let mut progress = Id::default() + Offset::new(1);
     let mut rules = vec![];
     let mut axioms = vec![];
-    let mut previous = Instant::now();
-    let interval = Duration::from_millis(100);
+    let mut count = 0;
 
     let mut solver = smt::Solver::new(&problem.symbols);
     while !stop.load(Ordering::Relaxed) {
@@ -122,19 +121,16 @@ fn smt_task(
         );
         solver.assert(id.transmute(), assertion);
         statistics.increment_smt_assertions();
-        let now = Instant::now();
-        if now - previous > interval {
-            previous = now;
-            if solver.check() {
-                let core = solver.unsat_core();
-                let mut unsat = vec![];
-                stop.store(true, Ordering::Relaxed);
-                let tree = tree.lock();
-                for assertion in core {
-                    unsat.push(tree.derivation(assertion.transmute()));
-                }
-                return SearchResult::Unsat(unsat);
+        count += 1;
+        if count % SMT_INTERVAL == 0 && solver.check() {
+            stop.store(true, Ordering::Relaxed);
+            let core = solver.unsat_core();
+            let mut unsat = vec![];
+            let tree = tree.lock();
+            for assertion in core {
+                unsat.push(tree.derivation(assertion.transmute()));
             }
+            return SearchResult::Unsat(unsat);
         }
 
         goal.clear();

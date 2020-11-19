@@ -31,9 +31,8 @@ impl Solver {
                     value,
                 );
             };
-            set_param(b"model\0", false);
             set_param(b"unsat_core\0", true);
-            set_param(b"unsat_core\0", true);
+            set_param(b"core.minimize\0", true);
             let solver = Z3_mk_solver_for_logic(
                 context,
                 Z3_mk_string_symbol(

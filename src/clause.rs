@@ -181,6 +181,7 @@ impl Clause {
         literals.push(literals[onto].subst(
             &problem.symbols,
             terms,
+            constraints,
             target,
             fresh,
         ));
@@ -282,6 +283,7 @@ impl Clause {
         literals.push(literals[self.current].subst(
             &problem.symbols,
             terms,
+            constraints,
             target,
             fresh,
         ));
@@ -323,6 +325,7 @@ impl Clause {
         literals.push(literals[self.current].subst(
             &problem.symbols,
             terms,
+            constraints,
             target,
             fresh,
         ));
@@ -354,6 +357,7 @@ impl Clause {
         literals.push(literals[self.current].subst(
             &problem.symbols,
             terms,
+            constraints,
             target,
             fresh,
         ));
@@ -388,6 +392,7 @@ impl Clause {
         literals.push(literals[extension.current].subst(
             &problem.symbols,
             terms,
+            constraints,
             target,
             fresh,
         ));
@@ -428,6 +433,7 @@ impl Clause {
         literals.push(literals[extension.current].subst(
             &problem.symbols,
             terms,
+            constraints,
             target,
             fresh,
         ));
