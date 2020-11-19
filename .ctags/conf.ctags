@@ -1,0 +1,4 @@
+--links=no
+--exclude=z3
+--exclude=data
+--exclude=target

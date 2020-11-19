@@ -8,11 +8,15 @@ use crate::tree::Tree;
 use crossbeam_utils::thread;
 use spin::mutex::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(feature = "smt")]
+use std::time::{Duration, Instant};
 
 const STACK_SIZE: usize = 0x10_00000;
 
 pub(crate) enum SearchResult {
     Proof(Vec<Rule>),
+    #[cfg(feature = "smt")]
+    Unsat(Vec<Vec<Rule>>),
     Exhausted,
     TimeOut,
 }
@@ -79,15 +83,20 @@ fn search_task(
 }
 
 #[cfg(feature = "smt")]
-fn smt_task(problem: &Problem, tree: &Mutex<Tree>, stop: &AtomicBool) {
+fn smt_task(
+    problem: &Problem,
+    statistics: &Statistics,
+    tree: &Mutex<Tree>,
+    stop: &AtomicBool,
+) -> SearchResult {
     let mut goal = Goal::new(problem);
     let mut progress = Id::default() + Offset::new(1);
     let mut rules = vec![];
     let mut axioms = vec![];
+    let mut previous = Instant::now();
+    let interval = Duration::from_millis(100);
 
-    let context = smt::context();
-    let solver = smt::Solver::new(&context, &problem.symbols);
-    let mut count = 0;
+    let mut solver = smt::Solver::new(&problem.symbols);
     while !stop.load(Ordering::Relaxed) {
         let id = if let Some(id) =
             tree.lock().select_for_smt(&mut rules, progress)
@@ -104,22 +113,33 @@ fn smt_task(problem: &Problem, tree: &Mutex<Tree>, stop: &AtomicBool) {
         let constraints_ok = goal.simplify_constraints();
         debug_assert!(constraints_ok);
 
-        let ground = solver.ground(
+        let assertion = solver.ground(
             &problem.symbols,
             &goal.terms,
             &goal.tableau.literals,
             &goal.bindings,
             axioms.drain(..),
         );
-        solver.assert(id.index(), ground);
-        count += 1;
-        if count % 128 == 0 && solver.check() {
-            println!("% SZS status Theorem");
-            crate::io::exit::success();
+        solver.assert(id.transmute(), assertion);
+        statistics.increment_smt_assertions();
+        let now = Instant::now();
+        if now - previous > interval {
+            previous = now;
+            if solver.check() {
+                let core = solver.unsat_core();
+                let mut unsat = vec![];
+                stop.store(true, Ordering::Relaxed);
+                let tree = tree.lock();
+                for assertion in core {
+                    unsat.push(tree.derivation(assertion.transmute()));
+                }
+                return SearchResult::Unsat(unsat);
+            }
         }
 
         goal.clear();
     }
+    SearchResult::TimeOut
 }
 
 #[cfg(feature = "cudann")]
@@ -186,11 +206,11 @@ pub(crate) fn search(
     let tree = Mutex::new(Tree::default());
     let stop = AtomicBool::new(false);
 
-    let available_search_threads = num_cpus::get();
+    let available = num_cpus::get();
     #[cfg(feature = "smt")]
-    let available_search_threads = available_search_threads - 1;
+    let available = available - 1;
     let num_search_threads =
-        options.threads.unwrap_or(available_search_threads);
+        std::cmp::max(options.cores.unwrap_or(available), 1);
 
     thread::scope(|scope| {
         for thread in 0..num_search_threads {
@@ -221,7 +241,11 @@ pub(crate) fn search(
             .name("smt".into())
             .stack_size(STACK_SIZE)
             .spawn(|_| {
-                smt_task(problem, &tree, &stop);
+                let task_result = smt_task(problem, &statistics, &tree, &stop);
+                let mut result = result.lock();
+                if let SearchResult::TimeOut = &*result {
+                    *result = task_result;
+                }
             })
             .expect("failed to spawn SMT solver thread");
 

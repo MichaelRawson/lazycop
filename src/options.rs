@@ -40,9 +40,9 @@ pub(crate) struct Options {
     #[structopt(parse(from_os_str))]
     pub(crate) path: PathBuf,
 
-    /// search threads
+    /// CPU cores to use
     #[structopt(long)]
-    pub(crate) threads: Option<usize>,
+    pub(crate) cores: Option<usize>,
 
     /// time limit (s)
     #[structopt(long)]

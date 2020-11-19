@@ -114,6 +114,17 @@ impl Tree {
         Some(node)
     }
 
+    #[cfg(feature = "smt")]
+    pub(crate) fn derivation(&self, mut index: Id<Node>) -> Vec<Rule> {
+        let mut rules = vec![];
+        while index != Id::default() {
+            rules.push(self.nodes[index].rule);
+            index = self.nodes[index].parent;
+        }
+        rules.reverse();
+        rules
+    }
+
     #[cfg(feature = "cudann")]
     pub(crate) fn select_for_evaluation<E: Extend<Rule>>(
         &self,

@@ -1,6 +1,8 @@
 use crate::goal::Goal;
+use crate::io::exit;
 use crate::options::Options;
 use crate::prelude::*;
+use crate::search::SearchResult;
 
 fn array<T: std::fmt::Display>(data: &[T]) {
     let mut data = data.iter();
@@ -55,4 +57,17 @@ pub(crate) fn dump(options: &Options, problem: &Problem, proof: Vec<Rule>) {
     debug_assert!(goal.is_closed());
     let constraints_ok = goal.solve_constraints();
     debug_assert!(constraints_ok);
+}
+
+pub(crate) fn output(
+    options: &Options,
+    problem: &Problem,
+    result: SearchResult,
+) -> ! {
+    if let SearchResult::Proof(proof) = result {
+        dump(options, problem, proof);
+        exit::success()
+    } else {
+        exit::failure()
+    }
 }

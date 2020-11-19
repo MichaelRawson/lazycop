@@ -10,7 +10,7 @@ repository = "https://github.com/MichaelRawson/lazycop"
 license = "MIT"
 
 [features]
-smt = ["z3"]
+smt = ["z3-sys"]
 
 [dependencies]
 crossbeam-utils = "0.8"
@@ -25,6 +25,6 @@ tptp = "0.28"
 optional = true
 path = "nn/cuda"
 
-[dependencies.z3]
+[dependencies.z3-sys]
 optional = true
-version = "0.7"
+version = "0.6"

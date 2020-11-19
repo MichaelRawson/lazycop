@@ -1,5 +1,8 @@
 use crate::clausify;
+use crate::goal::Goal;
+use crate::io::{exit, szs};
 use crate::prelude::*;
+use crate::search::SearchResult;
 use crate::statistics::Statistics;
 
 #[derive(Default)]
@@ -204,10 +207,92 @@ impl TSTP {
         );
         println!("% retained leaves\t: {}", statistics.load_retained_leaves());
         println!("% expanded leaves\t: {}", statistics.load_expanded_leaves());
+        #[cfg(feature = "smt")]
+        println!("% SMT assertions\t: {}", statistics.load_smt_assertions());
         #[cfg(feature = "cudann")]
         println!(
             "% expanded leaves\t: {}",
             statistics.load_evaluated_leaves()
         );
+    }
+}
+
+pub(crate) fn output(
+    options: &Options,
+    problem: &Problem,
+    result: SearchResult,
+    statistics: &Statistics,
+) -> ! {
+    let name = options.problem_name();
+    let mut tstp = TSTP::default();
+    let info = &problem.info;
+
+    let success_prologue = || {
+        if !info.is_cnf && info.has_conjecture {
+            szs::theorem(&name);
+        } else {
+            szs::unsatisfiable(&name);
+        }
+        szs::begin_proof(&name);
+    };
+    let print_unsat_clauses = |tstp: &mut TSTP, rules| {
+        let mut axioms = vec![];
+        let mut goal = Goal::new(&problem);
+        for rule in rules {
+            axioms.extend(goal.apply_rule(rule));
+        }
+        let ok = goal.solve_constraints();
+        debug_assert!(ok);
+
+        for axiom in axioms {
+            tstp.print_proof_clause(
+                problem,
+                &goal.terms,
+                &goal.tableau.literals,
+                &goal.bindings,
+                axiom,
+            );
+        }
+    };
+    let success_epilogue = |tstp: &mut TSTP| {
+        szs::end_proof(&name);
+        tstp.print_statistics(&statistics);
+        exit::success()
+    };
+
+    match result {
+        SearchResult::Proof(proof) => {
+            success_prologue();
+            print_unsat_clauses(&mut tstp, proof);
+            success_epilogue(&mut tstp)
+        }
+        #[cfg(feature = "smt")]
+        SearchResult::Unsat(core) => {
+            success_prologue();
+            for rules in core {
+                print_unsat_clauses(&mut tstp, rules);
+            }
+            success_epilogue(&mut tstp)
+        }
+        SearchResult::Exhausted => {
+            match (info.is_cnf, info.has_axioms, info.has_conjecture) {
+                (false, false, true) => {
+                    szs::counter_satisfiable(&name);
+                }
+                (_, true, true) => {
+                    szs::gave_up(&name);
+                }
+                (true, _, _) | (false, true, _) | (false, false, false) => {
+                    szs::satisfiable(&name);
+                }
+            }
+            tstp.print_statistics(&statistics);
+            exit::failure()
+        }
+        SearchResult::TimeOut => {
+            szs::time_out(&name);
+            tstp.print_statistics(&statistics);
+            exit::failure()
+        }
     }
 }
