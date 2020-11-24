@@ -1,14 +1,14 @@
 use crate::index::Index;
 use crate::prelude::*;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 
 #[derive(Clone)]
 pub(crate) struct Origin {
     pub(crate) conjecture: bool,
     pub(crate) cnf: bool,
-    pub(crate) path: Arc<PathBuf>,
-    pub(crate) name: Arc<String>,
+    pub(crate) path: Arc<Path>,
+    pub(crate) name: Arc<str>,
 }
 
 pub(crate) struct ProblemClause {

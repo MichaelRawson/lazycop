@@ -21,8 +21,8 @@ impl<K, V> LUT<K, V> {
 }
 
 impl<K, V: Copy> LUT<K, V> {
-    pub(crate) fn copy_from(&mut self, other: &Self) {
-        self.block.copy_from(&other.block);
+    pub(crate) fn duplicate(&mut self, other: &Self) {
+        self.block.duplicate(&other.block);
     }
 }
 

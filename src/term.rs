@@ -47,8 +47,8 @@ impl Terms {
         self.items.truncate(self.save);
     }
 
-    pub(crate) fn extend(&mut self, other: &Self) {
-        self.items.extend(&other.items);
+    pub(crate) fn extend_from(&mut self, other: &Self) {
+        self.items.extend_from_block(&other.items);
     }
 
     pub(crate) fn add_variable(&mut self) -> Id<Term> {

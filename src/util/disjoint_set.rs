@@ -20,8 +20,8 @@ impl Disjoint {
         self.sets.clear();
     }
 
-    pub(crate) fn copy_from(&mut self, other: &Self) {
-        self.sets.copy_from(&other.sets);
+    pub(crate) fn duplicate(&mut self, other: &Self) {
+        self.sets.duplicate(&other.sets);
     }
 
     pub(crate) fn singleton(&mut self) -> Id<Set> {

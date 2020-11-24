@@ -10,7 +10,9 @@ pub(crate) struct Statistics {
     pub(crate) expanded_leaves: AtomicU32,
     #[cfg(feature = "smt")]
     pub(crate) smt_assertions: AtomicU32,
-    #[cfg(feature = "cudann")]
+    #[cfg(feature = "smt")]
+    pub(crate) smt_checks: AtomicU32,
+    #[cfg(feature = "nn")]
     pub(crate) evaluated_leaves: AtomicU32,
 }
 
@@ -56,12 +58,22 @@ impl Statistics {
         self.smt_assertions.load(Ordering::Relaxed)
     }
 
-    #[cfg(feature = "cudann")]
+    #[cfg(feature = "smt")]
+    pub(crate) fn increment_smt_checks(&self) {
+        self.smt_checks.fetch_add(1, Ordering::Relaxed);
+    }
+
+    #[cfg(feature = "smt")]
+    pub(crate) fn load_smt_checks(&self) -> u32 {
+        self.smt_checks.load(Ordering::Relaxed)
+    }
+
+    #[cfg(feature = "nn")]
     pub(crate) fn increment_evaluated_leaves(&self) {
         self.evaluated_leaves.fetch_add(1, Ordering::Relaxed);
     }
 
-    #[cfg(feature = "cudann")]
+    #[cfg(feature = "nn")]
     pub(crate) fn load_evaluated_leaves(&self) -> u32 {
         self.evaluated_leaves.load(Ordering::Relaxed)
     }

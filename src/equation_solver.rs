@@ -22,15 +22,15 @@ impl EquationSolver {
     }
 
     pub(crate) fn save(&mut self) {
-        self.save_aliases.copy_from(&self.aliases);
-        self.save_to_alias.copy_from(&self.to_alias);
-        self.save_from_alias.copy_from(&self.from_alias);
+        self.save_aliases.duplicate(&self.aliases);
+        self.save_to_alias.duplicate(&self.to_alias);
+        self.save_from_alias.duplicate(&self.from_alias);
     }
 
     pub(crate) fn restore(&mut self) {
-        self.aliases.copy_from(&self.save_aliases);
-        self.to_alias.copy_from(&self.save_to_alias);
-        self.from_alias.copy_from(&self.save_from_alias);
+        self.aliases.duplicate(&self.save_aliases);
+        self.to_alias.duplicate(&self.save_to_alias);
+        self.from_alias.duplicate(&self.save_from_alias);
     }
 
     pub(crate) fn solve<O: Occurs, I: Iterator<Item = Equation>>(

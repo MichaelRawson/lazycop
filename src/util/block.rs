@@ -54,11 +54,11 @@ impl<T> Block<T> {
 }
 
 impl<T: Copy> Block<T> {
-    pub(crate) fn extend(&mut self, other: &Self) {
+    pub(crate) fn extend_from_block(&mut self, other: &Self) {
         self.items.extend_from_slice(&other.items);
     }
 
-    pub(crate) fn copy_from(&mut self, other: &Self) {
+    pub(crate) fn duplicate(&mut self, other: &Self) {
         self.items.clear();
         self.items.extend_from_slice(&other.items);
     }

@@ -56,8 +56,8 @@ impl Clause {
         let start = literals.end();
         let offset = terms.offset();
         let clause = &problem.clauses[axiom];
-        terms.extend(&clause.terms);
-        literals.extend(&clause.literals);
+        terms.extend_from(&clause.terms);
+        literals.extend_from_block(&clause.literals);
 
         let end = literals.end();
         for id in Range::new(start, end) {
@@ -181,7 +181,6 @@ impl Clause {
         literals.push(literals[onto].subst(
             &problem.symbols,
             terms,
-            constraints,
             target,
             fresh,
         ));
@@ -283,7 +282,6 @@ impl Clause {
         literals.push(literals[self.current].subst(
             &problem.symbols,
             terms,
-            constraints,
             target,
             fresh,
         ));
@@ -325,7 +323,6 @@ impl Clause {
         literals.push(literals[self.current].subst(
             &problem.symbols,
             terms,
-            constraints,
             target,
             fresh,
         ));
@@ -357,7 +354,6 @@ impl Clause {
         literals.push(literals[self.current].subst(
             &problem.symbols,
             terms,
-            constraints,
             target,
             fresh,
         ));
@@ -392,7 +388,6 @@ impl Clause {
         literals.push(literals[extension.current].subst(
             &problem.symbols,
             terms,
-            constraints,
             target,
             fresh,
         ));
@@ -433,7 +428,6 @@ impl Clause {
         literals.push(literals[extension.current].subst(
             &problem.symbols,
             terms,
-            constraints,
             target,
             fresh,
         ));

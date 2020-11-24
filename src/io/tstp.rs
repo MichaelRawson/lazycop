@@ -209,7 +209,9 @@ impl TSTP {
         println!("% expanded leaves\t: {}", statistics.load_expanded_leaves());
         #[cfg(feature = "smt")]
         println!("% SMT assertions\t: {}", statistics.load_smt_assertions());
-        #[cfg(feature = "cudann")]
+        #[cfg(feature = "smt")]
+        println!("% SMT checks\t\t: {}", statistics.load_smt_checks());
+        #[cfg(feature = "nn")]
         println!(
             "% expanded leaves\t: {}",
             statistics.load_evaluated_leaves()

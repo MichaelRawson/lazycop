@@ -71,9 +71,6 @@ fn load(options: &Options) -> Option<Problem> {
 }
 
 fn main() {
-    #[cfg(feature = "cudann")]
-    cudann::init();
-
     let options = Options::parse();
     if let Some(problem) = load(&options) {
         let (statistics, result) = search::search(&problem, &options);

@@ -75,8 +75,8 @@ impl Tableau {
 
     pub(crate) fn save(&mut self) {
         self.save_literals = self.literals.len();
-        self.save_stack.copy_from(&self.stack);
-        self.save_valid.copy_from(&self.valid);
+        self.save_stack.duplicate(&self.stack);
+        self.save_valid.duplicate(&self.valid);
         copy_lemmata(
             self.stack.range(),
             &self.lemmata,
@@ -86,8 +86,8 @@ impl Tableau {
 
     pub(crate) fn restore(&mut self) {
         self.literals.truncate(self.save_literals);
-        self.stack.copy_from(&self.save_stack);
-        self.valid.copy_from(&self.save_valid);
+        self.stack.duplicate(&self.save_stack);
+        self.valid.duplicate(&self.save_valid);
         copy_lemmata(
             self.stack.range(),
             &self.save_lemmata,

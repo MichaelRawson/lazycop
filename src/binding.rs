@@ -12,11 +12,11 @@ impl Bindings {
     }
 
     pub(crate) fn save(&mut self) {
-        self.save.copy_from(&self.bound);
+        self.save.duplicate(&self.bound);
     }
 
     pub(crate) fn restore(&mut self) {
-        self.bound.copy_from(&self.save);
+        self.bound.duplicate(&self.save);
     }
 
     pub(crate) fn resize(&mut self, len: Length<Term>) {

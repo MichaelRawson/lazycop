@@ -1,23 +1,19 @@
 use crate::prelude::*;
 
-#[cfg(feature = "cudann")]
+#[cfg(feature = "nn")]
 const LAMBDA: f32 = 1.0;
-#[cfg(feature = "cudann")]
-const INVALID_SCORE: f32 = f32::NEG_INFINITY;
-#[cfg(not(feature = "cudann"))]
-const INVALID_SCORE: i32 = i32::MIN;
 
 pub(crate) struct Node {
     parent: Id<Node>,
     children: Range<Node>,
     rule: Rule,
-    #[cfg(not(feature = "cudann"))]
+    #[cfg(not(feature = "nn"))]
     score: i32,
-    #[cfg(feature = "cudann")]
+    #[cfg(feature = "nn")]
     score: f32,
-    #[cfg(feature = "cudann")]
+    #[cfg(feature = "nn")]
     log_prior: f32,
-    #[cfg(feature = "cudann")]
+    #[cfg(feature = "nn")]
     evaluated: bool,
 }
 
@@ -25,19 +21,19 @@ impl Node {
     fn leaf(parent: Id<Node>, rule: Rule, estimate: u32) -> Self {
         let children = Range::new(Id::default(), Id::default());
 
-        #[cfg(feature = "cudann")]
+        #[cfg(feature = "nn")]
         let score = -LAMBDA * estimate as f32;
-        #[cfg(not(feature = "cudann"))]
+        #[cfg(not(feature = "nn"))]
         let score = -(estimate as i32);
 
         Self {
             parent,
             children,
             rule,
-            #[cfg(feature = "cudann")]
+            #[cfg(feature = "nn")]
             log_prior: 0.0,
             score,
-            #[cfg(feature = "cudann")]
+            #[cfg(feature = "nn")]
             evaluated: false,
         }
     }
@@ -68,53 +64,33 @@ impl Tree {
         self.nodes[Id::default()].is_closed()
     }
 
-    pub(crate) fn select_for_expansion<E: Extend<Rule>>(
-        &mut self,
-        rules: &mut E,
-    ) -> Option<Id<Node>> {
+    pub(crate) fn select_for_expansion(
+        &self,
+        rules: &mut Vec<Rule>,
+    ) -> Id<Node> {
         debug_assert!(!self.is_closed());
         let mut current = Id::default();
         while !self.nodes[current].is_leaf() {
             current = self.choose_child(current);
-            rules.extend(std::iter::once(self.nodes[current].rule));
+            rules.push(self.nodes[current].rule);
         }
-        if self.nodes[current].score == INVALID_SCORE {
-            None
-        } else {
-            self.nodes[current].score = INVALID_SCORE;
-            self.propagate_score(self.nodes[current].parent);
-            Some(current)
-        }
+        current
     }
 
-    pub(crate) fn expand(&mut self, leaf: Id<Node>, data: &[(Rule, u32)]) {
+    pub(crate) fn expand<I: Iterator<Item = (Rule, u32)>>(
+        &mut self,
+        leaf: Id<Node>,
+        children: I,
+    ) {
         let start = self.nodes.end();
-        for (rule, estimate) in data {
-            self.nodes.push(Node::leaf(leaf, *rule, *estimate));
+        for (rule, estimate) in children {
+            self.nodes.push(Node::leaf(leaf, rule, estimate));
         }
         let end = self.nodes.end();
         self.nodes[leaf].children = Range::new(start, end);
         self.propagate_expansion(leaf);
     }
 
-    #[cfg(feature = "smt")]
-    pub(crate) fn select_for_smt<E: Extend<Rule>>(
-        &self,
-        rules: &mut E,
-        start: Id<Node>,
-    ) -> Option<Id<Node>> {
-        let node = Range::new(start, self.nodes.end())
-            .into_iter()
-            .find(|id| !self.nodes[*id].is_closed())?;
-        let mut ancestor = node;
-        while ancestor != Id::default() {
-            rules.extend(std::iter::once(self.nodes[ancestor].rule));
-            ancestor = self.nodes[ancestor].parent;
-        }
-        Some(node)
-    }
-
-    #[cfg(feature = "smt")]
     pub(crate) fn derivation(&self, mut index: Id<Node>) -> Vec<Rule> {
         let mut rules = vec![];
         while index != Id::default() {
@@ -125,7 +101,7 @@ impl Tree {
         rules
     }
 
-    #[cfg(feature = "cudann")]
+    #[cfg(feature = "nn")]
     pub(crate) fn select_for_evaluation<E: Extend<Rule>>(
         &self,
         rules: &mut E,
@@ -146,7 +122,7 @@ impl Tree {
         }
     }
 
-    #[cfg(feature = "cudann")]
+    #[cfg(feature = "nn")]
     pub(crate) fn evaluate(&mut self, node: Id<Node>, log_priors: &[f32]) {
         for (child, log_prior) in
             self.nodes[node].children.into_iter().zip(log_priors.iter())
@@ -157,7 +133,7 @@ impl Tree {
         self.propagate_evaluation(node);
     }
 
-    #[cfg(feature = "cudann")]
+    #[cfg(feature = "nn")]
     pub(crate) fn child_rules(
         &self,
         node: Id<Node>,
@@ -185,13 +161,16 @@ impl Tree {
     }
 
     fn propagate_score(&mut self, mut current: Id<Node>) {
-        while current != Id::default() {
+        loop {
             self.update_score(current);
+            if current == Id::default() {
+                break;
+            }
             current = self.nodes[current].parent;
         }
     }
 
-    #[cfg(feature = "cudann")]
+    #[cfg(feature = "nn")]
     fn propagate_evaluation(&mut self, evaluated: Id<Node>) {
         let mut current = evaluated;
         loop {
@@ -219,7 +198,7 @@ impl Tree {
             .filter(move |child| !self.nodes[*child].is_closed())
     }
 
-    #[cfg(feature = "cudann")]
+    #[cfg(feature = "nn")]
     fn update_score(&mut self, node: Id<Node>) {
         self.nodes[node].score = self
             .open_children(node)
@@ -229,7 +208,7 @@ impl Tree {
             .unwrap_or_default();
     }
 
-    #[cfg(not(feature = "cudann"))]
+    #[cfg(not(feature = "nn"))]
     fn update_score(&mut self, node: Id<Node>) {
         self.nodes[node].score = self
             .open_children(node)

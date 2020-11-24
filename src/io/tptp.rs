@@ -33,7 +33,7 @@ fn report_inappropriate<T: fmt::Display>(t: T) -> ! {
 struct TPTPFile<'a> {
     _map: Option<Mmap>,
     parser: TPTPIterator<'a, ()>,
-    path: Arc<PathBuf>,
+    path: Arc<Path>,
 }
 
 fn open_relative(old: &Path, path: &Path) -> Option<File> {
@@ -86,7 +86,7 @@ impl<'a> TPTPFile<'a> {
             &[]
         };
         let parser = TPTPIterator::new(bytes);
-        let path = Arc::new(path.into());
+        let path = path.into();
         Self { _map, parser, path }
     }
 
@@ -135,7 +135,7 @@ impl<'a> TPTPProblem<'a> {
         }
     }
 
-    fn current_path(&self) -> Arc<PathBuf> {
+    fn current_path(&self) -> Arc<Path> {
         unwrap(self.stack.last()).path.clone()
     }
 }
@@ -175,7 +175,6 @@ impl<'a> Loader<'a> {
         let path = self.problem.current_path();
         let (cnf, conjecture, name, formula) =
             self.annotated_formula(symbols, annotated);
-        let name = Arc::new(name);
         let origin = Origin {
             conjecture,
             cnf,
@@ -564,7 +563,7 @@ impl<'a> Loader<'a> {
         &mut self,
         symbols: &mut Symbols,
         formula: top::AnnotatedFormula<'a>,
-    ) -> (bool, bool, String, clausify::Formula) {
+    ) -> (bool, bool, Arc<str>, clausify::Formula) {
         let (is_cnf, name, mut role, mut formula) = match formula {
             top::AnnotatedFormula::Fof(fof) => {
                 let fof = fof.0;
@@ -586,6 +585,7 @@ impl<'a> Loader<'a> {
             role = "negated_conjecture";
         }
         let conjecture = role == "negated_conjecture";
+        let name = name.into();
         (is_cnf, conjecture, name, formula)
     }
 }
