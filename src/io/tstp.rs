@@ -228,53 +228,36 @@ pub(crate) fn output(
     let name = options.problem_name();
     let mut tstp = TSTP::default();
     let info = &problem.info;
-
-    let success_prologue = || {
-        if !info.is_cnf && info.has_conjecture {
-            szs::theorem(&name);
-        } else {
-            szs::unsatisfiable(&name);
-        }
-        szs::begin_proof(&name);
-    };
-    let print_unsat_clauses = |tstp: &mut TSTP, rules| {
-        let mut axioms = vec![];
-        let mut goal = Goal::new(&problem);
-        for rule in rules {
-            axioms.extend(goal.apply_rule(rule));
-        }
-        let ok = goal.solve_constraints();
-        debug_assert!(ok);
-
-        for axiom in axioms {
-            tstp.print_proof_clause(
-                problem,
-                &goal.terms,
-                &goal.tableau.literals,
-                &goal.bindings,
-                axiom,
-            );
-        }
-    };
-    let success_epilogue = |tstp: &mut TSTP| {
-        szs::end_proof(&name);
-        tstp.print_statistics(&statistics);
-        exit::success()
-    };
-
     match result {
-        SearchResult::Proof(proof) => {
-            success_prologue();
-            print_unsat_clauses(&mut tstp, proof);
-            success_epilogue(&mut tstp)
-        }
-        #[cfg(feature = "smt")]
         SearchResult::Unsat(core) => {
-            success_prologue();
-            for rules in core {
-                print_unsat_clauses(&mut tstp, rules);
+            if !info.is_cnf && info.has_conjecture {
+                szs::theorem(&name);
+            } else {
+                szs::unsatisfiable(&name);
             }
-            success_epilogue(&mut tstp)
+            szs::begin_proof(&name);
+            for rules in core {
+                let mut axioms = vec![];
+                let mut goal = Goal::new(&problem);
+                for rule in rules {
+                    axioms.extend(goal.apply_rule(rule));
+                }
+                let ok = goal.solve_constraints();
+                debug_assert!(ok);
+
+                for axiom in axioms {
+                    tstp.print_proof_clause(
+                        problem,
+                        &goal.terms,
+                        &goal.tableau.literals,
+                        &goal.bindings,
+                        axiom,
+                    );
+                }
+            }
+            szs::end_proof(&name);
+            tstp.print_statistics(&statistics);
+            exit::success()
         }
         SearchResult::Exhausted => {
             match (info.is_cnf, info.has_axioms, info.has_conjecture) {

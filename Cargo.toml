@@ -14,8 +14,10 @@ smt = ["z3-sys"]
 nn = ["cudann"]
 
 [dependencies]
+crossbeam-utils = "0.8"
 fnv = "1.0"
 memmap = "0.7"
+spin = "0.7"
 structopt = "0.3"
 tptp = "0.28"
 

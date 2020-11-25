@@ -23,7 +23,7 @@ pub(crate) fn unsatisfiable(name: &str) {
 }
 
 pub(crate) fn gave_up(name: &str) {
-    println!("% SZS status Unknown for {}", name);
+    println!("% SZS status GaveUp for {}", name);
     println!("% help: conjecture did not follow from axioms");
     println!("% help: axioms could still be contradictory");
 }

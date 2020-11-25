@@ -16,12 +16,12 @@ fn array<T: std::fmt::Display>(data: &[T]) {
     print!("]");
 }
 
-pub(crate) fn dump(options: &Options, problem: &Problem, proof: Vec<Rule>) {
+pub(crate) fn dump(options: &Options, problem: &Problem, route: Vec<Rule>) {
     let mut goal = Goal::new(problem);
     let mut graph = Graph::new(problem);
     let mut possible = vec![];
 
-    for step in proof {
+    for step in route {
         goal.save();
         goal.possible_rules(&mut possible);
         possible.retain(|possible| {
@@ -64,8 +64,10 @@ pub(crate) fn output(
     problem: &Problem,
     result: SearchResult,
 ) -> ! {
-    if let SearchResult::Proof(proof) = result {
-        dump(options, problem, proof);
+    if let SearchResult::Unsat(core) = result {
+        for route in core {
+            dump(options, problem, route);
+        }
         exit::success()
     } else {
         exit::failure()

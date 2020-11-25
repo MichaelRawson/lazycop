@@ -37,6 +37,7 @@ use crate::io::tstp::TSTP;
 use crate::options::{Dump, Options};
 use crate::problem::Problem;
 use crate::problem_builder::ProblemBuilder;
+use crate::search::Search;
 use crate::symbol::Symbols;
 
 fn load(options: &Options) -> Option<Problem> {
@@ -73,7 +74,7 @@ fn load(options: &Options) -> Option<Problem> {
 fn main() {
     let options = Options::parse();
     if let Some(problem) = load(&options) {
-        let (statistics, result) = search::search(&problem, &options);
+        let (result, statistics) = Search::new(&problem, &options).go();
         options
             .output
             .result(&options, &problem, result, &statistics)

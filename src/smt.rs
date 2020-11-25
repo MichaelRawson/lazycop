@@ -27,6 +27,7 @@ impl Context {
 
 pub(crate) struct Grounder {
     context: Z3_context,
+    //cache: LUT<Term, Z3_ast>
     var: Z3_ast,
     signature: Block<Z3_func_decl>,
     scratch: Vec<Z3_ast>,
