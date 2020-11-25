@@ -54,7 +54,9 @@ impl<'a> Search<'a> {
         let (sender, receiver) = channel();
 
         thread::scope(|scope| {
-            scope.spawn(|_| self.sleep_task());
+            if self.options.time.is_some() {
+                scope.spawn(|_| self.sleep_task());
+            }
             #[cfg(feature = "smt")]
             scope.spawn(|_| self.smt_task(receiver));
             self.search_task(
@@ -75,9 +77,6 @@ impl<'a> Search<'a> {
     }
 
     fn sleep_task(&self) {
-        if self.options.time.is_none() {
-            return;
-        }
         while !self.should_stop() {
             if self.options.within_time_limit() {
                 std::thread::sleep(Duration::from_millis(10));

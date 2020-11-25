@@ -30,6 +30,8 @@ mod tableau;
 mod term;
 mod tree;
 mod util;
+#[cfg(feature = "smt")]
+mod z3;
 
 use crate::clausify::Clausifier;
 use crate::io::tptp;

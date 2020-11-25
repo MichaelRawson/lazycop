@@ -1,6 +1,6 @@
 use crate::prelude::*;
+use crate::z3::*;
 use std::ffi::CStr;
-use z3_sys::*;
 
 pub(crate) struct Assertion(Z3_ast);
 unsafe impl Send for Assertion {}
