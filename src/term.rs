@@ -209,14 +209,12 @@ impl Terms {
             return node;
         }
         let node = match self.view(symbols, term) {
-            TermView::Variable(x) => {
+            TermView::Variable(_) => {
                 let variable = graph.variable();
-                if let Some(bound) = bindings.get(x) {
-                    if x.transmute() != bound {
-                        let bound =
-                            self.graph(graph, symbols, bindings, bound);
-                        graph.connect(variable, bound);
-                    }
+                let resolved = bindings.resolve(term);
+                if term != resolved {
+                    let bound = self.graph(graph, symbols, bindings, resolved);
+                    graph.connect(variable, bound);
                 }
                 variable
             }

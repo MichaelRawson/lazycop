@@ -27,10 +27,6 @@ impl Bindings {
         self.bound[x] = Some(term);
     }
 
-    pub(crate) fn get(&self, x: Id<Variable>) -> Option<Id<Term>> {
-        self.bound[x]
-    }
-
     pub(crate) fn is_bound(&self, x: Id<Variable>) -> bool {
         self.bound[x].is_some()
     }
