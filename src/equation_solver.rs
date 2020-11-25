@@ -17,8 +17,8 @@ pub(crate) struct EquationSolver {
 impl EquationSolver {
     pub(crate) fn clear(&mut self) {
         self.aliases.clear();
-        self.to_alias.resize(Length::default());
-        self.from_alias.resize(Length::default());
+        self.to_alias.clear();
+        self.from_alias.clear();
     }
 
     pub(crate) fn save(&mut self) {

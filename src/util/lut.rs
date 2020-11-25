@@ -18,6 +18,10 @@ impl<K, V> LUT<K, V> {
     pub(crate) fn range(&self) -> Range<K> {
         self.block.range().transmute()
     }
+
+    pub(crate) fn clear(&mut self) {
+        self.block.clear();
+    }
 }
 
 impl<K, V: Copy> LUT<K, V> {

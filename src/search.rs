@@ -174,7 +174,7 @@ impl<'a> Search<'a> {
         &self,
         receiver: Receiver<(Id<smt::Assertion>, smt::Assertion)>,
     ) {
-        let mut context = smt::Context::default();
+        let context = smt::Context::default();
         let mut solver = smt::Solver::new(&context);
         loop {
             for (id, assertion) in receiver.try_iter() {
@@ -182,7 +182,7 @@ impl<'a> Search<'a> {
                     return;
                 }
                 let assertion =
-                    context.translate(&self.grounding_context, assertion);
+                    solver.translate(&self.grounding_context, assertion);
                 self.statistics.increment_smt_assertions();
                 solver.assert(id, assertion);
             }

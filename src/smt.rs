@@ -6,31 +6,12 @@ pub(crate) struct Assertion(Z3_ast);
 unsafe impl Send for Assertion {}
 
 pub(crate) struct Context(Z3_context);
-unsafe impl Send for Context {}
 unsafe impl Sync for Context {}
 
 impl Default for Context {
     fn default() -> Self {
         Self(unsafe { Z3_mk_context(Z3_mk_config()) })
     }
-}
-
-impl Context {
-    pub(crate) fn translate(
-        &mut self,
-        other: &Self,
-        assertion: Assertion,
-    ) -> Assertion {
-        Assertion(unsafe { Z3_translate(other.0, assertion.0, self.0) })
-    }
-}
-
-pub(crate) struct Grounder {
-    context: Z3_context,
-    //cache: LUT<Term, Z3_ast>
-    var: Z3_ast,
-    signature: Block<Z3_func_decl>,
-    scratch: Vec<Z3_ast>,
 }
 
 pub(crate) struct Solver {
@@ -78,6 +59,14 @@ impl Solver {
         }
     }
 
+    pub(crate) fn translate(
+        &mut self,
+        other: &Context,
+        assertion: Assertion,
+    ) -> Assertion {
+        Assertion(unsafe { Z3_translate(other.0, assertion.0, self.context) })
+    }
+
     pub(crate) fn assert(&mut self, id: Id<Assertion>, assertion: Assertion) {
         unsafe {
             let symbol = Z3_mk_int_symbol(self.context, id.index() as i32);
@@ -113,6 +102,13 @@ impl Solver {
         }
         indices
     }
+}
+
+pub(crate) struct Grounder {
+    context: Z3_context,
+    var: Z3_ast,
+    signature: Block<Z3_func_decl>,
+    scratch: Vec<Z3_ast>,
 }
 
 impl Grounder {

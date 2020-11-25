@@ -70,7 +70,7 @@ impl Tableau {
     pub(crate) fn clear(&mut self) {
         self.literals.clear();
         self.stack.clear();
-        self.valid.resize(Length::default());
+        self.valid.clear();
     }
 
     pub(crate) fn save(&mut self) {

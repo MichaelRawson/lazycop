@@ -67,8 +67,8 @@ impl Graph {
         self.sources.clear();
         self.targets.clear();
         self.rules.clear();
-        self.terms.resize(Length::default());
-        self.literals.resize(Length::default());
+        self.terms.clear();
+        self.literals.clear();
     }
 
     pub(crate) fn resize_for(&mut self, terms: &Terms, literals: &Literals) {

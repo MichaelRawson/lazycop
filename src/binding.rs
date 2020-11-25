@@ -8,7 +8,7 @@ pub(crate) struct Bindings {
 
 impl Bindings {
     pub(crate) fn clear(&mut self) {
-        self.bound.resize(Length::default());
+        self.bound.clear();
     }
 
     pub(crate) fn save(&mut self) {
